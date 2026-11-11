@@ -1,0 +1,23 @@
+name: Price backfill
+
+# Run once by hand (Actions -> Price backfill -> Run workflow) to load price history.
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "First day to load (YYYY-MM-DD)"
+        default: "2024-11-01"
+        required: true
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --locked --no-dev
+      - run: uv run python -m offpeak.jobs.backfill_prices "$START"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          START: ${{ inputs.start }}

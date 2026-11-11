@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from offpeak import db
 from offpeak.markets import energy_charts
 from offpeak.weather import open_meteo
 
@@ -13,7 +14,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
-    """The pages normally call the APIs; in tests they get the saved responses instead."""
+    """The pages normally call the APIs; in tests they get the saved responses instead,
+    and never touch a database, even if a .env with DATABASE_URL exists."""
+    monkeypatch.setattr(db, "database_url", lambda: None)
     prices = energy_charts.parse_prices(json.loads((FIXTURES / "prices_sample.json").read_text()))
     weather = open_meteo.parse_weather(json.loads((FIXTURES / "weather_sample.json").read_text()))
     monkeypatch.setattr(energy_charts, "fetch_day_ahead", lambda zone, start, end: prices)

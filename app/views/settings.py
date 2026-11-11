@@ -1,5 +1,7 @@
 """Settings: the demo site and where our data comes from. Editing comes in a later step."""
 
+import data
+import pandas as pd
 import streamlit as st
 from ui.components import card_title, header
 
@@ -34,3 +36,25 @@ with right, st.container(border=True, key="card_attrib"):
         f'<div class="op-row"><div><div class="name">Open-Meteo</div><div class="meta">'
         f"{OPEN_METEO_ATTRIBUTION} · model {OPEN_METEO_MODEL}</div></div></div>"
     )
+
+st.write("")
+with st.container(border=True, key="card_jobs"):
+    card_title("Scheduled jobs", "Last runs of the jobs that fill the database (German time)")
+    runs = data.job_runs()
+    if runs is None:
+        st.caption("No database connected yet. Add DATABASE_URL to .env or the Streamlit secrets.")
+    elif runs.empty:
+        st.caption("Connected. No job has run yet.")
+    else:
+        table = pd.DataFrame(
+            {
+                "Job": runs["job"],
+                "Started": runs["started_at"]
+                .dt.tz_convert("Europe/Berlin")
+                .dt.strftime("%a %d %b, %H:%M"),
+                "Status": runs["status"],
+                "Rows": runs["rows_written"],
+                "Note": runs["message"].fillna(""),
+            }
+        )
+        st.dataframe(table, hide_index=True, width="stretch")

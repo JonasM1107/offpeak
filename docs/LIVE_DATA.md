@@ -1,6 +1,6 @@
 # Live data: weather and day-ahead prices
 
-This is the code version of the *offpeak — Live Data Tech Setup* doc (11 Nov 2026), adjusted to the decisions in `PLAN.md`. Steps 1–4, 6 and 8 of that doc's build list are done. The database, scheduled jobs and logging (steps 5, 7 and 9) come next.
+This is the code version of the *offpeak — Live Data Tech Setup* doc (11 Nov 2026), adjusted to the decisions in `PLAN.md`. All build steps from that doc are done except the dashboard reading via Realtime, which Streamlit does not need.
 
 ## What is built
 
@@ -62,15 +62,45 @@ Two smaller points:
 - **Hourly prices** from before October 2025 keep `resolution_min = 60`; they are not split into four. The price model works on hourly values anyway.
 - **The forecast loses its last slot** (23:45 on the final day). After the shift, that slot would need the value stamped 00:00 the next day, which the API does not send.
 
-## Next steps
+## Database and scheduled jobs
 
-1. **Database.** Owner C, migration 001. Create `prices_da` with primary key `(ts, zone)`, `weather_fc` and `job_runs`. Every write is an upsert, so a rerun never duplicates rows.
-2. **Jobs.** Write `offpeak/jobs/ingest_prices.py` (skip if tomorrow already has at least 92 rows, else fetch and upsert) and `offpeak/jobs/ingest_weather.py` (every site, every 3 hours). Each job writes one `job_runs` row.
-3. **Workflows.**
-   - `.github/workflows/prices.yml`: cron `*/15 11-13 * * *` plus `0 14 * * *`, and a manual run button.
-   - `.github/workflows/daily.yml`: weather on `15 */3 * * *`.
-   - The database URL goes in Actions secrets only.
-4. **Price backfill.** Run `fetch_history("DE-LU", date(2024, 11, 1), today)` once. That is about 25 calls, with 5-second pauses between them.
+The data flows like this:
+
+```
+Energy-Charts ──▶ ingest_prices  (GitHub Actions, every 15 min, 11:45-14:00 UTC) ──▶ prices_da  ──┐
+Open-Meteo   ──▶ ingest_weather (GitHub Actions, every 3 hours)                 ──▶ weather_fc ──┼──▶ dashboard
+every job    ──────────────────────────────────────────────────────────────────▶ job_runs   ──┘
+```
+
+| File | What it does |
+|---|---|
+| `db/migrations/001_live_data.sql` | Creates `prices_da`, `weather_fc` and `job_runs`. Paste it into Supabase's SQL Editor once |
+| `offpeak/db.py` | The only module that talks to the database: upserts, reads, job log |
+| `offpeak/jobs/` | `ingest_prices`, `ingest_weather`, `backfill_prices`, and `runner.py`, which times and logs every run |
+| `.github/workflows/prices.yml`, `weather.yml` | The schedules. Both also have a "Run workflow" button |
+| `.github/workflows/backfill.yml` | Run by hand once to load price history |
+| `app/data.py` | The dashboard reads from the database. If something is missing there, it fetches it from the API itself and stores it |
+
+Behaviour worth knowing:
+
+- **Prices:** the job skips (logged as `skipped`) once all of tomorrow's slots are stored. Before publication it stores today and logs `skipped: tomorrow not published yet`; that is normal, not an error.
+- **Weather:** every run is stored with its `run_at`, so later we can check old forecasts against what happened. The dashboard uses the newest run, and fetches a fresh one itself if the newest stored run is older than 6 hours.
+- **No database, no problem:** without `DATABASE_URL` the jobs print a note and exit, and the dashboard calls the APIs directly.
+- **Schedules only run from `main`.** GitHub starts scheduled workflows only on the default branch.
+
+### Where DATABASE_URL goes
+
+Use Supabase's **Session pooler** address (Connect button, then "Session pooler"). The direct address does not work from GitHub Actions.
+
+| Where | How |
+|---|---|
+| Your laptop | `.env` file in the repo folder: `DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres` |
+| GitHub Actions | Repo, then Settings, then Secrets and variables, then Actions, then New repository secret, named `DATABASE_URL` |
+| Streamlit Cloud | App, then Settings, then Secrets: `DATABASE_URL = "postgresql://..."` |
+
+### Tests
+
+`uv run pytest` runs the database tests only if `TEST_DATABASE_URL` points to an empty Postgres; otherwise they are skipped. CI starts a throwaway Postgres for them. Never point `TEST_DATABASE_URL` at Supabase: the tests drop and recreate the tables.
 
 ## Attribution (must be shown in the app)
 

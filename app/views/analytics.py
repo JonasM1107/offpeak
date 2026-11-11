@@ -15,7 +15,7 @@ from offpeak.timeutils import market_today
 DAYS = 30
 end = market_today()
 try:
-    prices, _ = data.prices(end - timedelta(days=DAYS - 1), end)
+    prices, _, _ = data.prices(end - timedelta(days=DAYS - 1), end)
 except PriceSourceError:
     prices = None
 

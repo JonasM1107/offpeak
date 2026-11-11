@@ -29,11 +29,11 @@ from offpeak.weather.codes import weather_label
 
 now = data.now_utc()
 try:
-    today, tomorrow, prices_fetched = data.today_and_tomorrow()
+    today, tomorrow, prices_fetched, price_source = data.today_and_tomorrow()
     price_error = None
 except PriceSourceError as err:  # the page still renders, with a clear message
     today = tomorrow = pd.DataFrame(columns=["ts", "eur_mwh", "resolution_min"])
-    prices_fetched, price_error = None, str(err)
+    prices_fetched, price_error, price_source = None, str(err), "API"
 
 published = not tomorrow.empty
 tomorrow_date = market_today() + timedelta(days=1)
@@ -113,7 +113,7 @@ with left, st.container(border=True, key="card_prices"):
         card_title(f"Day-ahead price, {view.lower()}", f"15-minute slots, ct/kWh, {DEMO_SITE.zone}")
 
     if view == "7 days":
-        week, _ = data.prices(tomorrow_date - timedelta(days=6), tomorrow_date)
+        week, _, _ = data.prices(tomorrow_date - timedelta(days=6), tomorrow_date)
         st.plotly_chart(charts.price_line(week), config=charts.CONFIG)
         st.caption(
             "Seven market days up to tomorrow. Tomorrow appears once published (around 13:00 CET)."
@@ -167,7 +167,7 @@ with right, st.container(border=True, key="card_windows"):
 st.write("")
 
 # ── Weather and data sources ─────────────────────────────────────────────────
-weather, weather_fetched, weather_error = data.weather()
+weather, weather_fetched, weather_error, weather_source = data.weather()
 left, right = st.columns([2.1, 1], gap="medium")
 with left, st.container(border=True, key="card_weather"):
     card_title("Weather, next 24 hours", f"{DEMO_CITY} · DWD ICON via Open-Meteo")
@@ -199,8 +199,11 @@ with left, st.container(border=True, key="card_weather"):
 
 with right, st.container(border=True, key="card_sources"):
     card_title("Data sources")
-    price_note = f"checked {hhmm(prices_fetched)}" if prices_fetched else "unavailable"
-    weather_note = "unavailable" if weather is None else f"updated {hhmm(weather_fetched)}"
+    price_note = f"{hhmm(prices_fetched)} via {price_source}" if prices_fetched else "unavailable"
+    weather_note = (
+        "unavailable" if weather is None else f"{hhmm(weather_fetched)} via {weather_source}"
+    )
+    database = "connected" if data.engine() is not None else "not set up"
     st.html(
         f'<div class="op-row"><div><div class="name">Energy-Charts</div>'
         f'<div class="meta">Day-ahead prices {DEMO_SITE.zone}</div></div>'
@@ -208,5 +211,8 @@ with right, st.container(border=True, key="card_sources"):
         f'<div class="op-row"><div><div class="name">Open-Meteo</div>'
         f'<div class="meta">Weather and irradiance</div></div>'
         f'<span class="meta">{status_dot(weather is not None)}{weather_note}</span></div>'
+        f'<div class="op-row"><div><div class="name">Database</div>'
+        f'<div class="meta">Supabase, filled by scheduled jobs</div></div>'
+        f'<span class="meta">{status_dot(database == "connected")}{database}</span></div>'
         f'<div class="op-foot">{OPEN_METEO_ATTRIBUTION} · {ENERGY_CHARTS_ATTRIBUTION}</div>'
     )
