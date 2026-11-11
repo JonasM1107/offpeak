@@ -106,10 +106,10 @@ body.op-dark { """
       padding: 0 !important; margin: 6px auto !important; border-radius: 50% !important; overflow: visible; }
   [data-testid="stSidebarNavLink"] > span[label] { position: absolute; left: 62px; top: 50%;
       transform: translateY(-50%); background: var(--op-rail); color: #F1F2F3; padding: 6px 12px;
-      border-radius: 999px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s;
+      border-radius: 999px; white-space: nowrap; opacity: 0; pointer-events: none;
       z-index: 1000; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
   [data-testid="stSidebarNavLink"] > span[label] p { color: #F1F2F3 !important; font-size: .82rem; margin: 0; }
-  [data-testid="stSidebarNavLink"]:hover > span[label] { opacity: 1; }
+  [data-testid="stSidebarNavLink"]:hover > span[label] { opacity: 1; transition: opacity .15s; }
   [data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"] { color: var(--op-rail-ink) !important; font-size: 22px; }
   [data-testid="stSidebarNavLink"]:hover { background: rgba(255,255,255,.07) !important; }
   [data-testid="stSidebarNavLink"][aria-current="page"] { background: var(--op-accent) !important;

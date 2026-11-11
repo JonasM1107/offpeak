@@ -162,7 +162,7 @@ def weekday_heatmap(table: pd.DataFrame) -> go.Figure:
             z=table.values,
             x=[f"{h:02d}" for h in table.columns],
             y=WEEKDAYS,
-            colorscale=[[0, "#FBFAF8"], [0.45, ORANGE_SOFT_STRONG], [1, ORANGE]],
+            colorscale=[[0, "rgba(138, 144, 152, 0.14)"], [0.45, ORANGE_SOFT_STRONG], [1, ORANGE]],
             xgap=2,
             ygap=2,
             colorbar=dict(title=dict(text="ct", side="top"), thickness=10, len=0.9, outlinewidth=0),
