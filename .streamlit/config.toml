@@ -1,13 +1,44 @@
+# Two themes: light, and night mode in Storm Grey (60 %), Matte Black (30 %) and
+# Safety Orange #FF5F00 (10 %). The viewer picks one in the app menu (Settings → theme);
+# app/ui/theme.py reads which one is active and styles our cards and charts to match.
 [theme]
-base = "light"
-primaryColor = "#E8590C"
-backgroundColor = "#F6F5F2"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#1C1B19"
-font = "sans-serif"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+baseRadius = "12px"
+buttonRadius = "full"
+showWidgetBorder = true
+
+[theme.light]
+primaryColor = "#FF5F00"
+backgroundColor = "#E9EBEE"
+secondaryBackgroundColor = "#F2F3F5"
+textColor = "#16171A"
+borderColor = "#E1E4E8"
+linkColor = "#C24700"
+
+[theme.light.sidebar]
+backgroundColor = "#151618"
+secondaryBackgroundColor = "#232528"
+textColor = "#C9CDD2"
+borderColor = "#232528"
+primaryColor = "#FF5F00"
+
+[theme.dark]
+primaryColor = "#FF5F00"
+backgroundColor = "#0E0F10"
+secondaryBackgroundColor = "#26292D"
+textColor = "#F1F2F3"
+borderColor = "#2F3337"
+linkColor = "#FF8A4C"
+
+[theme.dark.sidebar]
+backgroundColor = "#08090A"
+secondaryBackgroundColor = "#1C1E21"
+textColor = "#C9CDD2"
+borderColor = "#1C1E21"
+primaryColor = "#FF5F00"
 
 [client]
-toolbarMode = "minimal"
+toolbarMode = "viewer"
 
 [server]
 headless = true
