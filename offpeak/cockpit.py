@@ -121,6 +121,96 @@ def plan(machines: list[Machine], day_start: int, buy, sell, surplus) -> list[di
     return out
 
 
+def site_machines(components) -> list[dict]:
+    """The flexible components of a site (offpeak.components) as cockpit machines. An EV
+    charger counts once per charge point."""
+    return [
+        {
+            "name": c.name,
+            "kw": c.p("kw") * (c.p("count") if c.kind == "ev_charger" else 1),
+            "hours": int(c.p("hours")),
+            "earliest": int(c.p("earliest")),
+            "latest_end": int(c.p("latest_end")),
+            "usual_start": int(c.p("usual_start")),
+        }
+        for c in components
+        if c.spec.role == "flexible"
+    ]
+
+
+def week_plan(hours: dict, machines: list[Machine], now_index: int) -> list[dict]:
+    """Every machine at its cheapest start in the coming days, as the cockpit's "best day
+    this week" (app/ui/web/cockpit.html, planAll): largest first, each using up the own
+    surplus it takes, never starting before the current hour. Compared with the next run
+    at its usual time. `hours` comes from horizon(); results are in the order of `machines`:
+    name, start and end (hour index or None), cost, usual_cost, saving (euros), forecast
+    (True if any hour of the run has a forecast price, not a published one)."""
+    buy, sell, n = hours["buy"], hours["sell"], len(hours["buy"])
+    left = list(hours["surplus"])
+    day_starts = [d["start"] for d in hours["days"]]
+    out: dict[int, dict] = {}
+    for i in sorted(range(len(machines)), key=lambda i: -machines[i].kw):
+        m = machines[i]
+        options = [
+            (job_cost(s, m, buy, sell, left), s)
+            for d in day_starts
+            for s in starts(d, m, n, not_before=now_index)
+        ]
+        if not options:
+            out[i] = {"name": m.name, "start": None}
+            continue
+        cost, start = min(options)
+        usual = next(
+            (
+                d + m.usual_start
+                for d in day_starts
+                if d + m.usual_start >= now_index and d + m.usual_start + m.hours <= n
+            ),
+            None,
+        )
+        usual_cost = None if usual is None else job_cost(usual, m, buy, sell, left)
+        for h in range(start, start + m.hours):
+            left[h] = max(0.0, left[h] - m.kw)
+        out[i] = {
+            "name": m.name,
+            "start": start,
+            "end": start + m.hours,
+            "cost": cost,
+            "usual_start": usual,
+            "usual_cost": usual_cost,
+            "saving": None if usual_cost is None else usual_cost - cost,
+            "forecast": any(k == "forecast" for k in hours["kind"][start : start + m.hours]),
+        }
+    return [out[i] for i in range(len(machines))]
+
+
+def when(hours: dict, start: int, length: int) -> str:
+    """A run as people read it: "Fri 13 Nov · 10:00–18:00" (local time)."""
+    day = [d for d in hours["days"] if d["start"] <= start][-1]
+    end = (hours["hour"][start + length - 1] + 1) % 24
+    return f"{day['name']} · {hours['hour'][start]:02d}:00–{end:02d}:00"
+
+
+def describe_plan(hours: dict, plan: list[dict], machines: list[Machine]) -> dict:
+    """The week plan for the dashboard: one row per machine (name, when, usual, saving,
+    forecast, cost) and the total saving of the machines that have a usual run to compare."""
+    rows = []
+    for p, m in zip(plan, machines, strict=True):
+        row = {"name": p["name"], "when": None, "usual": None, "saving": None}
+        if p["start"] is not None:
+            row |= {
+                "when": when(hours, p["start"], m.hours),
+                "cost": p["cost"],
+                "saving": p["saving"],
+                "forecast": p["forecast"],
+            }
+            if p["usual_start"] is not None:
+                row["usual"] = when(hours, p["usual_start"], m.hours)
+        rows.append(row)
+    savings = [r["saving"] for r in rows if r["saving"] is not None]
+    return {"rows": rows, "total": sum(max(0.0, x) for x in savings), "compared": len(savings)}
+
+
 # ── The hours ahead, for the cockpit view ───────────────────────────────────
 
 

@@ -21,6 +21,7 @@ from ui.components import (
 )
 
 from offpeak.analysis import best_window, ct_kwh, current_price, window_mask
+from offpeak.cockpit import Machine, describe_plan, week_plan
 from offpeak.config import ENERGY_CHARTS_ATTRIBUTION, OPEN_METEO_ATTRIBUTION
 from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY, DEMO_SITE
@@ -96,6 +97,15 @@ with c4:
 
 st.write("")
 
+# ── The plan for the coming days (filled in at the end: the forecast behind it takes about
+# half a minute once a day, and the rest of the page should not wait for it) ───────────────
+plan_box = st.empty()
+with plan_box.container(border=True, key="card_plan_wait"):
+    card_title("Your plan for the coming days", "When each machine should run")
+    st.caption("Working out the plan…")
+
+st.write("")
+
 # ── Price chart and best windows ─────────────────────────────────────────────
 left, right = st.columns([2.1, 1], gap="medium")
 with left, st.container(border=True, key="card_prices"):
@@ -162,7 +172,7 @@ with right, st.container(border=True, key="card_windows"):
                 "</div>"
             )
         st.html("".join(rows))
-        st.caption("Per-load schedules and savings in euros come with the optimiser.")
+        st.caption("Your machines' plan for the whole week is at the top of this page.")
 
 st.write("")
 
@@ -216,3 +226,61 @@ with right, st.container(border=True, key="card_sources"):
         f'<span class="meta">{status_dot(database == "connected")}{database}</span></div>'
         f'<div class="op-foot">{OPEN_METEO_ATTRIBUTION} · {ENERGY_CHARTS_ATTRIBUTION}</div>'
     )
+
+
+# ── Fill in the plan ─────────────────────────────────────────────────────────
+
+
+def eur(x: float) -> str:
+    return f"€{x:,.2f}"
+
+
+ahead = data.hours_ahead()
+machines, _, _ = data.machines_to_plan()
+with plan_box.container(border=True, key="card_plan"):
+    if ahead is None:
+        card_title("Your plan for the coming days", "When each machine should run")
+        st.caption("Prices or the weather forecast could not be loaded right now.")
+    elif not machines:
+        card_title("Your plan for the coming days", "When each machine should run")
+        st.caption("No machines set up yet. Add them in the Simulation cockpit.")
+    else:
+        hours, now_index = ahead
+        fleet = [Machine(**m) for m in machines]
+        plan = describe_plan(hours, week_plan(hours, fleet, now_index), fleet)
+        head, link = st.columns([3, 1], vertical_alignment="center")
+        with head:
+            card_title(
+                f"This week: run your machines at these times and save about {eur(plan['total'])}",
+                f"Compared with their usual start times · {plan['compared']} of {len(fleet)} "
+                "machines have one · later days use the price forecast",
+            )
+        with link:
+            st.page_link("views/cockpit.py", label="Adjust in the cockpit", icon=":material/tune:")
+        rows = []
+        for r in plan["rows"]:
+            if r["when"] is None:
+                rows.append(
+                    f'<div class="op-row"><div><div class="name">{escape(r["name"])}</div>'
+                    '<div class="meta">Does not fit its allowed hours in the coming days</div>'
+                    '</div><span class="op-chip grey">–</span></div>'
+                )
+                continue
+            meta = f"{eur(r['cost'])} per run"
+            if r["usual"]:
+                meta += f" · usually {r['usual']}"
+            if r["forecast"]:
+                meta += " · forecast price"
+            chip = (
+                f'<span class="op-chip">saves {eur(r["saving"])}</span>'
+                if r["saving"] is not None and r["saving"] > 0.005
+                else '<span class="op-chip grey">usual time is best</span>'
+                if r["saving"] is not None
+                else '<span class="op-chip grey">no usual time</span>'
+            )
+            rows.append(
+                f'<div class="op-row"><div><div class="name">{escape(r["name"])} · '
+                f"{r['when']}</div>"
+                f'<div class="meta">{meta}</div></div>{chip}</div>'
+            )
+        st.html("".join(rows))

@@ -37,6 +37,15 @@
   .legend-inline i.line { height: 2px; width: 14px; vertical-align: 3px; }
   .legend-inline i.dash { height: 0; width: 14px; border-top: 2px dashed var(--accent); vertical-align: 3px; border-radius: 0; }
   .note { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 12px 0 0; }
+  .learned { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .imp { display: grid; grid-template-columns: 150px minmax(0, 1fr) 64px; gap: 10px 12px; align-items: center; font-size: 13px; }
+  .imp .bar { height: 10px; border-radius: 10px; background: var(--card2); overflow: hidden; }
+  .imp .bar i { display: block; height: 100%; border-radius: 10px; background: var(--grey); transition: width .6s ease; }
+  .imp .bar i.top { background: var(--accent); }
+  .imp .v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .imp .lab.top { font-weight: 650; }
+  .learned .big { font-size: 15px; line-height: 1.5; margin: 0 0 10px; }
+  @media (max-width: 1000px) { .learned { grid-template-columns: 1fr; } }
   .note code { font-size: 11.5px; background: var(--card2); padding: 1px 6px; border-radius: 6px; }
   @media (max-width: 1000px) { .days { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 </style>
@@ -67,6 +76,14 @@
     <div class="card">
       <div class="head"><div><h3>Error by days ahead</h3><div class="sub">Average miss in ct/kWh: the further ahead, the harder</div></div></div>
       <div id="leads" class="chart"></div>
+    </div>
+  </div>
+  <div class="card reveal" id="learned-card" hidden>
+    <div class="head"><div><h3>What the model learned</h3><div class="sub" id="learned-sub"></div></div></div>
+    <div class="learned">
+      <div class="imp" id="imp"></div>
+      <div><p class="big" id="learned-text"></p>
+        <p class="note">How this is measured: the model is trained without the last weeks, then forecasts them twice, once as usual and once with one kind of information shuffled between the hours, so it no longer fits. The bar is how much worse the forecast gets. Wind, sun and temperature are forecasts as they were known at the time (<code>offpeak/forecast/insight.py</code>).</p></div>
     </div>
   </div>
   <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
@@ -173,6 +190,15 @@ const maxMae = Math.max(...MODELS.map(m => m.mae));
 document.getElementById('models-sub').textContent = `Backtest over the last ${D.backtest_days} days: every day pretends to be today and forecasts the days after the published ones.`;
 document.getElementById('models').innerHTML = `<thead><tr><th>Forecast</th><th class="n">Average miss</th><th class="n">Cheapest hours found</th><th>Used for</th></tr></thead><tbody>
   ${MODELS.map(m => `<tr class="${m.used_for.length ? 'best' : ''}"><td><b>${m.label}</b></td><td class="n">${nf(m.mae)} ct<span class="bar-mini"><i style="width:${(m.mae / maxMae * 100).toFixed(0)}%"></i></span></td><td class="n">${m.decision} %</td><td>${m.used_for.length ? m.used_for.map(l => `D+${l}`).join(', ') : '–'}</td></tr>`).join('')}</tbody>`;
+// ── What the model learned ─────────────────────────────────────────────────
+if (D.insight) {
+  const I = D.insight, G = I.groups, maxCt = Math.max(...G.map(g => g.ct), 0.01);
+  document.getElementById('learned-card').hidden = false;
+  document.getElementById('learned-sub').textContent = `Extra miss in ct/kWh when the model cannot use this information · tested on the last ${I.days} days, which it never saw in training`;
+  document.getElementById('imp').innerHTML = G.map((g, i) => `<span class="lab ${i < 2 ? 'top' : ''}">${g.label}</span><span class="bar"><i class="${i < 2 ? 'top' : ''}" style="width:${(g.ct / maxCt * 100).toFixed(0)}%"></i></span><span class="v">+${nf(g.ct)} ct</span>`).join('');
+  const [a, b] = G;
+  document.getElementById('learned-text').innerHTML = `<b>${a.label}</b> and <b>${b.label.toLowerCase()}</b> matter most. Without the ${a.label.toLowerCase()}, the forecast would miss ${nf(a.ct)} ct/kWh more on average (it misses ${nf(I.mae)} ct now).`;
+}
 const leads = OP.chart(document.getElementById('leads'), c => {
   const B = OP.base(c);
   // the forecasts in use stand out; the others stay quiet

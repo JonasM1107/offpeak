@@ -29,8 +29,8 @@ pages = {
         page("dashboard", "Dashboard", "dashboard", default=True),
         page("site", "Site view", "view_in_ar"),
     ],
-    "Forecasts": [
-        page("analytics", "Prices", "show_chart"),
+    "Analytics": [
+        page("analytics", "Power", "show_chart"),
         page("weather", "Weather & solar", "partly_cloudy_day"),
         page("outlook", "Price outlook", "online_prediction"),
         page("cockpit", "Simulation cockpit", "tune"),

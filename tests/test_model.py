@@ -111,3 +111,18 @@ def test_weather_features_use_the_forecast_known_at_the_time():
         f = weather_features(w, d0=10, lead=lead)
         assert f["wind_day"] == lead + 1  # made the day before the last known day
         assert f["wind_change"] == lead + 1 - 1  # the week before: forecasts made one day ahead
+
+
+def test_what_matters_finds_the_wind():
+    from offpeak.forecast.insight import what_matters
+    from offpeak.forecast.model import WeatherPriceModel
+
+    prices, drivers = windy_world()
+    found = what_matters(prices, WeatherPriceModel(drivers), holdout_days=28, repeats=2)
+    assert found["groups"][0]["label"] == "Wind forecast"
+    assert found["groups"][0]["ct"] > found["groups"][1]["ct"] + 0.5
+    assert {g["label"] for g in found["groups"]} >= {"Recent prices", "Sun forecast"}
+    # the prices-only model has no weather to rank
+    plain = what_matters(prices, PriceModel(), holdout_days=28, repeats=1)
+    assert "Wind forecast" not in {g["label"] for g in plain["groups"]}
+    assert what_matters(prices.iloc[: 40 * 24], PriceModel()) is None  # too short

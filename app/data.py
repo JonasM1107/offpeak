@@ -277,3 +277,66 @@ def _price_forecast(today: date, tomorrow_published: bool):
         return None
     out, _ = outlook(history, MARKET_TZ, test, forecasters)
     return history, out, test, forecasters
+
+
+# ── The coming days, for the cockpit and the dashboard's plan ────────────────
+
+
+def hours_ahead() -> tuple[dict, int] | None:
+    """The coming 7 days hour by hour (offpeak.cockpit.horizon: prices, own surplus, ...)
+    and the index of the current hour. None if prices or weather are unavailable."""
+    from offpeak.cockpit import horizon
+    from offpeak.markets.energy_charts import PriceSourceError
+    from offpeak.tariffs import germany_2026
+    from offpeak.weather.outlook import generation
+
+    try:
+        found = price_forecast()
+    except PriceSourceError:
+        return None
+    week, _, _, _ = weather(days=7)
+    if not found or week is None or week.empty:
+        return None
+    history, forecast, _, _ = found
+    assets, _ = components.site_model(site_components()[0])
+    hours = horizon(
+        history,
+        forecast,
+        generation(week, assets.pv_kwp, assets.turbine_kw * assets.turbines),
+        base_kw=assets.cold_store_kw,
+        tariff=germany_2026(pv_kwp=assets.pv_kwp),
+        tz=MARKET_TZ,
+        today=market_today(),
+    )
+    now = int(now_utc().floor("h").timestamp())
+    return hours, next((i for i, t in enumerate(hours["t"]) if t >= now), 0)
+
+
+def machines_to_plan() -> tuple[list[dict], bool, str]:
+    """The cockpit machines: the saved ones, or the site's flexible components if none were
+    saved yet. Also whether they were saved, and where machines are kept."""
+    from offpeak.cockpit import clean_machines, site_machines
+
+    saved, storage = cockpit_machines()
+    if saved is not None:
+        return clean_machines(saved), True, storage
+    return site_machines(site_components()[0]), False, storage
+
+
+@st.cache_data(ttl=12 * 3600, show_spinner=False, max_entries=4)
+def _model_insight(today: date, tomorrow_published: bool) -> dict | None:
+    from offpeak.forecast.insight import what_matters
+    from offpeak.forecast.model import PriceModel
+
+    found = _price_forecast(today, tomorrow_published)
+    if found is None:
+        return None
+    history, _, _, forecasters = found
+    models = [f for f in forecasters if isinstance(f, PriceModel)]
+    return what_matters(history, models[-1]) if models else None  # the weather one if there
+
+
+def model_insight() -> dict | None:
+    """What the ML model relies on (offpeak/forecast/insight.py), once per new price day."""
+    _, tomorrow, _, _ = today_and_tomorrow()
+    return _model_insight(market_today(), not tomorrow.empty)

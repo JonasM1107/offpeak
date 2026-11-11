@@ -16,7 +16,7 @@ from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_SITE
 from offpeak.timeutils import market_today
 
-header(f"Day-ahead market · {DEMO_SITE.zone}", "Prices", live=True)
+header(f"Day-ahead market · {DEMO_SITE.zone}", "Power", live=True)
 end = market_today()
 try:
     with st.spinner("Loading two years of prices…"):

@@ -94,3 +94,59 @@ def test_clean_machines_keeps_values_inside_the_slider_ranges():
     assert blank["name"] == "Machine" and blank["kw"] == 10 and blank["hours"] == 2
     assert clean_machines("nonsense") == []
     assert len(clean_machines([{}] * 50)) == MAX_MACHINES
+
+
+def two_days(buy: list[float], surplus: list[float] | None = None) -> dict:
+    """A horizon() result for two local days of 24 hours."""
+    return {
+        "buy": buy,
+        "sell": [5.0] * 48,
+        "surplus": surplus or [0.0] * 48,
+        "kind": ["published"] * 24 + ["forecast"] * 24,
+        "hour": list(range(24)) * 2,
+        "days": [{"name": "Thu 12 Nov", "start": 0}, {"name": "Fri 13 Nov", "start": 24}],
+    }
+
+
+def test_week_plan_picks_the_cheapest_day_and_compares_with_the_usual_run():
+    from offpeak.cockpit import describe_plan, week_plan
+
+    buy = [30.0] * 48
+    buy[24 + 13 : 24 + 15] = [10.0, 10.0]  # Friday 13-15 is cheap
+    oven = Machine("Oven", kw=10, hours=2, earliest=6, latest_end=22, usual_start=8)
+    (p,) = week_plan(two_days(buy), [oven], now_index=9)  # 09:00 Thursday
+    assert (p["start"], p["end"]) == (37, 39)
+    assert p["cost"] == pytest.approx(2 * 10 * 0.10)
+    assert p["usual_start"] == 24 + 8  # Thursday 08:00 has passed: the next usual run is Friday
+    assert p["saving"] == pytest.approx(2 * 10 * 0.30 - 2.0)
+    assert p["forecast"] is True
+    plan = describe_plan(two_days(buy), [p], [oven])
+    assert plan["rows"][0]["when"] == "Fri 13 Nov · 13:00–15:00"
+    assert plan["rows"][0]["usual"] == "Fri 13 Nov · 08:00–10:00"
+    assert plan["total"] == pytest.approx(4.0) and plan["compared"] == 1
+
+
+def test_week_plan_shares_surplus_largest_first_and_never_starts_in_the_past():
+    from offpeak.cockpit import week_plan
+
+    surplus = [0.0] * 48
+    surplus[12] = 20.0  # one sunny hour, Thursday noon
+    big = Machine("Big", kw=20, hours=1, earliest=0, latest_end=24, usual_start=0)
+    small = Machine("Small", kw=5, hours=1, earliest=0, latest_end=24, usual_start=0)
+    small_plan, big_plan = week_plan(two_days([30.0] * 48, surplus), [small, big], now_index=3)
+    assert big_plan["start"] == 12  # the largest machine gets the sun
+    assert small_plan["start"] != 12 and small_plan["start"] >= 3
+    late = Machine("Late", kw=5, hours=3, earliest=20, latest_end=23, usual_start=20)
+    (p,) = week_plan(two_days([30.0] * 48), [late], now_index=47)
+    assert p["start"] is None  # no time left in the horizon
+
+
+def test_site_machines_counts_every_charge_point():
+    from offpeak.cockpit import site_machines
+    from offpeak.components import DEFAULT_COMPONENTS
+
+    machines = site_machines(DEFAULT_COMPONENTS)
+    flexible = [c for c in DEFAULT_COMPONENTS if c.spec.role == "flexible"]
+    assert [m["name"] for m in machines] == [c.name for c in flexible]
+    ev = next(c for c in flexible if c.kind == "ev_charger")
+    assert next(m for m in machines if m["name"] == ev.name)["kw"] == ev.p("kw") * ev.p("count")
