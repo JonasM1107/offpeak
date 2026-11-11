@@ -8,9 +8,9 @@ import streamlit as st
 
 TZ = "Europe/Berlin"
 
-ORANGE = "#E8590C"
-ORANGE_SOFT = "#FDEBDF"
-ORANGE_SOFT_STRONG = "#F8C9A8"
+ORANGE = "#FF5F00"
+ORANGE_SOFT = "#FFE9DC"
+ORANGE_SOFT_STRONG = "#FFC4A0"
 INK = "#1C1B19"
 MUTED = "#77726A"
 PEAK = "#4A4640"
@@ -64,7 +64,7 @@ CSS = f"""
 .op-row .name {{ font-weight: 600; font-size: 0.92rem; color: {INK}; }}
 .op-row .meta {{ color: {MUTED}; font-size: 0.79rem; }}
 .op-row > .meta {{ white-space: nowrap; }}
-.op-chip {{ background: {ORANGE_SOFT}; color: #B8430A; font-weight: 600; font-size: 0.83rem; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }}
+.op-chip {{ background: {ORANGE_SOFT}; color: #C24700; font-weight: 600; font-size: 0.83rem; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }}
 .op-chip.grey {{ background: #F1EFEB; color: {INK}; }}
 .op-tiles {{ display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }}
 @media (max-width: 1100px) {{ .op-tiles {{ grid-template-columns: repeat(4, 1fr); }} }}
