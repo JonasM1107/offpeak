@@ -5,6 +5,7 @@ in GitHub Actions from a secret, on Streamlit Cloud from st.secrets via app/data
 Every write is an upsert: running a job twice never creates duplicate rows.
 """
 
+import json
 import math
 import os
 from datetime import datetime
@@ -176,3 +177,45 @@ def recent_job_runs(engine: Engine, limit: int = 10) -> pd.DataFrame:
     for col in ("started_at", "finished_at"):
         df[col] = pd.to_datetime(df[col], utc=True)
     return df
+
+
+# ── Site components ──────────────────────────────────────────────────────────
+
+
+def read_components(engine: Engine, site_id: int) -> list[dict]:
+    """The site's components, oldest first: dicts with id, kind, name, params."""
+    query = text("""
+        select id, kind, name, params from site_components
+        where site_id = :site_id order by created_at, id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"site_id": site_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def save_components(engine: Engine, site_id: int, components: list[dict]) -> None:
+    """Insert or update components (dicts with id, kind, name, params)."""
+    query = text("""
+        insert into site_components (id, site_id, kind, name, params)
+        values (:id, :site_id, :kind, :name, cast(:params as jsonb))
+        on conflict (id) do update set
+            kind = excluded.kind, name = excluded.name, params = excluded.params
+    """)
+    rows = [
+        {
+            "id": c["id"],
+            "site_id": site_id,
+            "kind": c["kind"],
+            "name": c["name"],
+            "params": json.dumps(c["params"]),
+        }
+        for c in components
+    ]
+    if rows:
+        with engine.begin() as conn:
+            conn.execute(query, rows)
+
+
+def delete_component(engine: Engine, component_id: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(text("delete from site_components where id = :id"), {"id": component_id})

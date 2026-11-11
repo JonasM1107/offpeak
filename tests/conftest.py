@@ -28,10 +28,9 @@ def engine():
     if not url:
         pytest.skip("TEST_DATABASE_URL not set")
     eng = get_engine(url)
-    migration = (
-        Path(__file__).parent.parent / "db" / "migrations" / "001_live_data.sql"
-    ).read_text()
+    migrations = sorted((Path(__file__).parent.parent / "db" / "migrations").glob("*.sql"))
     with eng.begin() as conn:
-        conn.execute(text("drop table if exists prices_da, weather_fc, job_runs"))
-        conn.exec_driver_sql(migration)
+        conn.execute(text("drop table if exists prices_da, weather_fc, job_runs, site_components"))
+        for migration in migrations:
+            conn.exec_driver_sql(migration.read_text())
     return eng

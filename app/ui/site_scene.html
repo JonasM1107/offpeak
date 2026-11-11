@@ -7,87 +7,177 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #F6F5F2; --card: #FFFFFF; --line: #ECE9E4; --ink: #1C1B19; --muted: #8A857D;
-    --orange: #E8590C; --orange-soft: #FDEBDF; --orange-mid: #F8C9A8; --dark: #3A3733; --grey: #DDD8D0;
+    --bg: #F6F5F2; --card: #FFFFFF; --line: #ECE9E4; --ink: #1C1B19; --muted: #77726A; --soft: #F6F5F2;
+    --orange: #E8590C; --orange-soft: #FDEBDF; --orange-mid: #F8C9A8; --dark: #3A3733; --grey: #DDD8D0; --dear: #9C968D;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   button { font: inherit; color: inherit; cursor: pointer; }
+  h3 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 20px 22px; }
+  section { margin-top: 12px; }
 
+  /* 3D stage */
   .stage { position: relative; height: 600px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
   #view { position: absolute; inset: 0; }
   #view canvas { display: block; outline: none; }
-
-  /* floating controls */
   .topbar { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; z-index: 3; }
   .topbar > * { pointer-events: auto; }
   .seg { display: inline-flex; background: rgba(246, 245, 242, .92); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
   .seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--muted); transition: all .2s; }
   .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(28, 27, 25, .08); }
-  .seg button.on .d { background: var(--orange); }
   .seg .d { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--grey); margin-right: 7px; vertical-align: 1px; }
+  .seg button.on .d { background: var(--orange); }
   .ghost { border: 1px solid var(--line); background: rgba(255, 255, 255, .92); backdrop-filter: blur(8px); border-radius: 10px; padding: 7px 12px; font-size: 12px; color: var(--muted); }
   .ghost:hover { color: var(--ink); }
-
-  .panel { position: absolute; top: 68px; right: 16px; width: 252px; background: rgba(255, 255, 255, .94); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; padding: 16px; z-index: 3; box-shadow: 0 8px 30px rgba(28, 27, 25, .06); }
+  .panel { position: absolute; top: 68px; right: 16px; width: 256px; background: rgba(255, 255, 255, .95); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; padding: 16px; z-index: 3; box-shadow: 0 8px 30px rgba(28, 27, 25, .06); }
   .panel .now { display: flex; justify-content: space-between; align-items: baseline; }
-  .panel .clock { font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
-  .tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #F1EFEB; color: var(--dark); }
+  .clock { font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+  .tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #F1EFEB; color: var(--dark); white-space: nowrap; }
   .tag.cheap { background: var(--orange-soft); color: #B8430A; }
   .tag.dear { background: var(--dark); color: #fff; }
-  .panel .price { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
-  .rows .r { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; font-size: 13px; border-top: 1px solid var(--line); }
+  .panel .price { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
+  .rows .r { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 0; font-size: 13px; border-top: 1px solid var(--line); }
   .rows .r span:first-child { color: var(--muted); }
-  .rows .r b { font-weight: 600; }
-  .sel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
-  .sel h4 { margin: 0 0 2px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-  .sel h4 i { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
-  .sel p { margin: 0 0 8px; font-size: 12px; color: var(--muted); line-height: 1.45; }
-
-  .timeline { position: absolute; left: 16px; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 14px; background: rgba(255, 255, 255, .94); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; padding: 10px 16px 10px 10px; z-index: 3; }
+  .rows .r b { font-weight: 600; text-align: right; }
+  .brief { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .brief h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; }
+  .brief p { margin: 0 0 8px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .brief .go { border: 0; background: none; padding: 0; color: var(--orange); font-size: 12px; font-weight: 600; }
+  .timeline { position: absolute; left: 16px; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 14px; background: rgba(255, 255, 255, .95); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; padding: 10px 16px 10px 10px; z-index: 3; }
   #play { width: 38px; height: 38px; flex: none; border: 0; border-radius: 11px; background: var(--orange); color: #fff; display: grid; place-items: center; }
   #play svg { width: 14px; height: 14px; }
-  .track { position: relative; flex: 1; height: 40px; }
-  .bars { position: absolute; inset: 0 0 12px 0; display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; }
-  .bars div { border-radius: 3px 3px 1px 1px; background: var(--grey); transition: background .2s; }
+  .track { position: relative; flex: 1; height: 44px; }
+  .bars { position: absolute; inset: 0 0 14px 0; display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; }
+  .bars div { border-radius: 3px 3px 1px 1px; background: var(--grey); position: relative; }
   .bars div.cheap { background: var(--orange-mid); }
-  .bars div.dear { background: #9C968D; }
+  .bars div.dear { background: var(--dear); }
   .bars div.on { background: var(--orange); }
-  .ticks { position: absolute; left: 0; right: 0; bottom: -2px; display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+  .bars div.sun::after { content: ''; position: absolute; left: 50%; top: -7px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #F2A33A; }
+  .ticks { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
   #hour { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; margin: 0; }
   .legend { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
   .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-
-  /* name chips on the 3D objects */
+  .legend i.dot { border-radius: 50%; width: 6px; height: 6px; background: #F2A33A; margin: 0 7px 0 1px; }
   .chip { display: flex; align-items: center; gap: 7px; background: rgba(255, 255, 255, .95); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px 4px 8px; font-size: 11.5px; white-space: nowrap; box-shadow: 0 2px 10px rgba(28, 27, 25, .07); cursor: pointer; pointer-events: auto; transition: transform .15s, border-color .15s; }
   .chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--grey); }
   .chip.live i { background: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
   .chip b { font-weight: 600; }
   .chip span { color: var(--muted); }
-  .chip.hover, .chip.selected { transform: translateY(-2px); border-color: var(--orange-mid); }
-  .chip.selected { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .chip.hover { transform: translateY(-2px); border-color: var(--orange-mid); }
+  .chip.selected { background: var(--ink); border-color: var(--ink); color: #fff; transform: translateY(-2px); }
   .chip.selected span { color: #C9C4BC; }
 
-  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
-  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
   .kpi p { margin: 0; font-size: 12.5px; color: var(--muted); }
   .kpi .v { font-size: 24px; font-weight: 600; letter-spacing: -.02em; margin-top: 6px; }
-  .kpi .v small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+  .kpi .v small, .tile .v small { font-size: 12.5px; font-weight: 500; color: var(--muted); margin-left: 3px; }
   .kpi.accent { background: var(--orange-soft); border-color: var(--orange-mid); }
   .kpi.accent .v { color: var(--orange); }
+
+  /* Day plan */
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .keys { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+  .keys i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .plan { display: grid; grid-template-columns: 170px 1fr 160px; column-gap: 14px; row-gap: 6px; align-items: center; }
+  .plan .lbl { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .plan .lbl[data-id] { cursor: pointer; }
+  .plan .lbl small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+  .plan .lbl[data-id]:hover { color: var(--orange); }
+  .plan .out { font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+  .plan .out b { color: var(--ink); font-weight: 600; }
+  .strip { position: relative; display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; height: 30px; }
+  .strip .c { border-radius: 5px; background: #F4F2EE; }
+  .strip .c.cheap { background: var(--orange-soft); }
+  .strip .c.dear { background: #E6E2DB; }
+  .strip .c.now { box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .strip.price .c { display: grid; place-items: center; font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .strip.price .c.cheap { color: #B8430A; font-weight: 600; }
+  .strip.price .c.dear { background: var(--dear); color: #fff; }
+  .strip .run { position: absolute; top: 6px; bottom: 6px; border-radius: 6px; background: var(--orange); }
+  .strip .run.usual { top: auto; bottom: 2px; height: 5px; background: transparent; border: 1.5px solid var(--dear); border-radius: 3px; }
+  .strip .run.discharge { background: var(--dark); }
+  .strip .run.all { background: #CFC8BD; }
+  .axis { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; font-size: 9.5px; color: var(--muted); }
+  .axis span { text-align: left; }
+
+  /* Components: list + fact sheet */
+  .comps { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 12px; height: 760px; }
+  .list { overflow-y: auto; padding: 6px !important; display: flex; flex-direction: column; gap: 4px; }
+  .list .group { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #A39E96; padding: 10px 12px 4px; }
+  .item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 1px solid transparent; cursor: pointer; text-align: left; background: none; width: 100%; }
+  .item:hover { background: var(--soft); }
+  .item.on { background: var(--orange-soft); border-color: var(--orange-mid); }
+  .ico { width: 38px; height: 38px; flex: none; border-radius: 11px; background: var(--soft); display: grid; place-items: center; }
+  .ico svg { width: 20px; height: 20px; stroke: var(--dark); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .item.on .ico { background: #fff; }
+  .item.on .ico svg { stroke: var(--orange); }
+  .item .t { min-width: 0; flex: 1; }
+  .item .t b { display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .t span { font-size: 11.5px; color: var(--muted); }
+  .item .w { font-size: 11px; font-weight: 600; color: #B8430A; background: var(--orange-soft); padding: 3px 7px; border-radius: 999px; white-space: nowrap; }
+  .item.on .w { background: #fff; }
+  .sheet { overflow-y: auto; padding: 22px 24px; }
+  .sheet .top { display: flex; gap: 14px; align-items: flex-start; }
+  .sheet .top .ico { width: 48px; height: 48px; border-radius: 14px; background: var(--orange-soft); }
+  .sheet .top .ico svg { stroke: var(--orange); width: 24px; height: 24px; }
+  .sheet h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
+  .sheet .kind { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .sheet .nav { margin-left: auto; display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .sheet .nav button { width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--line); background: #fff; }
+  .sheet .desc { margin: 14px 0 0; font-size: 13px; color: #4A4640; line-height: 1.5; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 16px 0 18px; }
+  .fact { background: var(--soft); border-radius: 12px; padding: 10px 12px; }
+  .fact span { display: block; font-size: 11px; color: var(--muted); }
+  .fact b { font-size: 14px; font-weight: 600; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .tabs button { border: 0; background: none; padding: 9px 12px; font-size: 13px; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--orange); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .tile { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .tile p { margin: 0; font-size: 11px; color: var(--muted); }
+  .tile .v { font-size: 18px; font-weight: 600; margin-top: 3px; letter-spacing: -.01em; }
+  .tile.accent { background: var(--orange-soft); border-color: var(--orange-mid); }
+  .tile.accent .v { color: var(--orange); }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .insight { font-size: 13px; color: #4A4640; line-height: 1.5; margin: 10px 0 0; }
+  .advice { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .adv { border-radius: 14px; padding: 14px; background: var(--soft); }
+  .adv.best { background: var(--orange-soft); }
+  .adv span { font-size: 11.5px; color: var(--muted); }
+  .adv b { display: block; font-size: 20px; font-weight: 650; margin-top: 4px; letter-spacing: -.01em; }
+  .adv.best b { color: var(--orange); }
+  table.parts { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.parts td, table.parts th { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  table.parts th { font-size: 11px; color: var(--muted); font-weight: 500; }
+  table.parts .n { text-align: right; font-variant-numeric: tabular-nums; }
+  table.parts tbody tr { cursor: pointer; }
+  table.parts tbody tr:hover, table.parts tbody tr.hl { background: var(--orange-soft); }
+  .mat { display: grid; grid-template-columns: 150px 1fr 80px 100px; gap: 10px; align-items: center; font-size: 12.5px; padding: 5px 0; }
+  .mat .bar { height: 8px; border-radius: 4px; background: #F1EEE9; overflow: hidden; }
+  .mat .bar i { display: block; height: 100%; background: var(--orange); border-radius: 4px; }
+  .mat .n { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .note { font-size: 11.5px; color: var(--muted); margin-top: 12px; line-height: 1.5; }
   .foot { margin-top: 10px; font-size: 11.5px; color: var(--muted); }
 
   @media (max-width: 900px) {
     .stage { height: 520px; }
-    .panel { top: auto; bottom: 84px; left: 16px; right: auto; width: auto; max-width: 260px; padding: 12px; }
-    .panel .sel, .legend { display: none; }
+    .panel { top: auto; bottom: 88px; left: 16px; right: auto; width: auto; max-width: 260px; padding: 12px; }
+    .panel .brief, .legend { display: none; }
     .kpis { grid-template-columns: 1fr 1fr; }
-  }
-  @media (max-width: 560px) {
-    .seg button { padding: 6px 10px; font-size: 12px; }
-    #reset { display: none; }
-    .panel .rows { display: none; }
-    .panel .price { margin-bottom: 0; }
+    .plan { grid-template-columns: 110px 1fr; }
+    .plan .out { display: none; }
+    .comps { grid-template-columns: 1fr; height: auto; }
+    .list { flex-direction: row; overflow-x: auto; }
+    .list .group { display: none; }
+    .item { width: auto; flex: none; }
+    .item .w { display: none; }
+    .sheet { height: 680px; }
+    .mat { grid-template-columns: 110px 1fr 70px; }
+    .mat .co2 { display: none; }
   }
 </style>
 <script type="importmap">
@@ -98,7 +188,7 @@
 </script>
 </head>
 <body>
-<div class="stage">
+<div class="stage" id="stage">
   <div id="view"></div>
   <div class="topbar">
     <div class="seg" role="tablist" aria-label="Schedule">
@@ -111,7 +201,7 @@
     <div class="now"><span class="clock" id="clock">12:00</span><span class="tag" id="price-tag">normal</span></div>
     <div class="price" id="price">– ct/kWh</div>
     <div class="rows" id="rows"></div>
-    <div class="sel" id="sel"></div>
+    <div class="brief" id="brief"></div>
   </div>
   <div class="timeline">
     <button id="play" type="button" aria-label="Play the day"></button>
@@ -120,10 +210,24 @@
       <div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
       <input type="range" id="hour" min="0" max="23" step="1" value="12" aria-label="Hour of the day">
     </div>
-    <div class="legend"><span><i style="background:var(--orange-mid)"></i>Cheap hours</span><span><i style="background:#9C968D"></i>Expensive</span></div>
+    <div class="legend"><span><i style="background:var(--orange-mid)"></i>Cheap hours</span><span><i style="background:var(--dear)"></i>Expensive</span><span><i class="dot"></i>Own sun &amp; wind</span></div>
   </div>
 </div>
-<div class="kpis" id="kpis"></div>
+
+<section class="kpis" id="kpis"></section>
+
+<section class="card">
+  <div class="head">
+    <div><h3>Day plan</h3><div class="sub">When each machine should run or charge. Orange bar = Offpeak plan, outline = its usual time.</div></div>
+    <div class="keys"><span><i style="background:var(--orange-soft)"></i>Cheap hour</span><span><i style="background:var(--dear)"></i>Expensive hour</span><span><i style="background:#F2A33A"></i>Own sun &amp; wind</span><span><i style="background:var(--orange)"></i>Runs / charges</span><span><i style="background:var(--dark)"></i>Battery gives power</span></div>
+  </div>
+  <div class="plan" id="plan"></div>
+</section>
+
+<section class="comps">
+  <div class="card list" id="list"></div>
+  <div class="card sheet" id="sheet"></div>
+</section>
 <div class="foot" id="foot"></div>
 
 <script>window.OFFPEAK = __DATA__;</script>
@@ -133,9 +237,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
-// All numbers come from Python (offpeak/demo_site.py). This file only draws them.
+// All numbers come from Python (offpeak/components.py and offpeak/demo_site.py).
+// This file only draws them.
 const D = window.OFFPEAK;
-const COLORS = { orange: 0xE8590C, orangeSoft: 0xF8C9A8, ink: 0x3A3733, white: 0xFFFFFF, clay: 0xF4F1EC, ground: 0xEDE9E2, line: 0xE0DAD0, glass: 0x2E2C29 };
+const COMPS = D.components;
+const byId = Object.fromEntries(COMPS.map(c => [c.id, c]));
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ── Renderer, camera, light ────────────────────────────────────────────────
@@ -155,310 +261,586 @@ const DAY_SUN = new THREE.Color(0xFFFAF4), MOON = new THREE.Color(0xDCE3F0);
 const scene = new THREE.Scene();
 scene.background = DAY_BG.clone();
 scene.fog = new THREE.Fog(scene.background, 260, 520);
-
 const camera = new THREE.PerspectiveCamera(28, 1, 1, 1000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.maxPolarAngle = 1.2; controls.minPolarAngle = 0.35;
-controls.enablePan = false;
-controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 0.35;
-// Any drag or zoom by the user cancels a running camera move.
-controls.addEventListener('start', () => { controls.autoRotate = false; goal.target = null; goal.dist = null; });
-
-const hemi = new THREE.HemisphereLight(0xFFFFFF, 0xF1EDE7, 1.6);
-scene.add(hemi);
+controls.maxPolarAngle = 1.2; controls.minPolarAngle = 0.3; controls.enablePan = false;
+controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 0.3;
+const hemi = new THREE.HemisphereLight(0xFFFFFF, 0xF1EDE7, 1.6); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xFFFAF4, 2.2);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 320 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
 
-// ── Materials and helpers ──────────────────────────────────────────────────
+// ── Materials and small builders ───────────────────────────────────────────
 const matte = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, ...o });
 const M = {
-  white: matte(COLORS.white), clay: matte(COLORS.clay), roof: matte(0xE6E0D7), ink: matte(COLORS.ink, { roughness: 0.6 }),
-  panel: matte(0x34322F, { roughness: 0.35, metalness: 0.25 }), frame: matte(0xCFC8BD), path: matte(COLORS.line),
-  orange: matte(COLORS.orange, { emissive: COLORS.orange, emissiveIntensity: 0.15 }),
+  white: matte(0xFFFFFF), clay: matte(0xF4F1EC), roof: matte(0xE6E0D7), ink: matte(0x3A3733, { roughness: 0.6 }),
+  steel: matte(0xC9C4BB, { roughness: 0.5, metalness: 0.2 }), frame: matte(0xCFC8BD), path: matte(0xE0DAD0),
+  concrete: matte(0xE2DDD5), gravel: matte(0xEAE6DF), asphalt: matte(0xD9D5CE), glassDark: matte(0x2E2C29, { roughness: 0.3 }),
+  orange: matte(0xE8590C, { emissive: 0xE8590C, emissiveIntensity: 0.15 }), line: matte(0xFFFFFF, { emissive: 0xFFFFFF, emissiveIntensity: 0.2 }),
 };
-const site = new THREE.Group(); scene.add(site);
-
-function rbox(w, h, d, mat, x, y, z, parent = site, r = 0.35) {
-  const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2)), mat);
-  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+const HIGHLIGHT = matte(0xE8590C, { emissive: 0xE8590C, emissiveIntensity: 0.45 });
+function cellTexture() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 192;
+  const g = c.getContext('2d');
+  g.fillStyle = '#2F3540'; g.fillRect(0, 0, 128, 192);
+  g.strokeStyle = 'rgba(210,220,235,.55)'; g.lineWidth = 2;
+  for (let x = 0; x <= 128; x += 128 / 6) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 192); g.stroke(); }
+  for (let y = 0; y <= 192; y += 192 / 10) { g.beginPath(); g.moveTo(0, y); g.lineTo(128, y); g.stroke(); }
+  g.strokeStyle = '#D9D4CC'; g.lineWidth = 6; g.strokeRect(0, 0, 128, 192);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-function cyl(rt, rb, h, mat, x, y, z, parent = site, seg = 32) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
-  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+const PANEL = new THREE.MeshStandardMaterial({ map: cellTexture(), roughness: 0.3, metalness: 0.25 });
+
+// Every mesh is added to `current` and tagged with the part it belongs to, so a part
+// picked in the fact sheet can light up in the model.
+let current = null;
+function tag(mesh, part) { mesh.userData.part = part; mesh.castShadow = true; mesh.receiveShadow = true; current.add(mesh); return mesh; }
+function rbox(w, h, d, mat, x, y, z, part, r = 0.3) {
+  const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2.1, h / 2.1, d / 2.1)), mat);
+  m.position.set(x, y, z); return tag(m, part);
+}
+function box(w, h, d, mat, x, y, z, part) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return tag(m, part); }
+function cyl(rt, rb, h, mat, x, y, z, part, seg = 24) { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat); m.position.set(x, y, z); return tag(m, part); }
+function instanced(geo, mat, matrices, part) {
+  const m = new THREE.InstancedMesh(geo, mat, matrices.length);
+  matrices.forEach((x, i) => m.setMatrixAt(i, x)); m.instanceMatrix.needsUpdate = true;
+  return tag(m, part);
+}
+const mx = (x, y, z, rx = 0, ry = 0, rz = 0, s = [1, 1, 1]) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(...s));
+function tube(points, radius, mat, part) {
+  const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)), false, 'catmullrom', 0.1);
+  return tag(new THREE.Mesh(new THREE.TubeGeometry(curve, 40, radius, 8), mat), part);
+}
+function spinner(parent, x, y, z, build) {
+  const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g);
+  const prev = current; current = g; build(); current = prev; return g;
 }
 
-// ── The island ─────────────────────────────────────────────────────────────
-const island = cyl(62, 60, 3, matte(0xE7E2DA), 0, -1.5, 0, scene, 128);
-island.castShadow = false;
-cyl(61.2, 61.2, 0.08, matte(0xF7F5F1), 0, 0.04, 0, scene, 128).castShadow = false;
+// ── The island and fixed scenery ───────────────────────────────────────────
+current = scene;
+cyl(62, 60, 3, matte(0xE7E2DA), 0, -1.5, 0, null, 128).castShadow = false;
+cyl(61.2, 61.2, 0.08, matte(0xF7F5F1), 0, 0.04, 0, null, 128).castShadow = false;
 const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.ShadowMaterial({ opacity: 0.06 }));
 shadowFloor.rotation.x = -Math.PI / 2; shadowFloor.position.y = -3.01; shadowFloor.receiveShadow = true; scene.add(shadowFloor);
+const posts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 70) posts.push(mx(Math.cos(a) * 58.5, 0.8, Math.sin(a) * 58.5));
+instanced(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6), M.frame, posts, null).castShadow = false;
+const fenceRail = new THREE.Mesh(new THREE.TorusGeometry(58.5, 0.05, 6, 160), M.frame); fenceRail.rotation.x = Math.PI / 2; fenceRail.position.y = 1.5; scene.add(fenceRail);
+box(7, 0.06, 22, M.asphalt, 26, 0.09, 46, null).castShadow = false;
+for (let i = 0; i < 5; i++) box(0.25, 0.07, 2, M.line, 26, 0.13, 38 + i * 4, null).castShadow = false;
 
-// ── Units: one group per thing you can click ───────────────────────────────
-const units = {};
-function unit(key, name, x, z, labelY) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); site.add(g);
-  const chip = document.createElement('div');
-  chip.className = 'chip'; chip.innerHTML = `<i></i><b>${name}</b><span></span>`;
-  chip.addEventListener('click', e => { e.stopPropagation(); select(key, true); });
-  chip.addEventListener('mouseenter', () => setHover(key));
-  chip.addEventListener('mouseleave', () => setHover(null));
-  const label = new CSS2DObject(chip); label.position.set(0, labelY, 0); g.add(label);
-  units[key] = { key, name, g, chip, value: chip.querySelector('span') };
-  return g;
-}
-function tagMeshes() { for (const u of Object.values(units)) u.g.traverse(o => { if (o.isMesh) o.userData.key = u.key; }); }
-
-// Production hall with sawtooth roof, rooftop solar and a furnace door that glows when it runs.
-const hall = unit('hall', 'Production hall', 18, -8, 13);
-rbox(22, 8, 14, M.white, 0, 4, 0, hall, 0.6);
+// production hall: sawtooth roof with skylights, windows, a roller door
+const hallGroup = new THREE.Group(); hallGroup.position.set(18, 0, -8); scene.add(hallGroup); current = hallGroup;
+rbox(22, 8, 14, M.white, 0, 4, 0, null, 0.6);
 for (let i = 0; i < 4; i++) {
-  const tooth = rbox(5.2, 2.4, 13.6, M.roof, -7.8 + i * 5.2, 9, 0, hall, 0.3);
-  tooth.rotation.z = 0.32;
-  rbox(4.4, 0.18, 12, M.panel, -7.6 + i * 5.2, 10.05, 0, hall, 0.05).rotation.z = 0.32;
+  rbox(5.2, 2.4, 13.6, M.roof, -7.8 + i * 5.2, 9, 0, null, 0.3).rotation.z = 0.32;
+  box(0.6, 1.9, 13, M.glassDark, -5.6 + i * 5.2, 9.2, 0, null).rotation.z = 0.32;
 }
 const windowsMat = matte(0x2E2C29, { emissive: 0xFFC48A, emissiveIntensity: 0 });
-for (let i = 0; i < 5; i++) rbox(2.4, 1.6, 0.2, windowsMat, -8 + i * 4, 5.2, 7.02, hall, 0.08);
-const furnaceDoor = rbox(5, 4.2, 0.25, matte(COLORS.ink, { emissive: COLORS.orange, emissiveIntensity: 0 }), 6.5, 2.1, 7.05, hall, 0.1);
-cyl(0.9, 1.1, 8, M.clay, 8, 12, -4, hall);
-cyl(1.15, 1.15, 0.5, M.ink, 8, 16.1, -4, hall);
+for (let i = 0; i < 5; i++) rbox(2.4, 1.6, 0.2, windowsMat, -8 + i * 4, 5.2, 7.02, null, 0.08);
+rbox(4.4, 5, 0.3, M.roof, -6, 2.5, 7.05, null, 0.1);
+for (let i = 0; i < 7; i++) box(4.2, 0.08, 0.32, M.frame, -6, 0.6 + i * 0.65, 7.1, null);
 
-// Field solar: rows of tilted panels.
-const pv = unit('pv', 'Solar', -24, -14, 6.5);
-for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
-  const x = -9 + c * 6, z = -6 + r * 6;
-  cyl(0.15, 0.15, 1.6, M.frame, x, 0.8, z + 0.8, pv, 8);
-  rbox(5.2, 0.22, 3.4, M.panel, x, 1.9, z, pv, 0.06).rotation.x = -0.45;
-}
-
-// Two wind turbines; the rotors spin with the wind output.
-const wind = unit('wind', 'Wind', -40, 12, 33);
-const rotors = [];
-[[0, 0], [10, 14]].forEach(([dx, dz], i) => {
-  cyl(0.45, 0.9, 24, M.white, dx, 12, dz, wind, 24);
-  rbox(1.6, 1.6, 3.6, M.white, dx, 24.4, dz + 0.4, wind, 0.6);
-  const rotor = new THREE.Group(); rotor.position.set(dx, 24.4, dz + 2.4); wind.add(rotor);
-  for (let k = 0; k < 3; k++) {
-    const blade = new THREE.Mesh(new RoundedBoxGeometry(0.9, 11, 0.25, 2, 0.12), M.white);
-    blade.geometry.translate(0, 5.6, 0); blade.rotation.z = k * 2 * Math.PI / 3; blade.castShadow = true; rotor.add(blade);
-  }
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.75, 20, 20), M.orange); rotor.add(nose);
-  rotor.rotation.z = i;
-  rotors.push(rotor);
-});
-
-// Battery: two containers with a charge bar on the front.
-const bat = unit('bat', 'Battery', -14, 16, 7);
-rbox(9, 4.4, 4, M.white, 0, 2.2, 0, bat, 0.4);
-rbox(9, 4.4, 4, M.white, 0, 2.2, 5, bat, 0.4);
-const socTrack = rbox(7, 0.7, 0.2, matte(0xEFEAE3), 0, 3, 7.05, bat, 0.15);
-const socBar = rbox(7, 0.7, 0.26, M.orange, 0, 3, 7.08, bat, 0.15);
-socTrack.castShadow = false; socBar.castShadow = false;
-
-// Cold store with rooftop fans.
-const cold = unit('cold', 'Cold store', 40, 12, 8.5);
-rbox(12, 5.5, 9, M.white, 0, 2.75, 0, cold, 0.5);
-const fans = [];
-for (let i = 0; i < 2; i++) {
-  cyl(1.5, 1.5, 0.7, M.clay, -2.8 + i * 5.6, 5.85, 0, cold);
-  const fan = new THREE.Group(); fan.position.set(-2.8 + i * 5.6, 6.3, 0); cold.add(fan);
-  for (let k = 0; k < 3; k++) { const b = rbox(2.4, 0.08, 0.5, M.ink, 0, 0, 0, fan, 0.04); b.rotation.y = k * Math.PI / 3; }
-  fans.push(fan);
-}
-
-// EV charging: three chargers and three cars.
-const ev = unit('ev', 'EV charging', 16, 22, 6.5);
-const plugs = [];
-for (let i = 0; i < 3; i++) {
-  const x = -6 + i * 6;
-  rbox(0.9, 3, 0.7, M.white, x, 1.5, -3.6, ev, 0.2);
-  plugs.push(rbox(0.5, 0.5, 0.1, matte(0xD9D3CA, { emissive: COLORS.orange, emissiveIntensity: 0 }), x, 2.4, -3.2, ev, 0.08));
-  rbox(3.4, 1.4, 6, M.clay, x, 1, 0.6, ev, 0.6);
-  rbox(2.9, 1.1, 3, matte(0xD4CEC5), x, 2.1, 0.9, ev, 0.5);
-}
-
-// Grid connection: transformer and a slim pylon.
-const grid = unit('grid', 'Grid', 2, -34, 21);
-rbox(5, 4, 4, M.clay, 4, 2, 4, grid, 0.4);
-for (let i = 0; i < 3; i++) cyl(0.25, 0.35, 1.6, M.ink, 2.6 + i * 1.4, 4.8, 4, grid, 12);
+// grid connection: transformer with radiator fins, bushings, fence, pylon
+const gridGroup = new THREE.Group(); gridGroup.position.set(2, 0, -36); scene.add(gridGroup); current = gridGroup;
+rbox(8, 0.3, 7, M.concrete, 2, 0.15, 3, null, 0.1);
+rbox(3.6, 3.2, 2.6, M.clay, 2, 1.9, 3, null, 0.3);
+for (let i = 0; i < 7; i++) box(0.12, 2.4, 1.2, M.steel, 0.4 + i * 0.55, 1.8, 4.9, null);
+for (let i = 0; i < 3; i++) cyl(0.18, 0.28, 1.4, M.ink, 1 + i, 4.2, 3, null, 10);
+const gposts = []; for (let i = 0; i <= 8; i++) { gposts.push(mx(-2 + i, 0.9, -0.6), mx(-2 + i, 0.9, 6.6)); }
+instanced(new THREE.CylinderGeometry(0.06, 0.06, 1.8, 6), M.frame, gposts, null);
 const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
-pylon.position.set(-3, 9, -2); pylon.rotation.y = Math.PI / 4; grid.add(pylon);
-rbox(9, 0.3, 0.3, M.ink, -3, 16.5, -2, grid, 0.1);
+pylon.position.set(-5, 9, -4); pylon.rotation.y = Math.PI / 4; gridGroup.add(pylon);
+rbox(9, 0.3, 0.3, M.ink, -5, 16.5, -4, null, 0.1);
 
-// The site meter in the middle, where every flow meets.
-const hubGroup = new THREE.Group(); site.add(hubGroup);
-cyl(3, 3, 0.4, M.white, 0, 0.2, 0, hubGroup, 48);
-cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, hubGroup, 32);
+// the site meter in the middle, where every flow meets
+const hubGroup = new THREE.Group(); scene.add(hubGroup); current = hubGroup;
+cyl(3, 3, 0.4, M.white, 0, 0.2, 0, null, 48);
+cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, null, 32);
 const hubRing = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.12, 12, 64), M.orange);
 hubRing.rotation.x = Math.PI / 2; hubRing.position.y = 0.45; hubGroup.add(hubRing);
 
-// A few calm trees.
+current = scene;
 const treeMat = matte(0xE3DED5);
-[[-48, -26], [-52, 30], [30, -30], [46, -14], [-6, 40], [36, 36], [-30, 40], [52, 26], [-20, -40]].forEach(([x, z], i) => {
+[[-48, -32], [-54, 30], [46, -34], [52, -10], [-6, 46], [40, 42], [-30, 48], [54, 22], [-20, -48], [10, 52], [-54, 2]].forEach(([x, z], i) => {
   const s = 0.8 + (i % 3) * 0.25;
-  cyl(0.25, 0.3, 2 * s, M.frame, x, s, z, scene, 8);
-  const top = new THREE.Mesh(new THREE.SphereGeometry(2.2 * s, 20, 16), treeMat);
-  top.position.set(x, 2.6 * s + 1.4, z); top.castShadow = true; scene.add(top);
+  cyl(0.25, 0.3, 2 * s, M.frame, x, s, z, null, 8);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(2.2 * s, 20, 16), treeMat); top.position.set(x, 2.6 * s + 1.4, z); top.castShadow = true; scene.add(top);
 });
-tagMeshes();
 
-// ── Energy flows: paths from the meter outwards, with moving dots ──────────
-const DOT = new THREE.SphereGeometry(0.42, 14, 10);
-const DOT_ORANGE = matte(COLORS.orange, { emissive: COLORS.orange, emissiveIntensity: 0.35 });
-const DOT_INK = matte(COLORS.ink);
-function flow(points) {
-  const v = points.map(([x, z]) => new THREE.Vector3(x, 0.32, z));
-  const curve = new THREE.CatmullRomCurve3(v, false, 'catmullrom', 0.05);
-  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.32, 8), M.path);
-  tube.receiveShadow = true; scene.add(tube);
-  const n = Math.max(4, Math.round(curve.getLength() / 5));
-  const dots = Array.from({ length: n }, () => { const m = new THREE.Mesh(DOT, DOT_ORANGE); m.castShadow = false; scene.add(m); return m; });
-  return { curve, dots, kw: 0, t: Math.random(), mat: DOT_ORANGE };
-}
-// Positive kw = power flows from the meter outwards along the path.
-const flows = {
-  pv: flow([[0, -3], [0, -14], [-12, -14]]),
-  wind: flow([[-3, 0], [-24, 0], [-30, 8], [-36, 10]]),
-  bat: flow([[-2, 2], [-8, 10], [-8, 17]]),
-  grid: flow([[0, -3], [2, -12], [3, -28]]),
-  hall: flow([[3, -2], [6, -2], [7, -6]]),
-  cold: flow([[3, 0], [20, 4], [33, 8]]),
-  ev: flow([[2, 2], [8, 10], [12, 16]]),
+// ── One builder per kind; each returns where its cable starts and its label height ─
+const animated = { rotors: [], fans: [], glow: [], plugs: [], soc: [] };
+const BUILD = {
+  pv_field(c) {
+    // racks with two modules on top of each other (portrait), 12 columns per rack
+    const n = Math.min(168, Math.max(4, Math.round(c.params.kwp / 0.42)));
+    const perRack = 24, rows = Math.ceil(n / perRack), mods = [], legs = [], rails = [];
+    // modules face south (+z, towards the sun at noon); the back edge is the high one
+    const up = [0, Math.sin(0.5), -Math.cos(0.5)];  // direction up the tilted rack
+    const zRow = r => -rows * 2.1 + r * 4.2 + 1.4;
+    for (let i = 0; i < n; i++) {
+      const r = Math.floor(i / perRack), k = i % perRack, col = k % 12, d = (Math.floor(k / 12) - 0.5) * 1.08;
+      mods.push(mx(-10.2 + col * 1.85, 1.75 + up[1] * d, zRow(r) + up[2] * d, 0.5, 0, 0));
+    }
+    for (let r = 0; r < rows; r++) {
+      const z = zRow(r);
+      for (let k = 0; k <= 4; k++) { legs.push(mx(-10.5 + k * 5.3, 0.6, z + 0.85, 0, 0, 0, [1, 0.85, 1])); legs.push(mx(-10.5 + k * 5.3, 1.25, z - 0.85, 0, 0, 0, [1, 1.8, 1])); }
+      for (const d of [-0.6, 0.6]) rails.push(mx(0, 1.65 + up[1] * d, z + up[2] * d, 0.5, 0, 0));
+    }
+    rbox(25, 0.12, rows * 4.2 + 2, M.gravel, 0, 0.06, zRow(0) + (rows - 1) * 2.1, null, 0.1).castShadow = false;
+    instanced(new THREE.BoxGeometry(1.75, 0.05, 1.04), PANEL, mods, 'modules');
+    instanced(new THREE.CylinderGeometry(0.07, 0.07, 1.4, 6), M.steel, legs, 'mounting');
+    instanced(new THREE.BoxGeometry(22.4, 0.08, 0.1), M.steel, rails, 'mounting');
+    const inv = Math.min(4, Math.max(1, Math.round(c.params.kwp / 25)));
+    for (let i = 0; i < inv; i++) { cyl(0.08, 0.08, 1.2, M.steel, 13.4, 0.6, -2 + i * 1.6, 'inverter', 6); rbox(0.9, 0.7, 0.35, M.white, 13.4, 1.4, -2 + i * 1.6, 'inverter', 0.08); }
+    box(0.5, 0.08, rows * 4.2, M.ink, 12.4, 0.1, zRow(0) + (rows - 1) * 2.1, 'cabling');
+    return { anchor: [13.4, -1.4], label: 4 };
+  },
+  pv_roof(c) {
+    // modules on the hall's sawtooth roof (the group sits where the hall is)
+    const n = Math.min(64, Math.max(4, Math.round(c.params.kwp / 0.42))), per = Math.ceil(n / 4), mods = [];
+    for (let i = 0; i < n; i++) {
+      const t = Math.floor(i / per), k = i % per, row = Math.floor(k / 7), col = k % 7;
+      mods.push(mx(-7.8 + t * 5.2 - 0.4 + row * 0.9, 10.25 + row * 0.3, -5.6 + col * 1.85, 0, 0, 0.32));
+    }
+    instanced(new THREE.BoxGeometry(0.95, 0.05, 1.75), PANEL, mods, 'modules');
+    const rails = []; for (let t = 0; t < 4; t++) rails.push(mx(-7.8 + t * 5.2, 10.1, 0, 0, 0, 0.32));
+    instanced(new THREE.BoxGeometry(2.2, 0.06, 13), M.steel, rails, 'mounting');
+    rbox(0.9, 0.7, 0.35, M.white, -11.3, 3, 4, 'inverter', 0.08);
+    box(0.12, 6, 0.12, M.ink, -11.2, 6.4, 4.3, 'cabling');
+    return { anchor: [-11, 4], label: 14 };
+  },
+  wind(c) {
+    const hub = Math.max(14, Math.min(40, c.params.hub_m)), blade = 3.2 + Math.sqrt(c.params.kw) * 0.55;
+    cyl(2.4, 2.6, 0.6, M.concrete, 0, 0.3, 0, 'foundation', 32);
+    const sec = hub / 3;
+    for (let i = 0; i < 3; i++) {
+      const r0 = 0.85 - i * 0.17;
+      cyl(r0 - 0.17, r0, sec, M.white, 0, 0.6 + sec * (i + 0.5), 0, 'tower', 24);
+      cyl(r0 + 0.06, r0 + 0.06, 0.12, M.steel, 0, 0.6 + sec * i + 0.06, 0, 'tower', 24);
+    }
+    rbox(0.5, 1.6, 0.1, M.frame, 0, 1.6, 0.86, 'tower', 0.05);
+    rbox(1.5, 1.5, 3.8, M.white, 0, hub + 0.6, 0.3, 'nacelle', 0.55);
+    for (let i = 0; i < 4; i++) box(1.2, 0.06, 0.06, M.steel, 0, hub + 1.1, -1.2 + i * 0.3, 'nacelle');
+    const rotor = spinner(current, 0, hub + 0.6, 2.3, () => {
+      for (let k = 0; k < 3; k++) {
+        const g = new THREE.BoxGeometry(0.75, blade, 0.18, 1, 6, 1), pos = g.attributes.position;
+        for (let v = 0; v < pos.count; v++) { const y = pos.getY(v) + blade / 2; pos.setX(v, pos.getX(v) * (1 - 0.65 * y / blade)); }
+        g.translate(0, blade / 2 + 0.4, 0); g.computeVertexNormals();
+        const m = new THREE.Mesh(g, M.white); m.rotation.z = k * 2 * Math.PI / 3; tag(m, 'blades');
+      }
+      tag(new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 16), M.orange), 'nacelle');
+    });
+    rotor.rotation.z = Math.random() * 2;
+    animated.rotors.push({ rotor, id: c.id });
+    rbox(1.4, 1.8, 1, M.clay, 2.4, 0.9, 1.4, 'converter', 0.15);
+    return { anchor: [2.4, 1.4], label: hub + blade + 2 };
+  },
+  battery(c) {
+    const n = Math.max(1, Math.min(4, Math.round(c.params.kwh / 250 + 0.4)));
+    rbox(15, 0.2, n * 3.6 + 2, M.concrete, 0, 0.1, (n - 1) * 1.8, null, 0.1).castShadow = false;
+    for (let j = 0; j < n; j++) {
+      const z = j * 3.6;
+      rbox(9, 2.6, 2.4, M.white, 0, 1.5, z, 'container', 0.12);
+      const ribs = []; for (let i = 0; i < 22; i++) ribs.push(mx(-4.2 + i * 0.4, 1.5, z + 1.22));
+      instanced(new THREE.BoxGeometry(0.12, 2.3, 0.06), M.clay, ribs, 'container');
+      for (let i = 0; i < 2; i++) box(0.05, 2.2, 0.08, M.ink, 4.52, 1.5, z - 0.6 + i * 1.2, 'container');
+      const rack = []; for (let i = 0; i < 6; i++) rack.push(mx(-3.4 + i * 1.3, 1.5, z - 1.22));
+      instanced(new THREE.BoxGeometry(1.0, 2.0, 0.05), M.ink, rack, 'cells');
+    }
+    rbox(1.4, 1.2, 1.6, M.clay, -5.6, 1.3, 0, 'hvac', 0.15);
+    cyl(0.45, 0.45, 0.08, M.ink, -6.35, 1.4, 0, 'hvac', 20).rotation.z = Math.PI / 2;
+    rbox(1.6, 2.2, 1.2, M.clay, 5.8, 1.3, 0, 'pcs', 0.15);
+    const track = rbox(6, 0.35, 0.08, matte(0xEFEAE3), 0, 2.4, 1.3, 'racks', 0.08);
+    const bar = rbox(6, 0.35, 0.12, M.orange, 0, 2.4, 1.33, 'racks', 0.08);
+    track.castShadow = bar.castShadow = false;
+    animated.soc.push({ bar, id: c.id });
+    return { anchor: [5.8, 0.6], label: 4.5 };
+  },
+  heat_pump(c) {
+    const n = Math.max(1, Math.min(4, Math.round(c.params.kw / 10 + 0.4)));
+    rbox(n * 2.8 + 4, 0.2, 4.4, M.concrete, n * 1.4, 0.1, 0, null, 0.1).castShadow = false;
+    for (let i = 0; i < n; i++) {
+      const x = i * 2.8;
+      rbox(2.4, 1.6, 1.1, M.white, x, 0.95, 0, 'unit', 0.15);
+      for (let k = 0; k < 2; k++) {
+        cyl(0.42, 0.42, 0.06, M.ink, x - 0.55 + k * 1.1, 1.0, 0.58, 'fans', 20).rotation.x = Math.PI / 2;
+        animated.fans.push({ g: spinner(current, x - 0.55 + k * 1.1, 1.0, 0.63, () => { for (let b = 0; b < 3; b++) box(0.7, 0.14, 0.03, M.steel, 0, 0, 0, 'fans').rotation.z = b * Math.PI / 3; }), axis: 'z', id: c.id });
+      }
+    }
+    const tx = n * 2.8 + 0.6;
+    cyl(0.8, 0.8, 3, M.white, tx, 1.7, 0, 'tank', 28);
+    cyl(0.84, 0.84, 0.4, M.clay, tx, 2.6, 0, 'tank', 28);
+    tube([[0.9, 0.6, -0.5], [tx - 1.6, 0.6, -0.8], [tx - 0.4, 0.8, -0.6]], 0.08, M.orange, 'pipes');
+    tube([[tx + 0.6, 2.8, 0], [tx + 2, 3.2, 0], [tx + 3.5, 3.2, 0]], 0.09, M.steel, 'pipes');
+    cyl(0.12, 0.12, 0.3, M.orange, tx - 1.2, 0.5, 0.6, 'refrigerant', 10);
+    return { anchor: [n * 1.4, -2], label: 4 };
+  },
+  ev_charger(c) {
+    const n = Math.max(1, Math.min(8, Math.round(c.params.count)));
+    rbox(n * 4.2 + 2, 0.08, 8, M.asphalt, (n - 1) * 2.1, 0.06, 1, null, 0.1).castShadow = false;
+    const lines = []; for (let i = 0; i <= n; i++) lines.push(mx(-2.1 + i * 4.2, 0.12, 1.4));
+    instanced(new THREE.BoxGeometry(0.12, 0.04, 5.6), M.line, lines, null);
+    for (let i = 0; i < n; i++) {
+      const x = i * 4.2;
+      rbox(0.7, 1.9, 0.5, M.white, x - 1.1, 0.95, -2.5, 'chargers', 0.15);
+      const screen = rbox(0.4, 0.3, 0.06, matte(0xD9D3CA, { emissive: 0xE8590C, emissiveIntensity: 0 }), x - 1.1, 1.45, -2.22, 'chargers', 0.04);
+      animated.plugs.push({ m: screen, id: c.id });
+      tube([[x - 1.1, 1.1, -2.2], [x - 0.9, 0.3, -1.4], [x - 0.6, 0.7, -0.6]], 0.05, M.ink, 'cables');
+      rbox(1.9, 0.9, 4.2, M.clay, x, 0.75, 1.4, null, 0.4);
+      rbox(1.6, 0.7, 2.1, matte(0xD4CEC5), x, 1.45, 1.6, null, 0.35);
+      for (const [dx, dz] of [[-0.95, 0], [0.95, 0], [-0.95, 2.8], [0.95, 2.8]]) cyl(0.36, 0.36, 0.26, M.ink, x + dx, 0.36, dz, null, 14).rotation.z = Math.PI / 2;
+    }
+    rbox(1.2, 1.6, 0.8, M.clay, -2.6, 0.8, -2.6, 'feeder', 0.12);
+    return { anchor: [-2.6, -2.6], label: 3.6 };
+  },
+  furnace(c) {
+    // an annex on the hall's east side, with a glowing door and a chimney
+    rbox(8, 7, 9, M.white, 0, 3.5, 0, 'shell', 0.5);
+    const door = rbox(3.2, 3.4, 0.2, matte(0x3A3733, { emissive: 0xE8590C, emissiveIntensity: 0 }), 0, 1.8, 4.55, 'lining', 0.08);
+    rbox(4, 4.2, 0.12, M.roof, 0, 2.1, 4.5, 'lining', 0.08);
+    animated.glow.push({ m: door, id: c.id });
+    for (let i = 0; i < 3; i++) cyl(0.75 - i * 0.08, 0.8 - i * 0.08, 3.4, i % 2 ? M.clay : M.white, 2, 8.7 + i * 3.3, -2, 'chimney', 20);
+    cyl(0.62, 0.62, 0.3, M.ink, 2, 18.6, -2, 'chimney', 20);
+    rbox(1.6, 2.2, 0.8, M.clay, -3.2, 1.2, 4.7, 'busbars', 0.12);
+    const el = []; for (let i = 0; i < 5; i++) el.push(mx(-1.2 + i * 0.6, 7.2, 1));
+    instanced(new THREE.CylinderGeometry(0.12, 0.12, 0.5, 8), M.orange, el, 'elements');
+    return { anchor: [-3.2, 4.7], label: 9.5 };
+  },
+  cold_store(c) {
+    rbox(12, 5.5, 9, M.white, 0, 2.75, 0, 'panels', 0.5);
+    const seams = []; for (let i = 1; i < 10; i++) seams.push(mx(-6 + i * 1.2, 2.75, 4.51));
+    instanced(new THREE.BoxGeometry(0.04, 5.3, 0.04), M.frame, seams, 'panels');
+    rbox(2.6, 3.4, 0.25, M.clay, 3.4, 1.7, 4.55, 'door', 0.1);
+    box(0.08, 0.6, 0.12, M.ink, 4.4, 1.7, 4.75, 'door');
+    for (let i = 0; i < 2; i++) {
+      const x = -2.8 + i * 5.6;
+      rbox(3.6, 1.2, 2.6, M.clay, x, 6.1, 0, 'condensers', 0.2);
+      cyl(0.9, 0.9, 0.12, M.ink, x, 6.75, 0, 'condensers', 24);
+      animated.fans.push({ g: spinner(current, x, 6.85, 0, () => { for (let b = 0; b < 3; b++) box(1.6, 0.04, 0.3, M.steel, 0, 0, 0, 'condensers').rotation.y = b * Math.PI / 3; }), axis: 'y', id: c.id });
+    }
+    return { anchor: [-6, 3], label: 8.6 };
+  },
 };
 
+// Where each kind goes on the island; extra components take the next free spot.
+const SLOTS = {
+  pv_field: [[-26, -18], [-30, -40], [-44, -16], [30, -40]],
+  wind: [[-44, 12], [-34, 32], [-50, -4], [-18, 46], [46, -36]],
+  battery: [[-14, 18], [-22, 34]],
+  heat_pump: [[2, -16], [-6, -26]],
+  ev_charger: [[12, 26], [34, 30]],
+  cold_store: [[42, 14], [44, -4]],
+  furnace: [[33.5, -8]],
+  pv_roof: [[18, -8]],
+};
+const SPARE = [[-2, 38], [24, 40], [-40, -32], [50, 2], [-52, 22], [40, 34], [-12, -36], [30, -26], [8, 42]];
+const taken = new Set();
+function slotFor(kind) {
+  const free = [...(SLOTS[kind] || []), ...SPARE].find(s => !taken.has(s.join(',')));
+  if (free) taken.add(free.join(','));
+  return free || null;
+}
+
+const units = {}, flows = {};
+const DOT = new THREE.SphereGeometry(0.42, 14, 10);
+const DOT_ORANGE = matte(0xE8590C, { emissive: 0xE8590C, emissiveIntensity: 0.35 });
+const DOT_INK = matte(0x3A3733);
+function flowPath(x, z) {
+  const pts = [[Math.abs(x) > Math.abs(z) ? Math.sign(x) * 1.6 : 0, Math.abs(x) > Math.abs(z) ? 0 : Math.sign(z) * 1.6], [x * 0.5, z * 0.2], [x * 0.85, z * 0.8], [x, z]];
+  const curve = new THREE.CatmullRomCurve3(pts.map(([px, pz]) => new THREE.Vector3(px, 0.32, pz)), false, 'catmullrom', 0.2);
+  const t = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.3, 8), M.path); t.receiveShadow = true; scene.add(t);
+  const n = Math.max(4, Math.round(curve.getLength() / 5));
+  return { curve, kw: 0, t: Math.random(), dots: Array.from({ length: n }, () => { const m = new THREE.Mesh(DOT, DOT_ORANGE); scene.add(m); return m; }) };
+}
+for (const c of COMPS) {
+  if (!BUILD[c.kind]) continue;
+  const slot = slotFor(c.kind);
+  if (!slot) continue;  // the island is full; the component still shows in the list
+  const g = new THREE.Group(); g.position.set(slot[0], 0, slot[1]); scene.add(g); current = g;
+  // only one hall roof: a second rooftop system is drawn as a field on the ground
+  const onHall = slot[0] === 18 && slot[1] === -8;
+  const info = (c.kind === 'pv_roof' && !onHall ? BUILD.pv_field : BUILD[c.kind])(c);
+  g.traverse(o => { if (o.isMesh) o.userData.comp = c.id; });
+  const chip = document.createElement('div');
+  chip.className = 'chip'; chip.innerHTML = `<i></i><b></b><span></span>`; chip.querySelector('b').textContent = c.name;
+  chip.addEventListener('click', e => { e.stopPropagation(); select(c.id, true); });
+  chip.addEventListener('mouseenter', () => setHover(c.id));
+  chip.addEventListener('mouseleave', () => setHover(null));
+  const label = new CSS2DObject(chip); label.position.set(0, info.label, 0); g.add(label);
+  units[c.id] = { g, chip, value: chip.querySelector('span') };
+  flows[c.id] = flowPath(slot[0] + info.anchor[0], slot[1] + info.anchor[1]);
+}
+flows.__grid = flowPath(3, -30);
+
 // ── Camera fit and focus ───────────────────────────────────────────────────
-const HOME_TARGET = new THREE.Vector3(0, 4, 0);
-const HOME_DIR = new THREE.Vector3(0.9, 0.95, 1.15).normalize();
-let homeDist = 170;
+const HOME_TARGET = new THREE.Vector3(0, 4, 0), HOME_DIR = new THREE.Vector3(0.9, 0.95, 1.15).normalize();
+let homeDist = 170, placed = false;
 const goal = { target: null, dist: null };
-let placed = false;
+controls.addEventListener('start', () => { controls.autoRotate = false; goal.target = null; goal.dist = null; });
 function fit() {
   const w = view.clientWidth, h = view.clientHeight;
   if (!w || !h) return;
   renderer.setSize(w, h); labels.setSize(w, h);
-  camera.aspect = w / h; camera.updateProjectionMatrix();
-  // distance that keeps the island (radius ~62) inside the view, a bit more on narrow screens
-  const vfov = THREE.MathUtils.degToRad(camera.fov);
-  const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
-  // the panel on the right covers part of the view on wide screens: shift the picture left
-  const panelShift = w > 900 ? 140 : 0;
-  camera.setViewOffset(w, h, panelShift, -h * 0.03, w, h);
-  const usableAspect = (w - 2 * panelShift) / h;
-  const hfovUsable = 2 * Math.atan(Math.tan(vfov / 2) * usableAspect);
-  homeDist = Math.max(54 / Math.tan(vfov / 2), 60 / Math.tan(Math.min(hfov, hfovUsable) / 2));
-  controls.minDistance = homeDist * 0.35; controls.maxDistance = homeDist * 1.4;
+  camera.aspect = w / h;
+  const shift = w > 900 ? 140 : 0;
+  camera.setViewOffset(w, h, shift, -h * 0.03, w, h);
+  camera.updateProjectionMatrix();
+  const vfov = THREE.MathUtils.degToRad(camera.fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * (w - 2 * shift) / h);
+  homeDist = Math.max(54 / Math.tan(vfov / 2), 60 / Math.tan(hfov / 2));
+  controls.minDistance = homeDist * 0.2; controls.maxDistance = homeDist * 1.4;
   if (!placed) { placed = true; camera.position.copy(HOME_TARGET).addScaledVector(HOME_DIR, homeDist); controls.target.copy(HOME_TARGET); }
 }
-function focusOn(key) {
-  const b = new THREE.Box3().setFromObject(units[key].g);
+function focusOn(id) {
+  if (!units[id]) return;
+  const b = new THREE.Box3().setFromObject(units[id].g);
   goal.target = b.getCenter(new THREE.Vector3()); goal.target.y = Math.min(goal.target.y, 6);
-  goal.dist = homeDist * 0.55; controls.autoRotate = false;
+  goal.dist = Math.max(homeDist * 0.26, Math.min(homeDist * 0.6, b.getSize(new THREE.Vector3()).length() * 3.2));
+  controls.autoRotate = false;
 }
-document.getElementById('reset').addEventListener('click', () => { goal.target = HOME_TARGET.clone(); goal.dist = homeDist; select('hall', false); });
+document.getElementById('reset').addEventListener('click', () => { goal.target = HOME_TARGET.clone(); goal.dist = homeDist; highlight(null); renderSheet(); });
 
-// ── Data per hour ──────────────────────────────────────────────────────────
-let plan = 'offpeak', hour = Math.min(23, Math.max(0, D.hour_now)), selected = 'hall', hovered = null;
-const rowsFor = p => (p === 'offpeak' ? D.offpeak : D.usual);
-const prices = D.offpeak.map(r => r.price_ct);
-const sorted = [...prices].sort((a, b) => a - b);
-const lowCut = sorted[7], highCut = sorted[16];
-const priceClass = p => (p <= lowCut ? 'cheap' : p >= highCut ? 'dear' : '');
+// ── State and small helpers ────────────────────────────────────────────────
+let plan = 'offpeak', hour = Math.min(23, Math.max(0, D.hour_now)), selected = COMPS[0] && COMPS[0].id, tab = 'today', hlPart = null;
+const rows = () => D.rows[plan];
+const ser = (id, p = plan) => D.series[p][id];
+const prices = D.rows.offpeak.map(r => r.price_ct);
+const own = D.rows.offpeak.map(r => r.pv_kw + r.wind_kw);
+const ownMax = Math.max(...own, 1);
+const sunny = own.map(v => v > ownMax * 0.45);
 const hh = h => `${String(h).padStart(2, '0')}:00`;
 const kw = v => `${Math.round(Math.abs(v))} kW`;
-const sum = (rows, f) => rows.reduce((a, r) => a + f(r), 0);
-const euro = v => `${Math.round(v) < 0 ? '−' : ''}€${Math.abs(Math.round(v))}`;
+const sum = (a, f = x => x) => a.reduce((s, x) => s + f(x), 0);
+const euro = v => `${v < -0.005 ? '−' : ''}€${Math.abs(v) >= 10 ? Math.abs(v).toFixed(0) : Math.abs(v).toFixed(2)}`;
+const mass = kg => kg >= 1000 ? `${(kg / 1000).toFixed(1)} t` : `${kg.toFixed(kg < 10 ? 1 : 0)} kg`;
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const LIVE = 0.5;
+const ROLE = { generation: 'Generation', storage: 'Storage', flexible: 'Flexible load', base: 'Base load' };
+const ICONS = {
+  pv_field: '<path d="M3 15l3-8h12l3 8z"/><path d="M8 7l-1.5 8M16 7l1.5 8M4.5 11h15M12 15v5M8 20h8"/>',
+  pv_roof: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M8 13h8v4H8z"/>',
+  wind: '<path d="M12 11v10M9 21h6"/><circle cx="12" cy="10" r="1.3"/><path d="M12 8.7V3M13.2 10.6l4.8 2.8M10.8 10.6L6 13.4"/>',
+  battery: '<rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10v4M7 10v4M11 10v4"/>',
+  heat_pump: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="10" cy="12" r="4"/><path d="M10 8v8M6 12h8M17 9v6"/>',
+  ev_charger: '<rect x="5" y="3" width="9" height="18" rx="2"/><path d="M9 7l-2 4h3l-2 4M14 9h2a2 2 0 012 2v5a1.5 1.5 0 003 0v-6l-2-2"/>',
+  furnace: '<path d="M5 21V9l7-5 7 5v12z"/><path d="M12 17c-1.7 0-2.5-1.2-2.5-2.4 0-1.6 1.4-2.3 1.6-3.6 1.6.9 3.4 2.3 3.4 3.9 0 1.2-1 2.1-2.5 2.1z"/>',
+  cold_store: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/>',
+};
+const icon = kind => `<svg viewBox="0 0 24 24">${ICONS[kind] || ICONS.battery}</svg>`;
 
+// price bars in the timeline
 const bars = document.getElementById('bars');
-const maxPrice = Math.max(...prices, 1), minPrice = Math.min(0, ...prices);
-prices.forEach(p => { const d = document.createElement('div'); d.style.height = `${18 + 82 * (p - minPrice) / (maxPrice - minPrice || 1)}%`; bars.appendChild(d); });
+const maxP = Math.max(...prices, 1), minP = Math.min(0, ...prices);
+prices.forEach(p => { const d = document.createElement('div'); d.style.height = `${18 + 82 * (p - minP) / (maxP - minP || 1)}%`; bars.appendChild(d); });
 
-const LIVE_CUTOFF = 0.5;
-function unitText(key, r, rows) {
-  const win = D.windows[plan];
-  switch (key) {
-    case 'pv': return { now: kw(r.pv_kw), live: r.pv_kw > LIVE_CUTOFF, text: `${D.assets.pv_kwp} kWp on the field and the hall roof.`, rows: [['Power now', kw(r.pv_kw)], ['Today', `${Math.round(sum(rows, x => x.pv_kw))} kWh`]] };
-    case 'wind': return { now: kw(r.wind_kw), live: r.wind_kw > LIVE_CUTOFF, text: `${D.assets.turbines} small turbines, ${D.assets.turbine_kw} kW each.`, rows: [['Power now', kw(r.wind_kw)], ['Today', `${Math.round(sum(rows, x => x.wind_kw))} kWh`]] };
-    case 'bat': return { now: `${Math.round(r.soc_pct)} %`, live: Math.abs(r.battery_kw) > LIVE_CUTOFF, text: D.smart_battery && plan === 'offpeak' ? 'Stores surplus power and covers the most expensive hours.' : 'Stores surplus own power.', rows: [['Charge', `${Math.round(r.soc_pct)} % of ${D.assets.battery_kwh} kWh`], [r.battery_kw >= 0 ? 'Charging' : 'Discharging', kw(r.battery_kw)]] };
-    case 'grid': return { now: r.grid_kw >= 0 ? `buy ${kw(r.grid_kw)}` : `sell ${kw(r.grid_kw)}`, live: Math.abs(r.grid_kw) > LIVE_CUTOFF, text: 'Where the site buys power when its own is not enough, and sells the surplus.', rows: [[r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Bought today', `${Math.round(sum(rows, x => Math.max(x.grid_kw, 0)))} kWh`]] };
-    case 'hall': return { now: r.furnace_kw ? kw(r.furnace_kw) : 'idle', live: r.furnace_kw > 0, text: `The electric furnace runs ${win.furnace}${plan === 'offpeak' && win.furnace !== D.windows.usual.furnace ? ` instead of ${D.windows.usual.furnace}` : ''}.`, rows: [['Furnace now', r.furnace_kw ? kw(r.furnace_kw) : 'off'], ['Runs', win.furnace]] };
-    case 'cold': return { now: kw(r.cold_kw), live: true, text: 'Runs around the clock; not moved.', rows: [['Power now', kw(r.cold_kw)], ['Today', `${Math.round(sum(rows, x => x.cold_kw))} kWh`]] };
-    case 'ev': return { now: r.ev_kw ? kw(r.ev_kw) : 'idle', live: r.ev_kw > 0, text: `The fleet charges ${win.ev}${plan === 'offpeak' && win.ev !== D.windows.usual.ev ? ` instead of ${D.windows.usual.ev}` : ''}.`, rows: [['Charging now', r.ev_kw ? kw(r.ev_kw) : 'off'], ['Charges', win.ev]] };
+// ── Day plan: one row per machine, coloured by price ───────────────────────
+function runs(values, test) {
+  const out = []; let s = null;
+  values.forEach((v, h) => { if (test(v) && s === null) s = h; if (!test(v) && s !== null) { out.push([s, h]); s = null; } });
+  if (s !== null) out.push([s, 24]);
+  return out;
+}
+const bar = (a, b, cls = '') => `<div class="run ${cls}" style="left:calc(${a / 24 * 100}% + 1px);width:calc(${(b - a) / 24 * 100}% - 3px)"></div>`;
+const cells = cls => Array.from({ length: 24 }, (_, h) => `<div class="c ${cls(h)} ${h === hour ? 'now' : ''}"></div>`).join('');
+const axis = () => `<div class="axis">${Array.from({ length: 24 }, (_, h) => `<span>${h % 3 === 0 ? String(h).padStart(2, '0') : ''}</span>`).join('')}</div>`;
+function deviceStrip(c, which = 'offpeak') {
+  const s = ser(c.id, which);
+  let inner = '';
+  if (c.role === 'storage') { runs(s, v => v > LIVE).forEach(([a, b]) => { inner += bar(a, b); }); runs(s, v => v < -LIVE).forEach(([a, b]) => { inner += bar(a, b, 'discharge'); }); }
+  else if (c.role === 'base') inner = bar(0, 24, 'all');
+  else if (c.role === 'generation') runs(s, v => v > LIVE).forEach(([a, b]) => { inner += bar(a, b, 'all'); });
+  else runs(s, v => v > 0).forEach(([a, b]) => { inner += bar(a, b); });
+  return inner;
+}
+function dayPlan() {
+  let html = `<div class="lbl">Price<small>ct/kWh, day-ahead</small></div><div class="strip price">${Array.from({ length: 24 }, (_, h) => `<div class="c ${D.price_class[h]} ${h === hour ? 'now' : ''}">${prices[h].toFixed(0)}</div>`).join('')}</div><div class="out">avg <b>${(sum(prices) / 24).toFixed(1)} ct</b></div>`;
+  html += `<div class="lbl">Own sun &amp; wind<small>all generation on site</small></div><div class="strip">${Array.from({ length: 24 }, (_, h) => `<div class="c ${h === hour ? 'now' : ''}" style="background:rgba(242,163,58,${(0.08 + 0.85 * own[h] / ownMax).toFixed(2)})"></div>`).join('')}</div><div class="out">peak <b>${kw(ownMax)}</b></div>`;
+  for (const c of COMPS.filter(c => c.role !== 'generation')) {
+    let inner = deviceStrip(c);
+    if (c.role === 'flexible') runs(ser(c.id, 'usual'), v => v > 0).forEach(([a, b]) => { inner += bar(a, b, 'usual'); });
+    const saving = c.role === 'flexible' ? c.analytics.usual.cost_eur - c.analytics.offpeak.cost_eur : 0;
+    const out = c.role === 'flexible' ? `<b>${c.advice.best}</b> · saves ${euro(saving)}` : c.role === 'storage' ? `charge <b>${c.advice.best || '–'}</b>` : '<b>all day</b>';
+    html += `<div class="lbl" data-id="${c.id}">${esc(c.name)}<small>${c.kind_label}</small></div><div class="strip">${cells(h => D.price_class[h])}${inner}</div><div class="out">${out}</div>`;
   }
+  html += `<div></div>${axis()}<div></div>`;
+  const el = document.getElementById('plan'); el.innerHTML = html;
+  el.querySelectorAll('.lbl[data-id]').forEach(l => l.addEventListener('click', () => { select(l.dataset.id, true); tab = 'when'; renderSheet(); scrollToSheet(); }));
 }
 
-// ── Updating the page for an hour and a plan ───────────────────────────────
+// ── Component list and fact sheet ──────────────────────────────────────────
+function shortStatus(c) {
+  if (c.role === 'flexible') return c.advice.best;
+  if (c.role === 'storage') return c.advice.best ? `charge ${c.advice.best.split(',')[0]}` : 'idle';
+  if (c.role === 'generation') return `${Math.round(c.analytics.offpeak.energy_kwh)} kWh`;
+  return 'all day';
+}
+function renderList() {
+  let html = '';
+  for (const [role, title] of [['generation', 'Generation'], ['storage', 'Storage'], ['flexible', 'Flexible loads'], ['base', 'Base loads']]) {
+    const list = COMPS.filter(c => c.role === role);
+    if (!list.length) continue;
+    html += `<div class="group">${title}</div>` + list.map(c => `<button class="item ${c.id === selected ? 'on' : ''}" data-id="${c.id}"><span class="ico">${icon(c.kind)}</span><span class="t"><b>${esc(c.name)}</b><span>${c.kind_label}${units[c.id] ? '' : ' · not drawn'}</span></span><span class="w">${shortStatus(c)}</span></button>`).join('');
+  }
+  const el = document.getElementById('list'); el.innerHTML = html;
+  el.querySelectorAll('.item').forEach(b => b.addEventListener('click', () => select(b.dataset.id, true)));
+}
+
+function chart(c) {
+  // bars: this component's power per hour (plan orange, usual dashed); line: price
+  const W = 640, H = 210, L = 34, R = 40, T = 14, B = 24, iw = W - L - R, bw = iw / 24;
+  const s = ser(c.id), u = ser(c.id, 'usual');
+  const vmax = Math.max(1, ...s.map(Math.abs), ...u.map(Math.abs)) * 1.15;
+  const signed = c.role === 'storage';
+  const y0 = signed ? T + (H - T - B) / 2 : H - B, sc = (signed ? (H - T - B) / 2 : H - T - B) / vmax;
+  let g = '';
+  for (let h = 0; h < 24; h++) {
+    const cls = D.price_class[h];
+    if (cls) g += `<rect x="${L + h * bw}" y="${T}" width="${bw}" height="${H - T - B}" fill="${cls === 'cheap' ? '#FDEBDF' : '#EEEBE6'}"/>`;
+  }
+  g += `<rect x="${L + hour * bw}" y="${T}" width="${bw}" height="${H - T - B}" fill="none" stroke="#1C1B19" stroke-dasharray="3 3"/>`;
+  g += `<line x1="${L}" x2="${W - R}" y1="${y0}" y2="${y0}" stroke="#DDD8D0"/>`;
+  for (let h = 0; h < 24; h++) {
+    const v = s[h], x = L + h * bw + bw * 0.18, w = bw * 0.64, ht = Math.abs(v) * sc;
+    if (Math.abs(v) > 0.01) g += `<rect x="${x}" y="${v >= 0 ? y0 - ht : y0}" width="${w}" height="${Math.max(ht, 1)}" rx="2" fill="${v >= 0 ? '#E8590C' : '#3A3733'}"/>`;
+    if (plan === 'offpeak' && c.role === 'flexible' && u[h] > 0) g += `<rect x="${x}" y="${y0 - u[h] * sc}" width="${w}" height="${u[h] * sc}" rx="2" fill="none" stroke="#9C968D" stroke-width="1.2" stroke-dasharray="3 2"/>`;
+  }
+  const pmax = Math.max(...prices, 1) * 1.1, pmin = Math.min(0, ...prices), py = p => T + (H - T - B) * (1 - (p - pmin) / (pmax - pmin));
+  g += `<polyline points="${prices.map((p, h) => `${L + h * bw + bw / 2},${py(p).toFixed(1)}`).join(' ')}" fill="none" stroke="#1C1B19" stroke-width="1.4" stroke-linejoin="round"/>`;
+  if (signed) g += `<polyline points="${c.analytics[plan].soc_pct.map((p, h) => `${L + h * bw + bw / 2},${(T + (H - T - B) * (1 - p / 100)).toFixed(1)}`).join(' ')}" fill="none" stroke="#E8590C" stroke-width="1.6" stroke-dasharray="4 3"/>`;
+  for (const h of [0, 6, 12, 18]) g += `<text x="${L + h * bw}" y="${H - 6}" font-size="11" fill="#77726A">${hh(h)}</text>`;
+  g += `<text x="${L - 6}" y="${T + 8}" font-size="11" fill="#77726A" text-anchor="end">${Math.round(vmax / 1.15)}</text><text x="${L - 6}" y="${T + 20}" font-size="10" fill="#A39E96" text-anchor="end">kW</text>`;
+  g += `<text x="${W - R + 6}" y="${T + 8}" font-size="11" fill="#1C1B19">${Math.round(pmax / 1.1)}</text><text x="${W - R + 6}" y="${T + 20}" font-size="10" fill="#A39E96">ct</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Power of ${esc(c.name)} per hour, with the price">${g}</svg>`;
+}
+function todayTab(c) {
+  const a = c.analytics[plan], o = c.analytics.offpeak, u = c.analytics.usual;
+  let tiles, text;
+  if (c.role === 'generation') {
+    tiles = [['Energy today', `${a.energy_kwh.toFixed(0)}<small>kWh</small>`], ['Peak', `${a.peak_kw.toFixed(0)}<small>kW</small>`], ['Capacity factor', `${a.capacity_pct}<small>%</small>`], ['Used on site', `${a.used_pct}<small>%</small>`], ['Value today', euro(a.value_eur), true]];
+    text = `Strongest around <b>${c.advice.best || '–'}</b>. ${a.used_pct}% of its power is used on site; the rest goes to the grid for 8 ct/kWh. Every kWh used on site saves the grid price instead.`;
+  } else if (c.role === 'storage') {
+    tiles = [['Charged', `${a.charged_kwh.toFixed(0)}<small>kWh</small>`], ['Gave back', `${a.discharged_kwh.toFixed(0)}<small>kWh</small>`], ['Cycles today', a.cycles.toFixed(2)], ['Value today', euro(a.value_eur), true]];
+    text = `Charges <b>${c.advice.best || '–'}</b>${c.advice.discharge ? ` and gives power back <b>${c.advice.discharge}</b>` : ''}. Bars below the line = giving power back; dashed line = charge level.`;
+  } else {
+    tiles = [['Energy today', `${a.energy_kwh.toFixed(0)}<small>kWh</small>`], ['Cost today', euro(a.cost_eur)], ['Avg price paid', `${a.avg_ct.toFixed(1)}<small>ct/kWh</small>`], ['Own power', `${a.own_pct}<small>%</small>`]];
+    if (c.role === 'flexible') tiles.push(['Saving vs usual', euro(u.cost_eur - o.cost_eur), true]);
+    text = c.role === 'flexible'
+      ? `With the Offpeak plan it runs <b>${c.advice.best}</b> instead of <b>${c.advice.usual}</b>, because ${c.advice.reason}. Average price paid ${o.avg_ct.toFixed(1)} instead of ${u.avg_ct.toFixed(1)} ct/kWh.`
+      : `Runs around the clock. ${a.own_pct}% of its power comes from the site's own sun, wind and battery today.`;
+  }
+  return `<div class="tiles">${tiles.map(([l, v, acc]) => `<div class="tile ${acc ? 'accent' : ''}"><p>${l}</p><div class="v">${v}</div></div>`).join('')}</div>${chart(c)}<p class="insight">${text}</p>`;
+}
+function whenTab(c) {
+  const ad = c.advice;
+  const cards = {
+    flexible: [['best', 'Best time (Offpeak plan)', ad.best], ['', 'Usual time', ad.usual], ['avoid', 'Most expensive block', ad.avoid]],
+    storage: [['best', 'Charge', ad.best || '–'], ['avoid', 'Give power back', ad.discharge || '–']],
+    generation: [['best', 'Strongest output', ad.best || '–']],
+    base: [['', 'Runs', 'all day']],
+  }[c.role];
+  const reason = { flexible: `Why: ${ad.reason}.`, storage: `Why: it ${ad.reason}.`, generation: `Tip: ${ad.reason}.`, base: `It ${ad.reason}.` }[c.role];
+  let rowsHtml = `<div class="lbl">Offpeak plan</div><div class="strip">${cells(h => D.price_class[h])}${deviceStrip(c, 'offpeak')}</div>`;
+  if (c.role === 'flexible') rowsHtml += `<div class="lbl">Usual</div><div class="strip">${cells(h => D.price_class[h])}${deviceStrip(c, 'usual').replaceAll('class="run "', 'class="run all"')}</div>`;
+  return `<div class="advice">${cards.map(([cls, l, v]) => `<div class="adv ${cls}"><span>${l}</span><b>${v}</b></div>`).join('')}</div>
+    <p class="insight" style="margin:0 0 14px">${reason}</p>
+    <div class="plan" style="grid-template-columns:110px 1fr">${rowsHtml}<div></div>${axis()}</div>
+    <p class="note">Background: orange = cheap hour, grey = expensive hour in today's day-ahead auction. Flexible loads only move inside the hours they are allowed to run.</p>`;
+}
+function partsTab(c) {
+  const maxKg = Math.max(...c.materials.map(m => m[1]), 1);
+  return `<table class="parts"><thead><tr><th>Part</th><th class="n">Qty</th><th class="n">Mass</th></tr></thead><tbody>
+    ${c.parts.map(p => `<tr data-part="${p.key}" class="${hlPart === p.key ? 'hl' : ''}"><td>${p.name}</td><td class="n">${p.qty}</td><td class="n">${mass(p.mass_kg)}</td></tr>`).join('')}
+    </tbody></table>
+    <h3 style="font-size:14px;margin:20px 0 8px">Raw materials</h3>
+    ${c.materials.map(([m, kg, co2]) => `<div class="mat"><span>${m}</span><div class="bar"><i style="width:${(kg / maxKg * 100).toFixed(1)}%"></i></div><span class="n">${mass(kg)}</span><span class="n co2">${mass(co2)} CO₂e</span></div>`).join('')}
+    <p class="note">Click a part to light it up in the 3D model. Masses and CO₂ are typical literature values scaled to this component's size: a rough estimate, not a bill of materials.</p>`;
+}
+function renderSheet() {
+  const c = byId[selected]; if (!c) { document.getElementById('sheet').innerHTML = '<p class="sub">No components yet.</p>'; return; }
+  const i = COMPS.indexOf(c);
+  const facts = [...c.facts, ['Total mass (est.)', mass(c.mass_kg)], ['Embodied CO₂ (est.)', mass(c.co2_kg)]].map(([l, v]) => `<div class="fact"><span>${l}</span><b>${esc(v)}</b></div>`).join('');
+  const body = { today: todayTab, when: whenTab, parts: partsTab }[tab](c);
+  const el = document.getElementById('sheet');
+  el.innerHTML = `<div class="top"><span class="ico">${icon(c.kind)}</span><div><h2>${esc(c.name)}</h2><div class="kind">${c.kind_label} · ${ROLE[c.role]}</div></div>
+      <div class="nav"><button data-step="-1" aria-label="Previous component">‹</button><span>${i + 1} of ${COMPS.length}</span><button data-step="1" aria-label="Next component">›</button></div></div>
+    <p class="desc">${c.description}</p><div class="facts">${facts}</div>
+    <div class="tabs">${[['today', 'Today'], ['when', 'When to run'], ['parts', 'Parts & materials']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${body}`;
+  el.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => select(COMPS[(i + +b.dataset.step + COMPS.length) % COMPS.length].id, true)));
+  el.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; renderSheet(); }));
+  el.querySelectorAll('tr[data-part]').forEach(r => r.addEventListener('click', () => { highlight(hlPart === r.dataset.part ? null : r.dataset.part); focusOn(selected); renderSheet(); document.getElementById('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }));
+}
+function scrollToSheet() { document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+
+// light up one part of the selected component
+const swapped = [];
+function highlight(part) {
+  swapped.forEach(([m, mat]) => { m.material = mat; }); swapped.length = 0;
+  hlPart = part;
+  if (!part || !units[selected]) return;
+  units[selected].g.traverse(o => { if (o.isMesh && o.userData.part === part) { swapped.push([o, o.material]); o.material = HIGHLIGHT; } });
+}
+
+// ── Updating everything for an hour and a plan ─────────────────────────────
 const lightGoal = { sun: 2.2, hemi: 1.6, night: 0 };
 function update() {
-  const rows = rowsFor(plan), r = rows[hour];
+  const R = rows(), r = R[hour];
   document.getElementById('clock').textContent = hh(hour);
-  const cls = priceClass(r.price_ct);
-  const tag = document.getElementById('price-tag');
-  tag.className = `tag ${cls}`; tag.textContent = cls === 'cheap' ? 'cheap hour' : cls === 'dear' ? 'expensive hour' : 'normal hour';
-  document.getElementById('price').textContent = `${r.price_ct.toFixed(1)} ct/kWh`;
-  const gen = r.pv_kw + r.wind_kw;
-  document.getElementById('rows').innerHTML = [
-    ['Generating', kw(gen)], ['Using', kw(r.load_kw)],
-    [r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Battery', `${Math.round(r.soc_pct)} %`],
-  ].map(([a, b]) => `<div class="r"><span>${a}</span><b>${b}</b></div>`).join('');
-
-  for (const u of Object.values(units)) {
-    const t = unitText(u.key, r, rows);
-    u.value.textContent = t.now;
-    u.chip.classList.toggle('live', t.live);
-    u.chip.classList.toggle('selected', u.key === selected);
+  const cls = D.price_class[hour], t = document.getElementById('price-tag');
+  t.className = `tag ${cls}`; t.textContent = cls === 'cheap' ? 'cheap hour' : cls === 'dear' ? 'expensive hour' : 'normal hour';
+  document.getElementById('price').textContent = `${r.price_ct.toFixed(1)} ct/kWh${sunny[hour] ? ' · strong own sun & wind' : ''}`;
+  document.getElementById('rows').innerHTML = [['Generating', kw(r.pv_kw + r.wind_kw)], ['Using', kw(r.load_kw)], [r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Battery', `${Math.round(r.soc_pct)} %`]]
+    .map(([a, b]) => `<div class="r"><span>${a}</span><b>${b}</b></div>`).join('');
+  for (const c of COMPS) {
+    const u = units[c.id]; if (!u) continue;
+    const v = ser(c.id)[hour];
+    u.value.textContent = c.role === 'storage' ? `${Math.round(c.analytics[plan].soc_pct[hour])} %` : c.role === 'flexible' && v === 0 ? 'idle' : kw(v);
+    u.chip.classList.toggle('live', Math.abs(v) > LIVE);
+    u.chip.classList.toggle('selected', c.id === selected);
   }
-  const s = unitText(selected, r, rows);
-  document.getElementById('sel').innerHTML = `<h4><i></i>${units[selected].name}</h4><p>${s.text}</p><div class="rows">${s.rows.map(([a, b]) => `<div class="r"><span>${a}</span><b>${b}</b></div>`).join('')}</div>`;
-
-  [...bars.children].forEach((b, i) => { b.className = i === hour ? 'on' : priceClass(prices[i]); });
+  const c = byId[selected];
+  if (c) {
+    const v = ser(c.id)[hour];
+    const now = c.role === 'storage' ? (v > LIVE ? `charging ${kw(v)}` : v < -LIVE ? `giving ${kw(v)}` : 'idle') : Math.abs(v) > 0.01 ? kw(v) : 'off';
+    document.getElementById('brief').innerHTML = `<h4>${esc(c.name)}</h4><p>${c.kind_label} · now ${now}${c.role === 'flexible' ? ` · best ${c.advice.best}` : ''}</p><button class="go" type="button" id="go">Open fact sheet ↓</button>`;
+    document.getElementById('go').addEventListener('click', scrollToSheet);
+  }
+  [...bars.children].forEach((b, i) => { b.className = `${i === hour ? 'on' : D.price_class[i]} ${sunny[i] ? 'sun' : ''}`; });
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.plan === plan));
 
-  // flows: positive = from the meter outwards
-  flows.pv.kw = -r.pv_kw; flows.wind.kw = -r.wind_kw; flows.bat.kw = r.battery_kw;
-  flows.grid.kw = -r.grid_kw; flows.hall.kw = r.furnace_kw; flows.cold.kw = r.cold_kw; flows.ev.kw = r.ev_kw;
-  flows.grid.mat = r.grid_kw > 0 ? DOT_INK : DOT_ORANGE;
-  flows.grid.dots.forEach(d => { d.material = flows.grid.mat; });
+  for (const comp of COMPS) { const f = flows[comp.id]; if (f) { const v = ser(comp.id)[hour]; f.kw = comp.role === 'generation' ? -v : v; } }
+  flows.__grid.kw = -r.grid_kw;
+  flows.__grid.dots.forEach(d => { d.material = r.grid_kw > 0 ? DOT_INK : DOT_ORANGE; });
+  animated.glow.forEach(({ m, id }) => { m.material.emissiveIntensity = ser(id)[hour] > 0 ? 0.9 : 0; });
+  animated.plugs.forEach(({ m, id }) => { m.material.emissiveIntensity = ser(id)[hour] > 0 ? 1 : 0; });
+  animated.soc.forEach(({ bar, id }) => { const s = byId[id].analytics[plan].soc_pct[hour] / 100; bar.scale.x = Math.max(0.03, s); bar.position.x = -3 * (1 - bar.scale.x); });
 
-  furnaceDoor.material.emissiveIntensity = r.furnace_kw ? 0.9 : 0;
-  plugs.forEach(p => { p.material.emissiveIntensity = r.ev_kw ? 1 : 0; });
-  socBar.scale.x = Math.max(0.03, r.soc_pct / 100); socBar.position.x = -3.5 * (1 - socBar.scale.x);
-
-  // the sun follows the hour: rises in the east around 06:00, sets around 18:00
-  const a = (hour + 0.5 - 6) / 12 * Math.PI, up = Math.sin(a);
-  const night = up < 0.05 || r.pv_kw < 0.5;  // dark when the panels produce nothing
-  // by night a soft, cool moonlight from high above keeps the model readable
-  if (night) sun.position.set(25, 130, 45);
-  else sun.position.set(-Math.cos(a) * 80, Math.max(up, 0.55) * 110 + 20, 60);
+  const a = (hour + 0.5 - 6) / 12 * Math.PI, up = Math.sin(a), night = up < 0.05 || r.pv_kw < 0.5;
+  if (night) sun.position.set(25, 130, 45); else sun.position.set(-Math.cos(a) * 80, Math.max(up, 0.55) * 110 + 20, 60);
   lightGoal.sun = night ? 1.0 : 1.6 + 0.8 * Math.max(0, up);
   lightGoal.hemi = night ? 1.45 : 1.6 + 0.2 * Math.max(0, up);
   lightGoal.night = night ? 1 : 0;
 
-  // the day in numbers, for the chosen plan
-  const total = rowsFor(plan);
-  const genDay = sum(total, x => x.pv_kw + x.wind_kw);
-  const own = sum(total, x => Math.min(x.pv_kw + x.wind_kw, x.load_kw + Math.max(x.battery_kw, 0)));
-  const saving = sum(D.usual, x => x.cost_eur) - sum(D.offpeak, x => x.cost_eur);
-  const kpis = [
+  const saving = sum(D.rows.usual, x => x.cost_eur) - sum(D.rows.offpeak, x => x.cost_eur);
+  const gen = sum(R, x => x.pv_kw + x.wind_kw), used = sum(R, x => Math.min(x.pv_kw + x.wind_kw, x.load_kw + Math.max(x.battery_kw, 0)));
+  document.getElementById('kpis').innerHTML = [
     ['Saved today vs usual', plan === 'offpeak' ? euro(saving) : '€0', true],
-    ['Own power used', `${genDay ? Math.round(own / genDay * 100) : 0}<small>%</small>`],
-    ['Bought from the grid', `${Math.round(sum(total, x => Math.max(x.grid_kw, 0)))}<small>kWh</small>`],
-    ['Cost of power today', euro(sum(total, x => x.cost_eur))],
-  ];
-  document.getElementById('kpis').innerHTML = kpis.map(([l, v, acc]) => `<div class="kpi${acc ? ' accent' : ''}"><p>${l}</p><div class="v">${v}</div></div>`).join('');
+    ['Own power used', `${gen ? Math.round(used / gen * 100) : 0}<small>%</small>`],
+    ['Bought from the grid', `${Math.round(sum(R, x => Math.max(x.grid_kw, 0)))}<small>kWh</small>`],
+    ['Cost of power today', euro(sum(R, x => x.cost_eur))],
+  ].map(([l, v, acc]) => `<div class="kpi ${acc ? 'accent' : ''}"><p>${l}</p><div class="v">${v}</div></div>`).join('');
+  dayPlan();
+  renderSheet();
 }
-
-function select(key, focus) {
-  selected = key; if (focus) focusOn(key); update();
+function select(id, focus) {
+  if (id !== selected) highlight(null);
+  selected = id; if (focus) focusOn(id);
+  renderList(); update();
 }
-function setHover(key) {
-  hovered = key;
-  for (const u of Object.values(units)) u.chip.classList.toggle('hover', u.key === key);
-  renderer.domElement.style.cursor = key ? 'pointer' : 'grab';
+function setHover(id) {
+  for (const [k, u] of Object.entries(units)) u.chip.classList.toggle('hover', k === id);
+  renderer.domElement.style.cursor = id ? 'pointer' : 'grab';
 }
 
 // ── Inputs ─────────────────────────────────────────────────────────────────
@@ -466,7 +848,6 @@ const hourInput = document.getElementById('hour');
 hourInput.value = hour;
 hourInput.addEventListener('input', () => { hour = +hourInput.value; stop(); update(); });
 document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { plan = b.dataset.plan; update(); }));
-
 const PLAY = '<svg viewBox="0 0 14 14"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>';
 const PAUSE = '<svg viewBox="0 0 14 14"><rect x="2.5" y="1.5" width="3" height="11" rx="1" fill="currentColor"/><rect x="8.5" y="1.5" width="3" height="11" rx="1" fill="currentColor"/></svg>';
 const playBtn = document.getElementById('play');
@@ -478,51 +859,54 @@ playBtn.addEventListener('click', () => {
   playBtn.innerHTML = PAUSE;
   timer = setInterval(() => { hour = (hour + 1) % 24; hourInput.value = hour; update(); }, 900);
 });
-
 const ray = new THREE.Raycaster(), pointer = new THREE.Vector2();
-const pickables = () => Object.values(units).map(u => u.g);
 function pick(e) {
   const b = renderer.domElement.getBoundingClientRect();
   pointer.set((e.clientX - b.left) / b.width * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
   ray.setFromCamera(pointer, camera);
-  const hit = ray.intersectObjects(pickables(), true).find(h => h.object.userData.key);
-  return hit ? hit.object.userData.key : null;
+  const hit = ray.intersectObjects(Object.values(units).map(u => u.g), true).find(h => h.object.userData.comp);
+  return hit ? hit.object.userData : null;
 }
-renderer.domElement.addEventListener('pointermove', e => { const k = pick(e); if (k !== hovered) setHover(k); });
+let hovered = null;
+renderer.domElement.addEventListener('pointermove', e => { const k = pick(e), id = k && k.comp; if (id !== hovered) { hovered = id; setHover(id); } });
 let downAt = null;
 renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener('pointerup', e => {
-  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;  // a drag, not a click
-  const k = pick(e); if (k) select(k, true);
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;  // a drag
+  const k = pick(e); if (!k) return;
+  select(k.comp, true);
+  if (k.part) { tab = 'parts'; highlight(k.part); renderSheet(); }
 });
 
-// ── Labels never cover each other: keep the selected one, then by importance ─
-const ORDER = ['hall', 'pv', 'wind', 'grid', 'bat', 'ev', 'cold'];
+// name tags never cover each other: keep the selected one, then the rest in list order
 function declutter() {
   const kept = [];
-  for (const k of [selected, ...ORDER.filter(x => x !== selected)]) {
-    const chip = units[k].chip; chip.style.visibility = 'visible';
-    const r = chip.getBoundingClientRect();
-    if (kept.some(s => r.left < s.right + 4 && s.left < r.right + 4 && r.top < s.bottom + 3 && s.top < r.bottom + 3)) chip.style.visibility = 'hidden';
+  for (const id of [selected, ...COMPS.map(c => c.id).filter(x => x !== selected)]) {
+    const u = units[id]; if (!u) continue;
+    u.chip.style.visibility = 'visible';
+    const r = u.chip.getBoundingClientRect();
+    if (kept.some(s => r.left < s.right + 4 && s.left < r.right + 4 && r.top < s.bottom + 3 && s.top < r.bottom + 3)) u.chip.style.visibility = 'hidden';
     else kept.push(r);
   }
 }
-// For automated checks: visible chips that overlap or leave the scene.
+// for automated checks
 window.offpeakLayoutProblems = () => {
   const v = view.getBoundingClientRect(), out = [];
-  const chips = Object.values(units).filter(u => u.chip.style.visibility !== 'hidden').map(u => [u.name, u.chip.getBoundingClientRect()]);
+  const chips = Object.entries(units).filter(([, u]) => u.chip.style.visibility !== 'hidden').map(([id, u]) => [id, u.chip.getBoundingClientRect()]);
   chips.forEach(([n, r], i) => {
     if (r.left < v.left || r.right > v.right || r.top < v.top || r.bottom > v.bottom) out.push(`${n} leaves the scene`);
     chips.slice(i + 1).forEach(([m, s]) => { if (r.left < s.right && s.left < r.right && r.top < s.bottom && s.top < r.bottom) out.push(`${n} overlaps ${m}`); });
   });
+  document.querySelectorAll('.kpi, .tile, .fact, .adv').forEach(el => { if (el.scrollWidth > el.clientWidth + 1) out.push(`overflow: ${el.textContent.trim().slice(0, 30)}`); });
   return out;
 };
 
 const src = [D.real.price ? 'Live day-ahead prices' : 'Demo prices (live prices unavailable)', D.real.weather ? 'live weather forecast' : 'demo weather'];
-document.getElementById('foot').textContent = `${D.site.name} · ${D.site.city} · ${D.site.zone} · ${D.site.date}. ${src.join(', ')}. The site's machines are a demo setup; the full optimiser comes later.`;
+document.getElementById('foot').textContent = `${D.site.name} · ${D.site.city} · ${D.site.zone} · ${D.site.date}. ${src.join(', ')}. ${COMPS.length} components. The plan tries every allowed start time for each flexible load and keeps the cheapest.`;
 
 new ResizeObserver(fit).observe(view);
 fit();
+renderList();
 update();
 
 // ── Animation loop ─────────────────────────────────────────────────────────
@@ -530,17 +914,13 @@ const clock = new THREE.Clock();
 let frame = 0;
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05), ease = 1 - Math.pow(0.002, dt);
-  const r = rowsFor(plan)[hour];
-
-  // smooth light and background between hours
   sun.intensity += (lightGoal.sun - sun.intensity) * ease;
   hemi.intensity += (lightGoal.hemi - hemi.intensity) * ease;
   scene.background.lerp(lightGoal.night ? NIGHT_BG : DAY_BG, ease);
   sun.color.lerp(lightGoal.night ? MOON : DAY_SUN, ease);
   scene.fog.color.copy(scene.background);
   windowsMat.emissiveIntensity += ((lightGoal.night ? 0.9 : 0) - windowsMat.emissiveIntensity) * ease;
-
-  // smooth camera moves for focus and reset
+  HIGHLIGHT.emissiveIntensity = 0.3 + 0.25 * Math.sin(performance.now() / 260);
   if (goal.target) {
     const offset = camera.position.clone().sub(controls.target);
     controls.target.lerp(goal.target, ease);
@@ -548,15 +928,14 @@ renderer.setAnimationLoop(() => {
     camera.position.copy(controls.target).add(offset.setLength(dist));
     if (controls.target.distanceTo(goal.target) < 0.05 && Math.abs(dist - (goal.dist ?? dist)) < 0.3) { goal.target = null; goal.dist = null; }
   }
-
   if (!reduceMotion) {
-    rotors.forEach(rt => { rt.rotation.z -= dt * (0.2 + r.wind_kw / 9); });
-    fans.forEach(f => { f.rotation.y += dt * 4; });
+    animated.rotors.forEach(({ rotor, id }) => { rotor.rotation.z -= dt * (0.25 + ser(id)[hour] / 4); });
+    animated.fans.forEach(({ g, axis, id }) => { if (Math.abs(ser(id)[hour]) > 0.01) g.rotation[axis] += dt * 5; });
     hubRing.scale.setScalar(1 + 0.04 * Math.sin(performance.now() / 400));
   }
   for (const f of Object.values(flows)) {
-    const a = Math.abs(f.kw), on = a > LIVE_CUTOFF;
-    f.t += dt * (0.05 + a / 260) * Math.sign(f.kw || 1) * (reduceMotion ? 0 : 1);
+    const a = Math.abs(f.kw), on = a > LIVE;
+    f.t += dt * (0.05 + a / 200) * Math.sign(f.kw || 1) * (reduceMotion ? 0 : 1);
     const size = 0.7 + Math.min(1, a / 40) * 0.7;
     f.dots.forEach((m, i) => {
       m.visible = on; if (!on) return;

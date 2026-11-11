@@ -106,3 +106,14 @@ Use Supabase's **Session pooler** address (Connect button, then "Session pooler"
 
 - Weather data by Open-Meteo.com (link to open-meteo.com). Free for non-commercial use, under 10,000 calls a day.
 - Prices: Energy-Charts / Fraunhofer ISE, data from Bundesnetzagentur | SMARD.de, CC BY 4.0.
+
+## Site components (site view)
+
+The site view is built from the site's list of components (`offpeak/components.py`): solar field, rooftop solar, wind turbine, battery, heat pump, EV chargers, electric furnace and cold store. Each component has:
+
+- **A place in the 3D model.** Each kind has its own builder in `app/ui/site_scene.html`, and its size follows the parameters (module count from kWp, tower height from hub height, and so on).
+- **A share of the site energy model.** `offpeak/demo_site.py` runs the whole site; `component_series()` splits the result per component.
+- **Analytics and advice.** Energy, cost or value, own-power share and saving for each component, plus when it should run or charge and why.
+- **A parts list with raw materials and embodied CO2.** These are typical literature values scaled to the component's size, rough estimates only.
+
+Components are stored in the `site_components` table. Run `db/migrations/002_site_components.sql` once in Supabase's SQL Editor. Until a site has rows there, the app shows the demo components. The first component someone adds or removes saves the demo ones together with that change. Without a database, changes last only until the page reloads.

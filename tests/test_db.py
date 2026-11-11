@@ -56,3 +56,17 @@ def test_job_log(engine):
     db.log_job(engine, "ingest_prices", now, now, "skipped", 0, "tomorrow already stored")
     runs = db.recent_job_runs(engine)
     assert runs.iloc[0]["status"] == "skipped"
+
+
+def test_components_round_trip(engine):
+    from offpeak.components import new_component
+
+    pv = new_component("pv_field", "New solar", {"kwp": 55})
+    row = {"id": pv.id, "kind": pv.kind, "name": pv.name, "params": pv.params}
+    db.save_components(engine, 1, [row])
+    db.save_components(engine, 1, [row | {"name": "Renamed"}])  # update, no duplicate
+    stored = db.read_components(engine, 1)
+    assert len(stored) == 1
+    assert stored[0]["name"] == "Renamed" and stored[0]["params"]["kwp"] == 55
+    db.delete_component(engine, pv.id)
+    assert db.read_components(engine, 1) == []

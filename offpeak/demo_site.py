@@ -127,22 +127,28 @@ def hourly_inputs(
     return out
 
 
-def simulate(inputs: pd.DataFrame, plan: Plan, assets: Assets = ASSETS) -> pd.DataFrame:
+def simulate(
+    inputs: pd.DataFrame,
+    plan: Plan,
+    assets: Assets = ASSETS,
+    loads: tuple[FlexLoad, ...] = FLEX_LOADS,
+) -> pd.DataFrame:
     """Run the site through one day. Positive battery_kw charges, positive grid_kw buys.
 
     The battery always stores surplus own power; with smart_battery it also discharges in
     hours priced above the day's median. Energy balance every hour:
-    pv + wind + grid = cold + furnace + ev + battery.
+    pv + wind + grid = cold + every flexible load + battery. Each flexible load gets a column
+    named after its key, e.g. furnace_kw.
     """
     median_price = inputs["price_ct"].median()
     soc_kwh = assets.battery_kwh / 2
     rows = []
     for r in inputs.itertuples():
-        loads = {
+        running = {
             f.key: f.kw if plan.starts[f.key] <= r.hour < plan.starts[f.key] + f.hours else 0.0
-            for f in FLEX_LOADS
+            for f in loads
         }
-        load = assets.cold_store_kw + sum(loads.values())
+        load = assets.cold_store_kw + sum(running.values())
         gen = r.pv_kw + r.wind_kw
         battery = 0.0
         if gen > load:
@@ -159,11 +165,10 @@ def simulate(inputs: pd.DataFrame, plan: Plan, assets: Assets = ASSETS) -> pd.Da
                 "pv_kw": r.pv_kw,
                 "wind_kw": r.wind_kw,
                 "cold_kw": assets.cold_store_kw,
-                "furnace_kw": loads["furnace"],
-                "ev_kw": loads["ev"],
+                **{f"{key}_kw": kw for key, kw in running.items()},
                 "load_kw": load,
                 "battery_kw": battery,
-                "soc_pct": soc_kwh / assets.battery_kwh * 100,
+                "soc_pct": soc_kwh / assets.battery_kwh * 100 if assets.battery_kwh else 0.0,
                 "grid_kw": grid,
                 "cost_eur": cost,
             }
@@ -171,28 +176,42 @@ def simulate(inputs: pd.DataFrame, plan: Plan, assets: Assets = ASSETS) -> pd.Da
     return pd.DataFrame(rows)
 
 
-def cost(inputs: pd.DataFrame, plan: Plan) -> float:
-    return float(simulate(inputs, plan)["cost_eur"].sum())
+def usual_plan(loads: tuple[FlexLoad, ...] = FLEX_LOADS) -> Plan:
+    """Every load at the time it usually runs, battery only stores surplus."""
+    return Plan({f.key: f.usual_start for f in loads}, smart_battery=False)
 
 
-def plan_day(inputs: pd.DataFrame) -> Plan:
+def cost(
+    inputs: pd.DataFrame,
+    plan: Plan,
+    assets: Assets = ASSETS,
+    loads: tuple[FlexLoad, ...] = FLEX_LOADS,
+) -> float:
+    return float(simulate(inputs, plan, assets, loads)["cost_eur"].sum())
+
+
+def plan_day(
+    inputs: pd.DataFrame,
+    assets: Assets = ASSETS,
+    loads: tuple[FlexLoad, ...] = FLEX_LOADS,
+) -> Plan:
     """Cheapest plan found: for each load (largest first) try every allowed start."""
-    best = USUAL
+    usual = usual_plan(loads)
+    best = usual
     for smart in (False, True):
-        starts = dict(USUAL.starts)
-        for f in sorted(FLEX_LOADS, key=lambda f: -f.kw):
+        starts = dict(usual.starts)
+        for f in sorted(loads, key=lambda f: -f.kw):
             options = range(f.earliest, f.latest_end - f.hours + 1)
             starts[f.key] = min(
-                options, key=lambda s: cost(inputs, Plan({**starts, f.key: s}, smart))
+                options,
+                key=lambda s: cost(inputs, Plan({**starts, f.key: s}, smart), assets, loads),
             )
         candidate = Plan(starts, smart)
-        if cost(inputs, candidate) < cost(inputs, best):
+        if cost(inputs, candidate, assets, loads) < cost(inputs, best, assets, loads):
             best = candidate
     return best
 
 
-def windows(plan: Plan) -> dict[str, str]:
+def windows(plan: Plan, loads: tuple[FlexLoad, ...] = FLEX_LOADS) -> dict[str, str]:
     """Run times per flexible load as text, e.g. {'furnace': '09–17'}."""
-    return {
-        f.key: f"{plan.starts[f.key]:02d}–{plan.starts[f.key] + f.hours:02d}" for f in FLEX_LOADS
-    }
+    return {f.key: f"{plan.starts[f.key]:02d}–{plan.starts[f.key] + f.hours:02d}" for f in loads}
