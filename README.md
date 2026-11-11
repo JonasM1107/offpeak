@@ -4,11 +4,24 @@ Offpeak tells a small business every afternoon **when to use electricity tomorro
 
 Germany is the first market. The design lets us switch on Portugal and other EU price zones by configuration.
 
-Final project for Introduction to Programming, Nova SBE, by Jonas, Mika and Noa. The build plan is in `docs/PLAN.md`.
+**Live app: https://offpeak.streamlit.app**
 
-## Status
+Team project for Introduction to Programming, Nova SBE, 2026.
 
-Early build. Live day-ahead prices (Energy-Charts) and the weather forecast (Open-Meteo) are connected, and a first Streamlit dashboard shows them: Dashboard, Analytics and Settings. How the live data works is in `docs/LIVE_DATA.md`.
+| Name | Student number |
+|---|---|
+| Jonas (TODO: full name) | TODO |
+| Mika (TODO: full name) | TODO |
+| Noa (TODO: full name) | TODO |
+
+What the project must fulfil, including the grading criteria and where we stand, is in `docs/PROJECT_STANDARDS.md`. The original build plan is in `docs/PLAN.md`; how the live data works is in `docs/LIVE_DATA.md`.
+
+## What it does
+
+- **Dashboard:** tomorrow's prices and this week's plan, i.e. when each machine should run and what that saves.
+- **Analytics:** day-ahead power prices, weather and solar, a 7-day price outlook from a machine learning model (with an honest backtest), and a simulation cockpit to plan machines.
+- **Results:** savings replayed on past days, and a tariff calculator.
+- **Setup:** the site's components (solar, wind, battery, machines), shown in a 3D site view.
 
 ## Get started
 
@@ -18,9 +31,26 @@ You need [uv](https://docs.astral.sh/uv/). macOS: `curl -LsSf https://astral.sh/
 git clone https://github.com/JonasM1107/offpeak.git
 cd offpeak
 uv sync
-cp .env.example .env      # then fill in the values from the team password manager
-uv run pytest
+```
+
+Run the app (it works without a database, calling the public APIs directly):
+
+```bash
 uv run streamlit run app/main.py
+```
+
+With the shared database: `cp .env.example .env` and fill in `DATABASE_URL` from the team password manager.
+
+Run the tests (they never call the real APIs; they use saved responses in `tests/fixtures/`):
+
+```bash
+uv run pytest
+```
+
+The database tests need a local Postgres and are skipped without one. To include them, point `TEST_DATABASE_URL` at an empty local database (CI does this with a throwaway Postgres):
+
+```bash
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres uv run pytest
 ```
 
 ## How we work
@@ -42,10 +72,11 @@ Until the secret exists, the Claude workflows skip themselves and only CI runs.
 ## What is where
 
 ```
-app/          Streamlit dashboard (pages only, no calculations)
-offpeak/      all logic: prices, tariffs, weather, solar, load, optimiser, jobs
-tests/        tests, mirroring offpeak/
-docs/         the plan and decisions
-.github/      CI and the Claude review workflows
+app/          Streamlit dashboard: views/ (one file per page), data.py (cached loading), ui/
+offpeak/      all logic: markets, tariffs, weather, forecast (ML), cockpit, savings, db.py, jobs
+db/           database migrations (run once in Supabase)
+tests/        tests, mirroring offpeak/, with saved API responses in tests/fixtures/
+docs/         project standards, the plan, live data, tariffs
+.github/      CI, scheduled data jobs and the Claude review workflows
 AGENTS.md     rules for Claude and Codex
 ```

@@ -2,6 +2,17 @@
 
 Student final project for Introduction to Programming, Nova SBE. Three people: Jonas, Mika, Noa. The plan is `docs/PLAN.md`; read the relevant section before building something. The people asking are learning: explain what you changed in plain language, and they must be able to explain the code themselves.
 
+## The standard we build to
+
+`docs/PROJECT_STANDARDS.md` has the course rules, the grading criteria and what 100 % means for offpeak. Every change must keep the project at the top level of every criterion. In short:
+
+- **It works:** no page may crash, including on invalid input and when a source is down. Show a clear message instead.
+- **Tests** cover the accepted case, the rejected case (invalid input, missing data, a failing source) and edge cases. Never call a real API in tests, and never use the shared database.
+- **External APIs:** each has a decided failure behaviour (section 4 of the standards). A new API needs one, plus a test for it.
+- **Security:** secrets only from environment variables or Streamlit secrets. Check anything that changes shared data where it is saved, not only by hiding a button. Validate every input before storing it. Add a library only if it is needed; the lock file pins it.
+- **Storage:** Supabase via `offpeak/db.py`. Schema changes are a new numbered file in `db/migrations/`; tell the team to run it in Supabase. Local reset: drop the tables and run the migrations in order (`tests/conftest.py` shows how).
+- **Explainable:** every member must be able to explain any part, so write code and comments a teammate can follow, and say why, not only what.
+
 ## Running things
 
 - Install or update libraries: `uv sync`. Add one: `uv add <name>`. Never use `pip` or `python -m venv`.

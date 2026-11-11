@@ -29,3 +29,8 @@ jobs:
         run: uv run ruff format --check
       - name: Tests
         run: uv run pytest
+      # Known vulnerabilities in the exact library versions of uv.lock (docs/PROJECT_STANDARDS.md 2.5)
+      - name: Dependency audit
+        run: |
+          uv export --locked --no-hashes --no-dev --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit --requirement "$RUNNER_TEMP/requirements.txt" --no-deps --disable-pip
