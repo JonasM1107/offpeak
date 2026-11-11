@@ -606,7 +606,10 @@ document.getElementById('reset').addEventListener('click', () => { goal.target =
 let plan = 'offpeak', hour = Math.min(23, Math.max(0, D.hour_now)), selected = COMPS[0] && COMPS[0].id, tab = 'today', hlPart = null;
 const rows = () => D.rows[plan];
 const ser = (id, p = plan) => D.series[p][id];
-const prices = D.rows.offpeak.map(r => r.price_ct);
+// all-in price per kWh bought (spot + supplier, grid fees, levies, tax) from the tariff
+const allIn = r => r.import_ct ?? r.price_ct;
+const prices = D.rows.offpeak.map(allIn);
+const exportCt = D.rows.offpeak[0].export_ct ?? 8;
 const own = D.rows.offpeak.map(r => r.pv_kw + r.wind_kw);
 const ownMax = Math.max(...own, 1);
 const sunny = own.map(v => v > ownMax * 0.45);
@@ -655,7 +658,7 @@ function deviceStrip(c, which = 'offpeak') {
   return inner;
 }
 function dayPlan() {
-  let html = `<div class="lbl">Price<small>ct/kWh, day-ahead</small></div><div class="strip price">${Array.from({ length: 24 }, (_, h) => `<div class="c ${D.price_class[h]} ${h === hour ? 'now' : ''}">${prices[h].toFixed(0)}</div>`).join('')}</div><div class="out">avg <b>${(sum(prices) / 24).toFixed(1)} ct</b></div>`;
+  let html = `<div class="lbl">Price<small>ct/kWh all-in</small></div><div class="strip price">${Array.from({ length: 24 }, (_, h) => `<div class="c ${D.price_class[h]} ${h === hour ? 'now' : ''}">${prices[h].toFixed(0)}</div>`).join('')}</div><div class="out">avg <b>${(sum(prices) / 24).toFixed(1)} ct</b></div>`;
   html += `<div class="lbl">Own sun &amp; wind<small>all generation on site</small></div><div class="strip">${Array.from({ length: 24 }, (_, h) => `<div class="c ${h === hour ? 'now' : ''}" style="background:rgba(242,163,58,${(0.08 + 0.85 * own[h] / ownMax).toFixed(2)})"></div>`).join('')}</div><div class="out">peak <b>${kw(ownMax)}</b></div>`;
   for (const c of COMPS.filter(c => c.role !== 'generation')) {
     let inner = deviceStrip(c);
@@ -719,7 +722,7 @@ function todayTab(c) {
   let tiles, text;
   if (c.role === 'generation') {
     tiles = [['Energy today', `${a.energy_kwh.toFixed(0)}<small>kWh</small>`], ['Peak', `${a.peak_kw.toFixed(0)}<small>kW</small>`], ['Capacity factor', `${a.capacity_pct}<small>%</small>`], ['Used on site', `${a.used_pct}<small>%</small>`], ['Value today', euro(a.value_eur), true]];
-    text = `Strongest around <b>${c.advice.best || '–'}</b>. ${a.used_pct}% of its power is used on site; the rest goes to the grid for 8 ct/kWh. Every kWh used on site saves the grid price instead.`;
+    text = `Strongest around <b>${c.advice.best || '–'}</b>. ${a.used_pct}% of its power is used on site; the rest goes to the grid for ${exportCt.toFixed(1)} ct/kWh. Every kWh used on site saves the grid price instead.`;
   } else if (c.role === 'storage') {
     tiles = [['Charged', `${a.charged_kwh.toFixed(0)}<small>kWh</small>`], ['Gave back', `${a.discharged_kwh.toFixed(0)}<small>kWh</small>`], ['Cycles today', a.cycles.toFixed(2)], ['Value today', euro(a.value_eur), true]];
     text = `Charges <b>${c.advice.best || '–'}</b>${c.advice.discharge ? ` and gives power back <b>${c.advice.discharge}</b>` : ''}. Bars below the line = giving power back; dashed line = charge level.`;
@@ -746,7 +749,7 @@ function whenTab(c) {
   return `<div class="advice">${cards.map(([cls, l, v]) => `<div class="adv ${cls}"><span>${l}</span><b>${v}</b></div>`).join('')}</div>
     <p class="insight" style="margin:0 0 14px">${reason}</p>
     <div class="plan" style="grid-template-columns:110px 1fr">${rowsHtml}<div></div>${axis()}</div>
-    <p class="note">Background: orange = cheap hour, grey = expensive hour in today's day-ahead auction. Flexible loads only move inside the hours they are allowed to run.</p>`;
+    <p class="note">Background: orange = cheap hour, grey = expensive hour, by the all-in price (day-ahead price plus fees, levies and tax). Flexible loads only move inside the hours they are allowed to run.</p>`;
 }
 function partsTab(c) {
   const maxKg = Math.max(...c.materials.map(m => m[1]), 1);
@@ -789,8 +792,8 @@ function update() {
   document.getElementById('clock').textContent = hh(hour);
   const cls = D.price_class[hour], t = document.getElementById('price-tag');
   t.className = `tag ${cls}`; t.textContent = cls === 'cheap' ? 'cheap hour' : cls === 'dear' ? 'expensive hour' : 'normal hour';
-  document.getElementById('price').textContent = `${r.price_ct.toFixed(1)} ct/kWh${sunny[hour] ? ' · strong own sun & wind' : ''}`;
-  document.getElementById('rows').innerHTML = [['Generating', kw(r.pv_kw + r.wind_kw)], ['Using', kw(r.load_kw)], [r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Battery', `${Math.round(r.soc_pct)} %`]]
+  document.getElementById('price').textContent = `${allIn(r).toFixed(1)} ct/kWh all-in${sunny[hour] ? ' · strong own sun & wind' : ''}`;
+  document.getElementById('rows').innerHTML = [['Spot price', `${r.price_ct.toFixed(1)} ct`], ['Fees, levies, tax', `${(allIn(r) - (r.energy_ct ?? r.price_ct)).toFixed(1)} ct`], ['Generating', kw(r.pv_kw + r.wind_kw)], ['Using', kw(r.load_kw)], [r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Battery', `${Math.round(r.soc_pct)} %`]]
     .map(([a, b]) => `<div class="r"><span>${a}</span><b>${b}</b></div>`).join('');
   for (const c of COMPS) {
     const u = units[c.id]; if (!u) continue;
@@ -822,13 +825,14 @@ function update() {
   lightGoal.hemi = night ? 1.45 : 1.6 + 0.2 * Math.max(0, up);
   lightGoal.night = night ? 1 : 0;
 
-  const saving = sum(D.rows.usual, x => x.cost_eur) - sum(D.rows.offpeak, x => x.cost_eur);
+  // the bills include the day's share of the demand charge and fixed fees
+  const saving = D.bill ? D.bill.usual.total - D.bill.offpeak.total : sum(D.rows.usual, x => x.cost_eur) - sum(D.rows.offpeak, x => x.cost_eur);
   const gen = sum(R, x => x.pv_kw + x.wind_kw), used = sum(R, x => Math.min(x.pv_kw + x.wind_kw, x.load_kw + Math.max(x.battery_kw, 0)));
   document.getElementById('kpis').innerHTML = [
     ['Saved today vs usual', plan === 'offpeak' ? euro(saving) : '€0', true],
     ['Own power used', `${gen ? Math.round(used / gen * 100) : 0}<small>%</small>`],
     ['Bought from the grid', `${Math.round(sum(R, x => Math.max(x.grid_kw, 0)))}<small>kWh</small>`],
-    ['Cost of power today', euro(sum(R, x => x.cost_eur))],
+    ['Cost of power today', euro(D.bill ? D.bill[plan].total : sum(R, x => x.cost_eur))],
   ].map(([l, v, acc]) => `<div class="kpi ${acc ? 'accent' : ''}"><p>${l}</p><div class="v">${v}</div></div>`).join('');
   dayPlan();
   renderSheet();

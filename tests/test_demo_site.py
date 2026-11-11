@@ -6,7 +6,9 @@ from offpeak.demo_site import (
     FLEX_LOADS,
     USUAL,
     Plan,
+    apply_tariff,
     cost,
+    day_bill,
     hourly_inputs,
     plan_day,
     simulate,
@@ -94,3 +96,26 @@ def test_turbine_power_curve(ms, kw):
 
 def test_windows_text():
     assert windows(USUAL) == {"furnace": "06–14", "ev": "17–22"}
+
+
+def test_tariff_turns_spot_into_all_in_price(demo):
+    from datetime import date
+
+    from offpeak.tariffs import germany_2026
+
+    priced = apply_tariff(demo, germany_2026(), date(2026, 11, 11))
+    assert (priced["import_ct"] > priced["price_ct"]).all()  # fees and taxes on top
+    assert (priced["import_ct"] - priced["energy_ct"]).round(3).eq(6.946).all()
+
+
+def test_plan_with_tariff_never_costs_more_and_avoids_new_peaks(demo):
+    from datetime import date
+
+    from offpeak.tariffs import germany_2026
+
+    tariff = germany_2026()
+    priced = apply_tariff(demo, tariff, date(2026, 11, 11))
+    plan = plan_day(priced, tariff)
+    usual, planned = day_bill(priced, USUAL, tariff), day_bill(priced, plan, tariff)
+    assert planned.total <= usual.total
+    assert planned.peak_kw <= usual.peak_kw + 1e-9

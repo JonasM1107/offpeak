@@ -12,11 +12,14 @@ The real optimiser (docs/PLAN.md section 9.2) replaces this later.
 
 import math
 from dataclasses import dataclass
+from datetime import date
 
 import pandas as pd
 
+from offpeak.tariffs import Tariff, bill, slot_prices
+
 HOURS = range(24)
-EXPORT_EUR_KWH = 0.08  # what exported power earns
+EXPORT_EUR_KWH = 0.08  # what exported power earns when no tariff is applied
 
 
 @dataclass(frozen=True)
@@ -140,10 +143,14 @@ def simulate(
     pv + wind + grid = cold + every flexible load + battery. Each flexible load gets a column
     named after its key, e.g. furnace_kw.
     """
-    median_price = inputs["price_ct"].median()
+    buy_ct = inputs["import_ct"] if "import_ct" in inputs else inputs["price_ct"]
+    sell_ct = inputs["export_ct"] if "export_ct" in inputs else EXPORT_EUR_KWH * 100
+    median_price = buy_ct.median()
     soc_kwh = assets.battery_kwh / 2
     rows = []
-    for r in inputs.itertuples():
+    for r, buy, sell in zip(
+        inputs.itertuples(), buy_ct, pd.Series(sell_ct, index=inputs.index), strict=True
+    ):
         running = {
             f.key: f.kw if plan.starts[f.key] <= r.hour < plan.starts[f.key] + f.hours else 0.0
             for f in loads
@@ -153,11 +160,11 @@ def simulate(
         battery = 0.0
         if gen > load:
             battery = min(gen - load, assets.battery_kw, assets.battery_kwh - soc_kwh)
-        elif plan.smart_battery and r.price_ct > median_price:
+        elif plan.smart_battery and buy > median_price:
             battery = -min(load - gen, assets.battery_kw, soc_kwh)
         soc_kwh += battery
         grid = load - gen + battery
-        cost = grid * r.price_ct / 100 if grid > 0 else grid * EXPORT_EUR_KWH
+        cost = grid * (buy if grid > 0 else sell) / 100
         rows.append(
             {
                 "hour": r.hour,
@@ -176,6 +183,39 @@ def simulate(
     return pd.DataFrame(rows)
 
 
+def apply_tariff(inputs: pd.DataFrame, tariff: Tariff, day: date) -> pd.DataFrame:
+    """Add what each hour really costs: the spot price becomes the all-in import price
+    (energy, grid fees, levies, tax) and the export price, per the tariff."""
+    ts = pd.date_range(pd.Timestamp(day, tz=tariff.tz), periods=len(inputs), freq="h")
+    prices = pd.DataFrame({"ts": ts.tz_convert("UTC"), "eur_mwh": inputs["price_ct"] * 10})
+    priced = slot_prices(prices, tariff)
+    out = inputs.copy()
+    for col in [
+        "ts",
+        "period",
+        "energy_ct",
+        "grid_ct",
+        "levies_ct",
+        "tax_ct",
+        "import_ct",
+        "export_ct",
+    ]:
+        out[col] = priced[col].set_axis(out.index)
+    return out
+
+
+def day_bill(
+    inputs: pd.DataFrame,
+    plan: Plan,
+    tariff: Tariff,
+    assets: Assets = ASSETS,
+    loads: tuple[FlexLoad, ...] = FLEX_LOADS,
+):
+    """The day's bill under a tariff, including the demand charge for the day's peak."""
+    day = simulate(inputs, plan, assets, loads)
+    return bill(day["grid_kw"], inputs.reset_index(drop=True), tariff)
+
+
 def usual_plan(loads: tuple[FlexLoad, ...] = FLEX_LOADS) -> Plan:
     """Every load at the time it usually runs, battery only stores surplus."""
     return Plan({f.key: f.usual_start for f in loads}, smart_battery=False)
@@ -184,30 +224,39 @@ def usual_plan(loads: tuple[FlexLoad, ...] = FLEX_LOADS) -> Plan:
 def cost(
     inputs: pd.DataFrame,
     plan: Plan,
+    tariff: Tariff | None = None,
     assets: Assets = ASSETS,
     loads: tuple[FlexLoad, ...] = FLEX_LOADS,
 ) -> float:
+    if tariff is not None:
+        return day_bill(inputs, plan, tariff, assets, loads).total
     return float(simulate(inputs, plan, assets, loads)["cost_eur"].sum())
 
 
 def plan_day(
     inputs: pd.DataFrame,
+    tariff: Tariff | None = None,
     assets: Assets = ASSETS,
     loads: tuple[FlexLoad, ...] = FLEX_LOADS,
 ) -> Plan:
-    """Cheapest plan found: for each load (largest first) try every allowed start."""
+    """Cheapest plan found: for each load (largest first) try every allowed start.
+
+    With a tariff the comparison uses the full bill, so a start time that stacks two
+    machines into a new peak pays for it through the demand charge.
+    """
     usual = usual_plan(loads)
     best = usual
+
+    def price(p: Plan) -> float:
+        return cost(inputs, p, tariff, assets, loads)
+
     for smart in (False, True):
         starts = dict(usual.starts)
         for f in sorted(loads, key=lambda f: -f.kw):
             options = range(f.earliest, f.latest_end - f.hours + 1)
-            starts[f.key] = min(
-                options,
-                key=lambda s: cost(inputs, Plan({**starts, f.key: s}, smart), assets, loads),
-            )
+            starts[f.key] = min(options, key=lambda s: price(Plan({**starts, f.key: s}, smart)))
         candidate = Plan(starts, smart)
-        if cost(inputs, candidate, assets, loads) < cost(inputs, best, assets, loads):
+        if price(candidate) < price(best):
             best = candidate
     return best
 

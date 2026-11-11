@@ -10,6 +10,7 @@ from offpeak import components, demo_site
 from offpeak.config import MARKET_TZ
 from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY, DEMO_SITE
+from offpeak.tariffs import germany_2026
 from offpeak.timeutils import market_today
 
 header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Site view", live=True)
@@ -22,7 +23,9 @@ weather, _, _, _ = data.weather()
 comps, source = data.site_components()
 
 assets, _ = components.site_model(comps)
+tariff = germany_2026(pv_kwp=assets.pv_kwp)
 inputs = demo_site.hourly_inputs(today_prices, weather, MARKET_TZ, assets)
+inputs = demo_site.apply_tariff(inputs, tariff, market_today())
 site = {
     "name": DEMO_SITE.name,
     "city": DEMO_CITY,
@@ -30,7 +33,7 @@ site = {
     "date": market_today().isoformat(),
 }
 hour_now = data.now_utc().tz_convert(MARKET_TZ).hour
-site_scene.show(site_scene.payload(inputs, site, hour_now, comps))
+site_scene.show(site_scene.payload(inputs, site, hour_now, tariff, comps))
 
 # ── Add or remove components ─────────────────────────────────────────────────
 st.write("")

@@ -12,15 +12,21 @@ import pandas as pd
 import streamlit.components.v1 as components
 
 from offpeak import components as site_components
+from offpeak.tariffs import Tariff
 
 TEMPLATE = Path(__file__).with_name("site_scene.html")
 
 
-def payload(inputs: pd.DataFrame, site: dict, hour_now: int, comps=None) -> dict:
+def payload(
+    inputs: pd.DataFrame, site: dict, hour_now: int, tariff: Tariff | None = None, comps=None
+) -> dict:
     """Everything the page needs: both plans for all 24 hours, per component and for the
-    whole site, plus each component's fact sheet."""
+    whole site, each plan's bill under the tariff, and every component's fact sheet.
+
+    `inputs` comes from demo_site.apply_tariff() when a tariff is given, so every hour
+    has its all-in price."""
     comps = list(comps if comps is not None else site_components.DEFAULT_COMPONENTS)
-    day = site_components.site_day(inputs, comps)
+    day = site_components.site_day(inputs, comps, tariff)
     return {
         "site": site,
         "hour_now": hour_now,
@@ -28,10 +34,12 @@ def payload(inputs: pd.DataFrame, site: dict, hour_now: int, comps=None) -> dict
             "price": bool(inputs["price_real"].all()),
             "weather": bool(inputs["weather_real"].any()),
         },
-        # whole-site rows per plan (kept at the top level as before)
+        "tariff": {"name": tariff.name} if tariff is not None else None,
+        # whole-site rows per plan, also at the top level as before
         "offpeak": day["rows"]["offpeak"],
         "usual": day["rows"]["usual"],
         "rows": day["rows"],
+        "bill": day["bill"],
         "series": day["series"],
         "components": day["components"],
         "price_class": day["price_class"],

@@ -17,7 +17,17 @@ from uuid import uuid4
 
 import pandas as pd
 
-from offpeak.demo_site import EXPORT_EUR_KWH, Assets, FlexLoad, Plan, plan_day, simulate, usual_plan
+from offpeak.demo_site import (
+    EXPORT_EUR_KWH,
+    Assets,
+    FlexLoad,
+    Plan,
+    day_bill,
+    plan_day,
+    simulate,
+    usual_plan,
+)
+from offpeak.tariffs import Tariff
 
 # ── The catalogue of kinds ───────────────────────────────────────────────────
 
@@ -528,6 +538,19 @@ def price_classes(prices_ct: list[float]) -> list[str]:
     return ["cheap" if p <= low else "dear" if p >= high else "" for p in prices_ct]
 
 
+def buy_ct(day: pd.DataFrame) -> pd.Series:
+    """What a kWh from the grid costs each hour: the all-in tariff price if the inputs were
+    priced with a tariff (offpeak/tariffs), otherwise the spot price."""
+    return day["import_ct"] if "import_ct" in day else day["price_ct"]
+
+
+def sell_ct(day: pd.DataFrame) -> pd.Series:
+    """What an exported kWh earns each hour."""
+    if "export_ct" in day:
+        return day["export_ct"]
+    return pd.Series(EXPORT_EUR_KWH * 100, index=day.index)
+
+
 def _grid_share(day: pd.DataFrame) -> pd.Series:
     """Per hour: which part of the site's consumption is bought from the grid."""
     return (day["grid_kw"].clip(lower=0) / day["load_kw"].where(day["load_kw"] > 0)).fillna(0)
@@ -543,7 +566,8 @@ def _used_share(day: pd.DataFrame) -> pd.Series:
 def _load_stats(kw: pd.Series, day: pd.DataFrame) -> dict:
     grid = _grid_share(day)
     energy = float(kw.sum())
-    cost = float((kw * (grid * day["price_ct"] / 100 + (1 - grid) * EXPORT_EUR_KWH)).sum())
+    # own power is valued at what it would have earned when exported
+    cost = float((kw * (grid * buy_ct(day) + (1 - grid) * sell_ct(day)) / 100).sum())
     own = float((kw * (1 - grid)).sum())
     return {
         "energy_kwh": round(energy, 1),
@@ -561,7 +585,7 @@ def analytics(c: Component, kw: list[float], day: pd.DataFrame) -> dict:
         used = _used_share(day)
         rated = c.p("kwp") if "kwp" in c.params else c.p("kw")
         energy = float(s.sum())
-        value = float((s * (used * day["price_ct"] / 100 + (1 - used) * EXPORT_EUR_KWH)).sum())
+        value = float((s * (used * buy_ct(day) + (1 - used) * sell_ct(day)) / 100).sum())
         return {
             "energy_kwh": round(energy, 1),
             "peak_kw": round(float(s.max()), 1),
@@ -571,12 +595,13 @@ def analytics(c: Component, kw: list[float], day: pd.DataFrame) -> dict:
         }
     if role == "storage":
         charged, discharged = float(s.clip(lower=0).sum()), float((-s).clip(lower=0).sum())
-        avoided = float(((-s).clip(lower=0) * day["price_ct"] / 100).sum())
+        avoided = float(((-s).clip(lower=0) * buy_ct(day) / 100).sum())
+        lost_export = float((s.clip(lower=0) * sell_ct(day) / 100).sum())
         return {
             "charged_kwh": round(charged, 1),
             "discharged_kwh": round(discharged, 1),
             "cycles": round(discharged / c.p("kwh"), 2) if c.p("kwh") else 0,
-            "value_eur": round(avoided - charged * EXPORT_EUR_KWH, 2),
+            "value_eur": round(avoided - lost_export, 2),
             "soc_pct": [round(float(v)) for v in day["soc_pct"]],
         }
     return _load_stats(s, day)
@@ -588,7 +613,7 @@ def _block_avg(prices, start, hours) -> float:
 
 def advice(c: Component, kw_plan: list[float], kw_usual: list[float], day: pd.DataFrame) -> dict:
     """When this component should run or charge, and why, in plain words."""
-    prices = list(day["price_ct"])
+    prices = list(buy_ct(day))
     surplus = list((day["pv_kw"] + day["wind_kw"]) > day["cold_kw"] + 1)
     role = c.spec.role
     if role == "flexible":
@@ -628,15 +653,32 @@ def advice(c: Component, kw_plan: list[float], kw_usual: list[float], day: pd.Da
 # ── Everything the site view needs ───────────────────────────────────────────
 
 
-def site_day(inputs: pd.DataFrame, components) -> dict:
+PRICE_COLUMNS = ["energy_ct", "grid_ct", "levies_ct", "tax_ct", "import_ct", "export_ct"]
+
+
+def _bill_dict(b) -> dict:
+    return {
+        "lines": {k: round(v, 2) for k, v in b.lines.items()},
+        "total": round(b.total, 2),
+        "peak_kw": round(b.peak_kw, 1),
+        "ct_per_kwh": round(b.ct_per_kwh, 2),
+    }
+
+
+def site_day(inputs: pd.DataFrame, components, tariff: Tariff | None = None) -> dict:
     """Run the site with the Offpeak plan and the usual pattern; return all numbers per
-    component and per hour for the site view."""
+    component and per hour for the site view.
+
+    With a tariff (inputs from demo_site.apply_tariff) every cost uses the all-in price,
+    and the plan compares full bills, so it also avoids raising the demand charge."""
     assets, loads = site_model(components)
     usual = usual_plan(loads)
-    plan = plan_day(inputs, assets, loads) if loads else Plan({}, smart_battery=True)
+    plan = plan_day(inputs, tariff, assets, loads) if loads else Plan({}, smart_battery=True)
+    plans = {"offpeak": plan, "usual": usual}
+    prices = [c for c in PRICE_COLUMNS if c in inputs]
     days = {
-        "offpeak": simulate(inputs, plan, assets, loads),
-        "usual": simulate(inputs, usual, assets, loads),
+        name: simulate(inputs, p, assets, loads).join(inputs[prices].reset_index(drop=True))
+        for name, p in plans.items()
     }
     series = {name: component_series(day, components) for name, day in days.items()}
     out = []
@@ -678,6 +720,14 @@ def site_day(inputs: pd.DataFrame, components) -> dict:
         "components": out,
         "series": series,
         "rows": rows,
-        "price_class": price_classes(list(inputs["price_ct"])),
+        "price_class": price_classes(list(buy_ct(inputs))),
         "smart_battery": plan.smart_battery,
+        "bill": (
+            {
+                name: _bill_dict(day_bill(inputs, p, tariff, assets, loads))
+                for name, p in plans.items()
+            }
+            if tariff is not None
+            else None
+        ),
     }

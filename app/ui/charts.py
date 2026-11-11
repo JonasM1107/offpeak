@@ -109,3 +109,42 @@ def hour_profile(profile: pd.DataFrame) -> go.Figure:
         tickvals=list(range(0, 24, 3)), ticktext=[f"{h:02d}:00" for h in range(0, 24, 3)]
     )
     return fig
+
+
+PRICE_PARTS = [
+    ("energy_ct", "Energy (spot + supplier)", ORANGE),
+    ("grid_ct", "Grid fees", PEAK),
+    ("levies_ct", "Levies", OTHER),
+    ("tax_ct", "Tax", ORANGE_SOFT_STRONG),
+]
+
+
+def price_stack(prices: pd.DataFrame, tz: str) -> go.Figure:
+    """What one bought kWh costs per slot, stacked by part. Columns from tariffs.slot_prices."""
+    x = prices["ts"].dt.tz_convert(tz)
+    fig = go.Figure(
+        [
+            go.Bar(
+                x=x,
+                y=prices[col],
+                name=name,
+                marker_color=color,
+                marker_line_width=0,
+                hovertemplate=f"%{{x|%H:%M}} · {name}<br><b>%{{y:.2f}} ct/kWh</b><extra></extra>",
+            )
+            for col, name, color in PRICE_PARTS
+        ]
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=prices["import_ct"],
+            mode="markers",
+            marker=dict(size=0.1, color="rgba(0,0,0,0)"),
+            hovertemplate="%{x|%H:%M}<br>total <b>%{y:.1f} ct/kWh</b><extra></extra>",
+        )
+    )
+    fig.update_layout(barmode="relative", bargap=0.2)
+    fig.update_xaxes(tickformat="%H:%M", dtick=3 * 3600 * 1000)
+    fig.update_yaxes(ticksuffix=" ct")
+    return _layout(fig)
