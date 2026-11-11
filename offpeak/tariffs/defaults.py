@@ -11,12 +11,20 @@ import pandas as pd
 from offpeak.tariffs.model import Charge, DemandCharge, Export, FixedCharge, Tariff
 
 SRC_RHEINNETZ = "https://www.rheinnetz.de/netzentgelte-strom-ab-dem-01.01.2026.pdfx"
-SRC_UMLAGEN = "https://www.netztransparenz.de/de-de/Umlagen"
-SRC_KAV = "https://www.gesetze-im-internet.de/kav/__2.html"
-SRC_STROMSTEUER = (
-    "https://www.bundesfinanzministerium.de/Content/DE/Pressemitteilungen/Finanzpolitik/"
-    "2025/09/2025-09-03-massnahmen-niedrigere-energiepreise.html"
+# Levies 2026, one page each on netztransparenz.de (the transmission system operators)
+_NT = "https://www.netztransparenz.de/de-de/Erneuerbare-Energien-und-Umlagen/"
+SRC_KWKG = _NT + "KWKG/KWKG-Umlage/KWKG-Umlagen-%C3%9Cbersicht/KWKG-Umlage-2026"
+SRC_OFFSHORE = _NT + "Sonstige-Umlagen/Offshore-Netzumlage/Offshore-Netzumlagen-Uebersicht"
+SRC_P19 = (
+    _NT + "Sonstige-Umlagen/Aufschlag-f%C3%BCr-besondere-Netznutzung-19-StromNEV-Umlage/"
+    "%C3%9Cbersicht-Aufschlag-f%C3%BCr-besondere-Netznutzung/"
+    "Aufschlag-f%C3%BCr-besondere-Netznutzung-2026"
 )
+SRC_KAV = "https://www.gesetze-im-internet.de/kav/__2.html"
+# Electricity tax: § 3 StromStG sets 20.50 EUR/MWh; § 9b refunds 20 EUR/MWh to
+# manufacturing, agriculture and forestry, which leaves 0.05 ct/kWh
+SRC_STROMSTEUER = "https://www.gesetze-im-internet.de/stromstg/__3.html"
+SRC_STROMSTEUER_REDUCED = "https://www.gesetze-im-internet.de/stromstg/__9b.html"
 SRC_EEG = "https://www.bundesnetzagentur.de/DE/Fachthemen/ElektrizitaetundGas/ErneuerbareEnergien/EEG_Foerderung/start.html"
 SRC_ERSE_TAR = "https://www.erse.pt/media/lamnmp31/diretiva-erse-10-2025-tep-se-2026.pdf"
 SRC_ERSE_CYCLES = "https://www.erse.pt/atividade/regulacao/tarifas-e-precos-eletricidade/"
@@ -89,10 +97,15 @@ def germany_2026(
         charges=(
             Charge("Grid fee per kWh (Arbeitspreis)", "grid", grid_ct, source=SRC_RHEINNETZ),
             Charge("Concession fee (special contract)", "levies", 0.11, source=SRC_KAV),
-            Charge("CHP levy (KWKG-Umlage)", "levies", 0.446, source=SRC_UMLAGEN),
-            Charge("Offshore grid levy", "levies", 0.941, source=SRC_UMLAGEN),
-            Charge("Special grid use levy (§ 19)", "levies", 1.559, source=SRC_UMLAGEN),
-            Charge("Electricity tax (Stromsteuer)", "tax", tax, source=SRC_STROMSTEUER),
+            Charge("CHP levy (KWKG-Umlage)", "levies", 0.446, source=SRC_KWKG),
+            Charge("Offshore grid levy", "levies", 0.941, source=SRC_OFFSHORE),
+            Charge("Special grid use levy (§ 19)", "levies", 1.559, source=SRC_P19),
+            Charge(
+                "Electricity tax (Stromsteuer)",
+                "tax",
+                tax,
+                source=SRC_STROMSTEUER_REDUCED if reduced_electricity_tax else SRC_STROMSTEUER,
+            ),
         ),
         demand=demand,
         fixed=fixed,

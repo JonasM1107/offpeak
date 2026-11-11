@@ -1,4 +1,4 @@
-"""Settings: the demo site. Data sources and job runs moved to the Data & status page."""
+"""Settings: the demo site. Data sources are credited on the dashboard and the Prices page."""
 
 import streamlit as st
 from ui.components import card_title, header

@@ -1,6 +1,7 @@
 """Tariff calculator: what a kWh really costs the demo site, and which tariff is cheaper."""
 
 from html import escape
+from urllib.parse import urlparse
 
 import data
 import pandas as pd
@@ -11,7 +12,7 @@ from ui.components import card_title, header, kpi, legend
 from offpeak import demo_site
 from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY, DEMO_SITE
-from offpeak.tariffs import germany_2026, portugal_bte_2026, slot_prices
+from offpeak.tariffs import germany_2026, slot_prices
 from offpeak.timeutils import market_today
 
 today = market_today()
@@ -19,65 +20,43 @@ title = st.empty()  # filled once the tariff and data source are known
 
 with st.container(border=True, key="card_tariff_inputs"):
     card_title("Your tariff", "Change the settings to match a contract; everything below updates")
-    c1, c2, c3, c4 = st.columns([1.25, 1.1, 1.5, 1.2], gap="medium")
-    country = c1.segmented_control(
-        "Market", ["Germany", "Portugal"], default="Germany", key="tariff_country"
+    c1, c2, c3 = st.columns([1.1, 1.6, 1.2], gap="medium")
+    voltage = c1.segmented_control("Voltage level", ["Low", "Medium"], default="Low")
+    metered = c2.toggle(
+        "Load-profile meter (RLM)", value=True, help="Sites using over 100,000 kWh a year"
     )
-    country = country or "Germany"
-    if country == "Germany":
-        voltage = c2.segmented_control("Voltage level", ["Low", "Medium"], default="Low")
-        metered = c3.toggle(
-            "Load-profile meter (RLM)", value=True, help="Sites using over 100,000 kWh a year"
-        )
-        high_use = c3.toggle(
-            "2,500+ full-load hours",
-            value=True,
-            help="Yearly kWh ÷ peak kW. Decides which grid price list applies.",
-        )
-        reduced_tax = c3.toggle(
-            "Manufacturing or farming",
-            value=False,
-            help="Electricity tax 0.05 instead of 2.05 ct/kWh from 2026, on application",
-        )
-        margin = c4.number_input("Supplier margin, ct/kWh", 0.0, 10.0, 1.5, 0.1)
-        fixed_ct = c4.number_input("Fixed offer, energy ct/kWh", 0.0, 60.0, 14.0, 0.5)
+    high_use = c2.toggle(
+        "2,500+ full-load hours",
+        value=True,
+        help="Yearly kWh ÷ peak kW. Decides which grid price list applies.",
+    )
+    reduced_tax = c2.toggle(
+        "Manufacturing or farming",
+        value=False,
+        help="Electricity tax 0.05 instead of 2.05 ct/kWh, on application (§ 9b StromStG)",
+    )
+    margin = c3.number_input("Supplier margin, ct/kWh", 0.0, 10.0, 1.5, 0.1)
+    fixed_ct = c3.number_input("Fixed offer, energy ct/kWh", 0.0, 60.0, 14.0, 0.5)
 
-        def make(kind):
-            return germany_2026(
-                kind=kind,
-                voltage="medium" if voltage == "Medium" else "low",
-                load_metered=metered,
-                high_utilisation=high_use,
-                reduced_electricity_tax=reduced_tax,
-                supplier_margin_ct=margin,
-                fixed_energy_ct=fixed_ct,
-                pv_kwp=demo_site.ASSETS.pv_kwp,
-            )
-    else:
-        margin = c2.number_input("Supplier margin, ct/kWh", 0.0, 10.0, 0.8, 0.1)
-        loss = c3.number_input(
-            "Loss factor, %", 0.0, 30.0, 8.0, 0.5, help="Indexed contracts add grid losses"
+    def make(kind):
+        return germany_2026(
+            kind=kind,
+            voltage="medium" if voltage == "Medium" else "low",
+            load_metered=metered,
+            high_utilisation=high_use,
+            reduced_electricity_tax=reduced_tax,
+            supplier_margin_ct=margin,
+            fixed_energy_ct=fixed_ct,
+            pv_kwp=demo_site.ASSETS.pv_kwp,
         )
-        fixed_ct = c4.number_input("Fixed offer, energy ct/kWh", 0.0, 60.0, 11.0, 0.5)
-
-        def make(kind):
-            return portugal_bte_2026(
-                kind=kind,
-                supplier_margin_ct=margin,
-                loss_factor=loss / 100,
-                fixed_energy_ct=fixed_ct,
-            )
 
 
 dynamic, fixed = make("dynamic"), make("fixed")
 
-# Prices: Germany live, Portugal from the demo curve until the OMIE adapter exists
-today_prices = None
-if country == "Germany":
-    try:
-        today_prices, _, _, _ = data.today_and_tomorrow()
-    except PriceSourceError:
-        today_prices = None
+try:
+    today_prices, _, _, _ = data.today_and_tomorrow()
+except PriceSourceError:
+    today_prices = None
 weather, _, _, _ = data.weather()
 base = demo_site.hourly_inputs(today_prices, weather, dynamic.tz)
 live = bool(base["price_real"].all())
@@ -100,12 +79,11 @@ else:  # hourly demo curve
     )
 
 with title.container():
-    where = DEMO_CITY if country == "Germany" else "priced as if in Portugal"
-    header(f"{DEMO_SITE.name} · {where} · {dynamic.name}", "Tariff calculator", live=live)
+    header(f"{DEMO_SITE.name} · {DEMO_CITY} · {dynamic.name}", "Tariff calculator", live=live)
 if not live:
     st.info(
-        "Live prices for this market are not connected yet (the OMIE adapter comes next), so "
-        "the page uses Offpeak's demo price curve. The tariff maths is the same."
+        "Live prices could not be loaded right now, so the page uses Offpeak's demo price "
+        "curve. The tariff maths is the same."
     )
 
 best = bills["Offpeak plan · dynamic"]
@@ -239,8 +217,10 @@ with st.container(border=True, key="card_tariff_parts"):
     rows.append(("Supplier margin", f"{dynamic.supplier_margin_ct:.2f} ct/kWh", "Your setting"))
 
     def link(src: str) -> str:
+        """A source link that shows where it goes, e.g. 'netztransparenz.de ↗'."""
         if src.startswith("http"):
-            return f'<a href="{escape(src)}" target="_blank">Source</a>'
+            site = urlparse(src).netloc.removeprefix("www.")
+            return f'Source: <a href="{escape(src)}" target="_blank">{escape(site)} ↗</a>'
         return escape(src)
 
     st.html(

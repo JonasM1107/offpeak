@@ -35,7 +35,6 @@ def test_app_starts_without_errors():
         "views/analytics.py",
         "views/tariff.py",
         "views/components.py",
-        "views/status.py",
         "views/settings.py",
     ],
 )

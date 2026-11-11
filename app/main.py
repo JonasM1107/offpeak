@@ -37,7 +37,6 @@ pages = {
     ],
     "Setup": [
         page("components", "Site & components", "precision_manufacturing"),
-        page("status", "Data & status", "database"),
         page("settings", "Settings", "settings"),
     ],
 }
