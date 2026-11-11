@@ -1,15 +1,8 @@
-"""Settings: the demo site and where our data comes from. Editing comes in a later step."""
+"""Settings: the demo site. Data sources and job runs moved to the Data & status page."""
 
-import data
-import pandas as pd
 import streamlit as st
 from ui.components import card_title, header
 
-from offpeak.config import (
-    ENERGY_CHARTS_ATTRIBUTION,
-    OPEN_METEO_ATTRIBUTION,
-    OPEN_METEO_MODEL,
-)
 from offpeak.sites import DEMO_CITY, DEMO_SITE
 
 header("Setup", "Settings", live=True)
@@ -28,33 +21,16 @@ with left, st.container(border=True, key="card_site"):
             for k, v in facts.items()
         )
     )
-with right, st.container(border=True, key="card_attrib"):
-    card_title("Data sources", "Free sources, credited as their licences require")
+with right, st.container(border=True, key="card_more"):
+    card_title("More settings", "Planned")
+    planned = {
+        "Language": "English (German next)",
+        "Tariff": "Tariff calculator page",
+        "Machines": "Site &amp; components page",
+    }
     st.html(
-        f'<div class="op-row"><div><div class="name">Energy-Charts</div><div class="meta">'
-        f"{ENERGY_CHARTS_ATTRIBUTION}</div></div></div>"
-        f'<div class="op-row"><div><div class="name">Open-Meteo</div><div class="meta">'
-        f"{OPEN_METEO_ATTRIBUTION} · model {OPEN_METEO_MODEL}</div></div></div>"
-    )
-
-st.write("")
-with st.container(border=True, key="card_jobs"):
-    card_title("Scheduled jobs", "Last runs of the jobs that fill the database (German time)")
-    runs = data.job_runs()
-    if runs is None:
-        st.caption("No database connected yet. Add DATABASE_URL to .env or the Streamlit secrets.")
-    elif runs.empty:
-        st.caption("Connected. No job has run yet.")
-    else:
-        table = pd.DataFrame(
-            {
-                "Job": runs["job"],
-                "Started": runs["started_at"]
-                .dt.tz_convert("Europe/Berlin")
-                .dt.strftime("%a %d %b, %H:%M"),
-                "Status": runs["status"],
-                "Rows": runs["rows_written"],
-                "Note": runs["message"].fillna(""),
-            }
+        "".join(
+            f'<div class="op-row"><span class="meta">{k}</span><span>{v}</span></div>'
+            for k, v in planned.items()
         )
-        st.dataframe(table, hide_index=True, width="stretch")
+    )

@@ -15,24 +15,30 @@ st.set_page_config(page_title="offpeak", page_icon="⚡", layout="wide")
 st.logo(str(HERE / "assets" / "logo.svg"), size="large")
 inject_css()
 
+
+def page(file: str, title: str, icon: str, default: bool = False) -> st.Page:
+    return st.Page(
+        HERE / "views" / f"{file}.py", title=title, icon=f":material/{icon}:", default=default
+    )
+
+
 # The page files live in views/, not pages/: Streamlit would turn a pages/ folder into its own
 # automatic menu and show that briefly before ours.
 pages = {
     "Overview": [
-        st.Page(
-            HERE / "views" / "dashboard.py",
-            title="Dashboard",
-            icon=":material/dashboard:",
-            default=True,
-        ),
-        st.Page(HERE / "views" / "site.py", title="Site view", icon=":material/view_in_ar:"),
-        st.Page(HERE / "views" / "analytics.py", title="Analytics", icon=":material/insights:"),
-        st.Page(
-            HERE / "views" / "tariff.py", title="Tariff calculator", icon=":material/receipt_long:"
-        ),
+        page("dashboard", "Dashboard", "dashboard", default=True),
+        page("site", "Site view", "view_in_ar"),
+    ],
+    "Forecasts": [
+        page("analytics", "Prices", "show_chart"),
+    ],
+    "Results": [
+        page("tariff", "Tariff calculator", "receipt_long"),
     ],
     "Setup": [
-        st.Page(HERE / "views" / "settings.py", title="Settings", icon=":material/settings:"),
+        page("components", "Site & components", "precision_manufacturing"),
+        page("status", "Data & status", "database"),
+        page("settings", "Settings", "settings"),
     ],
 }
 st.navigation(pages, position="sidebar").run()

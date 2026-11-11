@@ -29,7 +29,15 @@ def test_app_starts_without_errors():
 
 
 @pytest.mark.parametrize(
-    "page", ["views/site.py", "views/analytics.py", "views/tariff.py", "views/settings.py"]
+    "page",
+    [
+        "views/site.py",
+        "views/analytics.py",
+        "views/tariff.py",
+        "views/components.py",
+        "views/status.py",
+        "views/settings.py",
+    ],
 )
 def test_other_pages_load(page):
     at = AppTest.from_file(str(APP), default_timeout=30).run()
