@@ -23,8 +23,8 @@ from offpeak.tariffs import germany_2026, slot_prices, bill
 
 tariff = germany_2026(voltage="low", load_metered=True, reduced_electricity_tax=False)
 priced = slot_prices(prices, tariff)  # prices: ts (UTC), eur_mwh
-priced["import_ct"]                    # all-in ct/kWh per slot
-b = bill(grid_kw, priced, tariff)      # grid_kw per slot, positive buys
+priced["import_ct"]  # all-in ct/kWh per slot
+b = bill(grid_kw, priced, tariff)  # grid_kw per slot, positive buys
 b.lines, b.total, b.ct_per_kwh
 ```
 
