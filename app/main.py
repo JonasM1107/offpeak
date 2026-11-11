@@ -27,6 +27,9 @@ pages = {
         ),
         st.Page(HERE / "views" / "site.py", title="Site view", icon=":material/view_in_ar:"),
         st.Page(HERE / "views" / "analytics.py", title="Analytics", icon=":material/insights:"),
+        st.Page(
+            HERE / "views" / "tariff.py", title="Tariff calculator", icon=":material/receipt_long:"
+        ),
     ],
     "Setup": [
         st.Page(HERE / "views" / "settings.py", title="Settings", icon=":material/settings:"),

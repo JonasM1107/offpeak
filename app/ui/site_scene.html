@@ -90,7 +90,7 @@
       <button class="switch" id="opt-switch" type="button"><b id="opt-text" style="font-weight:400">Offpeak schedule on</b><span></span></button>
       <div class="field"><div class="top"><span>Time of day</span><b id="hour-out">12:00</b></div>
         <input type="range" id="hour" min="0" max="23" step="1" value="12" aria-label="Time of day"></div>
-      <div class="field">Price at this hour<div class="big" id="price-now">0<small>ct/kWh</small></div></div>
+      <div class="field">Your price at this hour<div class="big" id="price-now">0<small>ct/kWh</small></div><div id="price-split" style="margin-top:2px"></div></div>
     </div>
     <div class="card">
       <h4>Today so far</h4>
@@ -98,7 +98,7 @@
         <div class="stat"><p>Generated</p><div class="n" id="s-gen">0</div></div>
         <div class="stat"><p>Consumed</p><div class="n" id="s-use">0</div></div>
         <div class="stat"><p>Own power used</p><div class="n" id="s-self">0</div></div>
-        <div class="stat"><p>Saved vs usual</p><div class="n accent" id="s-save">€0</div></div>
+        <div class="stat"><p>Saved today</p><div class="n accent" id="s-save">€0</div></div>
       </div>
     </div>
     <div class="card">
@@ -118,7 +118,7 @@
   <div class="col">
     <div class="card">
       <h4>Consumption <small>today</small></h4>
-      <div class="legend"><span><i style="background:var(--other)"></i>Demand kW</span><span><i style="background:var(--peak);height:2px"></i>Price ct/kWh</span></div>
+      <div class="legend"><span><i style="background:var(--other)"></i>Demand kW</span><span><i style="background:var(--peak);height:2px"></i>Your price ct/kWh</span></div>
       <svg class="chart" id="c-load" viewBox="0 0 300 118"></svg>
     </div>
     <div class="card">
@@ -354,11 +354,12 @@ function update() {
   const rows = OPT ? D.offpeak : D.usual, r = rows[hour];
   const win = OPT ? D.windows.offpeak : D.windows.usual;
   document.getElementById('hour-out').textContent = `${String(hour).padStart(2, '0')}:00`;
-  document.getElementById('price-now').innerHTML = `${r.price_ct.toFixed(1)}<small>ct/kWh</small>`;
+  document.getElementById('price-now').innerHTML = `${r.import_ct.toFixed(1)}<small>ct/kWh</small>`;
+  document.getElementById('price-split').textContent = `Spot ${r.price_ct.toFixed(1)} + fees, levies and tax ${(r.import_ct - r.energy_ct).toFixed(1)} + supplier ${(r.energy_ct - r.price_ct).toFixed(1)}`;
   const sw = document.getElementById('opt-switch');
   sw.classList.toggle('off', !OPT);
   document.getElementById('opt-text').textContent = OPT ? 'Offpeak schedule on' : 'Offpeak schedule off';
-  chart(document.getElementById('c-load'), rows.map(x => x.load_kw), rows.map(x => x.price_ct), hour, '#4A4640');
+  chart(document.getElementById('c-load'), rows.map(x => x.load_kw), rows.map(x => x.import_ct), hour, '#4A4640');
   chart(document.getElementById('c-gen'), rows.map(x => x.pv_kw + x.wind_kw), rows.map(x => Math.max(x.grid_kw, 0)), hour, '#4A4640');
 
   const gen = upTo(rows, hour, x => x.pv_kw + x.wind_kw), use = upTo(rows, hour, x => x.load_kw);
@@ -367,20 +368,22 @@ function update() {
   document.getElementById('s-gen').innerHTML = `${fmt(gen)}<small>kWh</small>`;
   document.getElementById('s-use').innerHTML = `${fmt(use)}<small>kWh</small>`;
   document.getElementById('s-self').innerHTML = `${gen ? fmt(own / gen * 100) : 0}<small>%</small>`;
-  document.getElementById('s-save').textContent = OPT ? `${save < -0.5 ? '−' : ''}€${fmt(save)}` : '€0';
+  const daySave = D.bill.usual.total - D.bill.offpeak.total;
+  document.getElementById('s-save').textContent = OPT ? `${daySave < -0.5 ? '−' : ''}€${fmt(daySave)}` : '€0';
 
   flows.pv.kw = r.pv_kw; flows.wind.kw = r.wind_kw; flows.windHub.kw = r.wind_kw - r.battery_kw;
   flows.grid.kw = -r.grid_kw; flows.hall.kw = r.furnace_kw; flows.cold.kw = r.cold_kw; flows.ev.kw = r.ev_kw;
   furnaceGlow.material.emissiveIntensity = r.furnace_kw ? 2.5 : 0.05;
   batLed.scale.x = Math.max(0.05, r.soc_pct / 100); batLed.position.x = -1 - 2.6 * (1 - batLed.scale.x);
 
-  const price = `${r.price_ct.toFixed(1)} ct/kWh`;
+  const price = `${r.import_ct.toFixed(1)} ct/kWh`;
+  const B = OPT ? D.bill.offpeak : D.bill.usual;
   const info = {
     pv: ['Solar', [['Power now', kw(r.pv_kw)], ['Today so far', `${fmt(upTo(rows, hour, x => x.pv_kw))} kWh`], ['Installed', `${D.assets.pv_kwp} kWp`]]],
     wind: ['Wind', [['Power now', kw(r.wind_kw)], ['Today so far', `${fmt(upTo(rows, hour, x => x.wind_kw))} kWh`], ['Installed', `${D.assets.turbines} × ${D.assets.turbine_kw} kW`]]],
     bat: ['Battery', [['Charge level', `${fmt(r.soc_pct)} %`], [r.battery_kw >= 0 ? 'Charging' : 'Discharging', kw(r.battery_kw)], ['Capacity', `${D.assets.battery_kwh} kWh`]]],
-    hub: ['Grid connection', [[r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Price', price], ['Site demand', kw(r.load_kw)]]],
-    grid: ['Public grid', [[r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Price', price], ['Cost today so far', `€${fmt(upTo(rows, hour, x => x.cost_eur))}`]]],
+    hub: ['Grid connection', [[r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Your price', price], ['Grid fees and levies', `${(r.grid_ct + r.levies_ct).toFixed(1)} ct/kWh`], ['Electricity tax', `${r.tax_ct.toFixed(2)} ct/kWh`], ['Peak today', `${fmt(B.peak_kw)} kW`]]],
+    grid: ['Public grid', [[r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Spot price', `${r.price_ct.toFixed(1)} ct/kWh`], ['Feed-in pays', `${r.export_ct.toFixed(1)} ct/kWh`], ['Bill today', `€${fmt(B.total)}`]]],
     hall: ['Production hall', [['Furnace now', kw(r.furnace_kw)], ['Furnace runs', win.furnace], ['Today so far', `${fmt(upTo(rows, hour, x => x.furnace_kw))} kWh`]]],
     cold: ['Cold store', [['Power now', kw(r.cold_kw)], ['Runs', 'all day'], ['Today so far', `${fmt(upTo(rows, hour, x => x.cold_kw))} kWh`]]],
     ev: ['EV charging', [['Power now', kw(r.ev_kw)], ['Charges', win.ev], ['Today so far', `${fmt(upTo(rows, hour, x => x.ev_kw))} kWh`]]],
@@ -389,18 +392,20 @@ function update() {
   document.getElementById('detail').innerHTML = `<h4>${title}</h4>` + lines.map(([a, b]) => `<div class="r"><span>${a}</span><span>${b}</span></div>`).join('');
   for (const [k, u] of Object.entries(units)) u.div.classList.toggle('sel', k === selected);
 
-  const U = D.windows.usual, O = D.windows.offpeak, prices = D.real.price ? "Prices: today's day-ahead auction" : 'Prices: demo curve, live prices unavailable';
+  const U = D.windows.usual, O = D.windows.offpeak;
+  const pu = D.bill.usual.peak_kw, po = D.bill.offpeak.peak_kw;
+  const prices = po < pu - 0.5 ? ['good', `Peak lowered from ${fmt(pu)} to ${fmt(po)} kW, a lower demand charge`] : ['', `Peak today ${fmt(po)} kW, as usual`];
   const move = (name, k) => U[k] === O[k] ? ['', `${name} stays at ${U[k]}, already the cheapest time`] : ['good', `${name} moved from ${U[k]} to ${O[k]}, cheaper hours`];
   const events = OPT ? [
     move('Furnace', 'furnace'),
     move('EV charging', 'ev'),
     [D.smart_battery ? 'good' : '', D.smart_battery ? 'Battery also covers the most expensive hours' : 'Battery stores surplus own power'],
-    ['', prices],
+    prices,
   ] : [
     ['warn', `Furnace runs ${U.furnace}, its usual time`],
     ['warn', `EV fleet charges ${U.ev}, its usual time`],
     ['', 'Battery only stores surplus own power'],
-    ['', prices],
+    ['', `Usual peak ${fmt(pu)} kW sets the demand charge`],
   ];
   document.getElementById('ticker').innerHTML = events.map(([c, m]) => `<div class="ev ${c}" title="${m}"><b>${m}</b></div>`).join('');
 }
