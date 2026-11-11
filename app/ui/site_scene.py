@@ -71,5 +71,5 @@ def render_html(data: dict) -> str:
     return TEMPLATE.read_text().replace("__DATA__", json.dumps(data).replace("</", "<\\/"))
 
 
-def show(data: dict, height: int = 700) -> None:
-    components.html(render_html(data), height=height, scrolling=True)
+def show(data: dict, height: int = 770) -> None:
+    components.html(render_html(data), height=height, scrolling=False)

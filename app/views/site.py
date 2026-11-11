@@ -11,7 +11,7 @@ from offpeak.sites import DEMO_CITY, DEMO_SITE
 from offpeak.tariffs import germany_2026
 from offpeak.timeutils import market_today
 
-header("Overview", "Site view", live=True)
+header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Site view", live=True)
 
 try:
     today_prices, _, _, _ = data.today_and_tomorrow()

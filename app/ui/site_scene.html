@@ -3,486 +3,575 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* Same palette as the dashboard (app/ui/components.py) */
-  :root { --bg: #F6F5F2; --card: #FFFFFF; --line: #E7E4DE; --text: #1C1B19; --muted: #6F6A62; --accent: #E8590C; --accent-soft: #FDEBDF; --accent-line: #F8C9A8; --accent-ink: #B8430A; --peak: #4A4640; --other: #D6D2CB; --green: #2F9E44; }
+  :root {
+    --bg: #F6F5F2; --card: #FFFFFF; --line: #ECE9E4; --ink: #1C1B19; --muted: #8A857D;
+    --orange: #E8590C; --orange-soft: #FDEBDF; --orange-mid: #F8C9A8; --dark: #3A3733; --grey: #DDD8D0;
+  }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; }
-  body { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; height: 100vh; padding: 0 2px 2px; overflow: hidden; }
-  header { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); min-width: 0; padding-top: 2px; }
-  header .site { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  header .right { margin-left: auto; display: flex; gap: 8px; white-space: nowrap; }
-  .pill { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; color: var(--text); }
-  .pill.live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 6px; vertical-align: 1px; }
-  main { display: grid; grid-template-columns: 230px minmax(0, 1fr) 270px; gap: 12px; min-height: 0; }
-  .col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; min-width: 0; }
-  .card h4 { margin: 0 0 10px; font-size: 15px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
-  .card h4 small { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 12px; }
-  .switch { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 4px 5px 4px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-  .switch.off { background: #F1EFEB; color: var(--muted); flex-direction: row-reverse; padding: 4px 12px 4px 5px; }
-  .switch span { width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .06); }
-  .field { margin-top: 12px; font-size: 12px; color: var(--muted); }
-  .field .top { display: flex; justify-content: space-between; }
-  .field .top b { color: var(--text); font-weight: 600; }
-  input[type=range] { width: 100%; accent-color: var(--accent); margin: 6px 0 0; }
-  .big { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); margin-top: 2px; }
-  .big small, .n small { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 3px; letter-spacing: 0; }
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 8px; }
-  .stats.three { grid-template-columns: repeat(3, 1fr); }
-  .stat p { margin: 0; font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .n { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; white-space: nowrap; }
-  .n.accent { color: var(--accent); }
-  .scene { position: relative; padding: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  .scene h4 { padding: 14px 16px 0; margin: 0; }
-  #view { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 0 0 16px 16px; }
-  #view canvas { display: block; }
-  .tag[style*="hidden"] { pointer-events: none; }
-  .tag { font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; cursor: pointer; pointer-events: auto; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .92); border: 1px solid var(--line); }
-  .tag.sel { color: #fff; background: var(--accent); border-color: var(--accent); }
-  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--text); margin-bottom: 4px; flex-wrap: wrap; }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-  svg.chart { width: 100%; height: auto; display: block; }
-  .detail .r { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
-  .detail .r:last-child { border-bottom: 0; }
-  .detail .r span:last-child { color: var(--text); font-weight: 650; font-size: 15px; }
-  .ticker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-  .ev { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 9px 14px; font-size: 12px; line-height: 1.4; }
-  .ev b { font-weight: 500; color: var(--text); }
-  .ev.good { background: var(--accent-soft); border-color: var(--accent-line); }
-  .ev.good b { color: var(--accent-ink); font-weight: 600; }
-  .ev.warn { background: #F1EFEB; }
-  .note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
-  @media (max-width: 1180px) {
-    .ticker { grid-template-columns: 1fr 1fr; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .stage { position: relative; height: 600px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+  #view { position: absolute; inset: 0; }
+  #view canvas { display: block; outline: none; }
+
+  /* floating controls */
+  .topbar { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; z-index: 3; }
+  .topbar > * { pointer-events: auto; }
+  .seg { display: inline-flex; background: rgba(246, 245, 242, .92); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
+  .seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--muted); transition: all .2s; }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(28, 27, 25, .08); }
+  .seg button.on .d { background: var(--orange); }
+  .seg .d { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--grey); margin-right: 7px; vertical-align: 1px; }
+  .ghost { border: 1px solid var(--line); background: rgba(255, 255, 255, .92); backdrop-filter: blur(8px); border-radius: 10px; padding: 7px 12px; font-size: 12px; color: var(--muted); }
+  .ghost:hover { color: var(--ink); }
+
+  .panel { position: absolute; top: 68px; right: 16px; width: 252px; background: rgba(255, 255, 255, .94); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; padding: 16px; z-index: 3; box-shadow: 0 8px 30px rgba(28, 27, 25, .06); }
+  .panel .now { display: flex; justify-content: space-between; align-items: baseline; }
+  .panel .clock { font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+  .tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #F1EFEB; color: var(--dark); }
+  .tag.cheap { background: var(--orange-soft); color: #B8430A; }
+  .tag.dear { background: var(--dark); color: #fff; }
+  .panel .price { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
+  .rows .r { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; font-size: 13px; border-top: 1px solid var(--line); }
+  .rows .r span:first-child { color: var(--muted); }
+  .rows .r b { font-weight: 600; }
+  .sel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .sel h4 { margin: 0 0 2px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .sel h4 i { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
+  .sel p { margin: 0 0 8px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+  .timeline { position: absolute; left: 16px; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 14px; background: rgba(255, 255, 255, .94); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; padding: 10px 16px 10px 10px; z-index: 3; }
+  #play { width: 38px; height: 38px; flex: none; border: 0; border-radius: 11px; background: var(--orange); color: #fff; display: grid; place-items: center; }
+  #play svg { width: 14px; height: 14px; }
+  .track { position: relative; flex: 1; height: 40px; }
+  .bars { position: absolute; inset: 0 0 12px 0; display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; }
+  .bars div { border-radius: 3px 3px 1px 1px; background: var(--grey); transition: background .2s; }
+  .bars div.cheap { background: var(--orange-mid); }
+  .bars div.dear { background: #9C968D; }
+  .bars div.on { background: var(--orange); }
+  .ticks { position: absolute; left: 0; right: 0; bottom: -2px; display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+  #hour { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; margin: 0; }
+  .legend { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+  /* name chips on the 3D objects */
+  .chip { display: flex; align-items: center; gap: 7px; background: rgba(255, 255, 255, .95); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px 4px 8px; font-size: 11.5px; white-space: nowrap; box-shadow: 0 2px 10px rgba(28, 27, 25, .07); cursor: pointer; pointer-events: auto; transition: transform .15s, border-color .15s; }
+  .chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--grey); }
+  .chip.live i { background: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
+  .chip b { font-weight: 600; }
+  .chip span { color: var(--muted); }
+  .chip.hover, .chip.selected { transform: translateY(-2px); border-color: var(--orange-mid); }
+  .chip.selected { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .chip.selected span { color: #C9C4BC; }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  .kpi p { margin: 0; font-size: 12.5px; color: var(--muted); }
+  .kpi .v { font-size: 24px; font-weight: 600; letter-spacing: -.02em; margin-top: 6px; }
+  .kpi .v small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+  .kpi.accent { background: var(--orange-soft); border-color: var(--orange-mid); }
+  .kpi.accent .v { color: var(--orange); }
+  .foot { margin-top: 10px; font-size: 11.5px; color: var(--muted); }
+
+  @media (max-width: 900px) {
+    .stage { height: 520px; }
+    .panel { top: auto; bottom: 84px; left: 16px; right: auto; width: auto; max-width: 260px; padding: 12px; }
+    .panel .sel, .legend { display: none; }
+    .kpis { grid-template-columns: 1fr 1fr; }
   }
-  @media (max-width: 860px) {
-    body { height: auto; overflow: auto; }
-    main { grid-template-columns: 1fr 1fr; }
-    .scene { grid-column: 1 / -1; order: -1; height: 460px; }
-  }
-  @media (max-width: 640px) {
-    main { grid-template-columns: 1fr; }
-    .ticker { grid-template-columns: 1fr; }
-    header { flex-wrap: wrap; row-gap: 6px; }
-    header .right { margin-left: 0; }
-    .scene { height: 360px; }
+  @media (max-width: 560px) {
+    .seg button { padding: 6px 10px; font-size: 12px; }
+    #reset { display: none; }
+    .panel .rows { display: none; }
+    .panel .price { margin-bottom: 0; }
   }
 </style>
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
 } }
 </script>
 </head>
 <body>
-<header>
-  <span class="site" id="site-name"></span>
-  <span class="right"><span class="pill" id="date" style="font-weight:500;color:var(--muted)"></span><span class="pill" id="src-price"></span><span class="pill" id="src-weather"></span></span>
-</header>
-<main>
-  <div class="col">
-    <div class="card">
-      <h4>Site control</h4>
-      <button class="switch" id="opt-switch" type="button"><b id="opt-text" style="font-weight:400">Offpeak schedule on</b><span></span></button>
-      <div class="field"><div class="top"><span>Time of day</span><b id="hour-out">12:00</b></div>
-        <input type="range" id="hour" min="0" max="23" step="1" value="12" aria-label="Time of day"></div>
-      <div class="field">Your price at this hour<div class="big" id="price-now">0<small>ct/kWh</small></div><div id="price-split" style="margin-top:2px"></div></div>
+<div class="stage">
+  <div id="view"></div>
+  <div class="topbar">
+    <div class="seg" role="tablist" aria-label="Schedule">
+      <button class="on" data-plan="offpeak" role="tab"><span class="d"></span>Offpeak plan</button>
+      <button data-plan="usual" role="tab"><span class="d"></span>Usual day</button>
     </div>
-    <div class="card">
-      <h4>Today so far</h4>
-      <div class="stats">
-        <div class="stat"><p>Generated</p><div class="n" id="s-gen">0</div></div>
-        <div class="stat"><p>Consumed</p><div class="n" id="s-use">0</div></div>
-        <div class="stat"><p>Own power used</p><div class="n" id="s-self">0</div></div>
-        <div class="stat"><p>Saved today</p><div class="n accent" id="s-save">€0</div></div>
-      </div>
-    </div>
-    <div class="card">
-      <h4>Site</h4>
-      <div class="stats three">
-        <div class="stat"><p>Solar</p><div class="n" id="a-pv">0</div></div>
-        <div class="stat"><p>Wind</p><div class="n" id="a-wind">0</div></div>
-        <div class="stat"><p>Battery</p><div class="n" id="a-bat">0</div></div>
-      </div>
-      <div class="note" id="note"></div>
-    </div>
+    <button class="ghost" id="reset" type="button">Reset view</button>
   </div>
-  <div class="card scene">
-    <h4>Site overview <small>Click a name for details · drag to rotate</small></h4>
-    <div id="view"></div>
+  <div class="panel">
+    <div class="now"><span class="clock" id="clock">12:00</span><span class="tag" id="price-tag">normal</span></div>
+    <div class="price" id="price">– ct/kWh</div>
+    <div class="rows" id="rows"></div>
+    <div class="sel" id="sel"></div>
   </div>
-  <div class="col">
-    <div class="card">
-      <h4>Consumption <small>today</small></h4>
-      <div class="legend"><span><i style="background:var(--other)"></i>Demand kW</span><span><i style="background:var(--peak);height:2px"></i>Your price ct/kWh</span></div>
-      <svg class="chart" id="c-load" viewBox="0 0 300 118"></svg>
+  <div class="timeline">
+    <button id="play" type="button" aria-label="Play the day"></button>
+    <div class="track">
+      <div class="bars" id="bars"></div>
+      <div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+      <input type="range" id="hour" min="0" max="23" step="1" value="12" aria-label="Hour of the day">
     </div>
-    <div class="card">
-      <h4>Generation <small>today</small></h4>
-      <div class="legend"><span><i style="background:var(--other)"></i>Solar + wind kW</span><span><i style="background:var(--peak);height:2px"></i>Bought kW</span></div>
-      <svg class="chart" id="c-gen" viewBox="0 0 300 118"></svg>
-    </div>
-    <div class="card detail" id="detail"></div>
+    <div class="legend"><span><i style="background:var(--orange-mid)"></i>Cheap hours</span><span><i style="background:#9C968D"></i>Expensive</span></div>
   </div>
-</main>
-<div class="ticker" id="ticker"></div>
+</div>
+<div class="kpis" id="kpis"></div>
+<div class="foot" id="foot"></div>
 
 <script>window.OFFPEAK = __DATA__;</script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
+// All numbers come from Python (offpeak/demo_site.py). This file only draws them.
 const D = window.OFFPEAK;
+const COLORS = { orange: 0xE8590C, orangeSoft: 0xF8C9A8, ink: 0x3A3733, white: 0xFFFFFF, clay: 0xF4F1EC, ground: 0xEDE9E2, line: 0xE0DAD0, glass: 0x2E2C29 };
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ── Renderer, camera, light ────────────────────────────────────────────────
 const view = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 view.appendChild(renderer.domElement);
 const labels = new CSS2DRenderer();
-Object.assign(labels.domElement.style, { position: 'absolute', top: '0', left: '0', pointerEvents: 'none' });
+Object.assign(labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
 view.appendChild(labels.domElement);
 
+const DAY_BG = new THREE.Color(0xFBFAF8), NIGHT_BG = new THREE.Color(0xF0F1F4);
+const DAY_SUN = new THREE.Color(0xFFFAF4), MOON = new THREE.Color(0xDCE3F0);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xEDEAE4);
-scene.fog = new THREE.Fog(0xEDEAE4, 320, 620);
-const camera = new THREE.PerspectiveCamera(24, 1, 1, 900);
+scene.background = DAY_BG.clone();
+scene.fog = new THREE.Fog(scene.background, 260, 520);
+
+const camera = new THREE.PerspectiveCamera(28, 1, 1, 1000);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.maxPolarAngle = 1.15;
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.maxPolarAngle = 1.2; controls.minPolarAngle = 0.35;
+controls.enablePan = false;
+controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 0.35;
+// Any drag or zoom by the user cancels a running camera move.
+controls.addEventListener('start', () => { controls.autoRotate = false; goal.target = null; goal.dist = null; });
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0xb9b2a8, 1.05));
-const key = new THREE.DirectionalLight(0xfff8f0, 1.5);
-key.position.set(45, 90, 70); key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
-Object.assign(key.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, far: 300 });
-key.shadow.bias = -0.0005;
-scene.add(key);
-const rim = new THREE.DirectionalLight(0xffffff, 0.4); rim.position.set(60, 30, -50); scene.add(rim);
+const hemi = new THREE.HemisphereLight(0xFFFFFF, 0xF1EDE7, 1.6);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xFFFAF4, 2.2);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 320 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+scene.add(sun, sun.target);
 
-function canvasTexture(w, h, draw) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-}
-const tiles = canvasTexture(256, 256, (g) => { g.fillStyle = '#EDEAE4'; g.fillRect(0, 0, 256, 256); g.strokeStyle = '#E0DCD5'; g.lineWidth = 3; g.strokeRect(0, 0, 256, 256); });
-tiles.wrapS = tiles.wrapT = THREE.RepeatWrapping; tiles.repeat.set(40, 40);
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map: tiles, roughness: 0.9 }));
-floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-
-const ACCENT = 0xE8590C;
-const metal = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.45, ...o });
-const WHITE = metal(0xFFFFFF, { metalness: 0.05, roughness: 0.55 });
-const GREY = metal(0x8F8A82, { metalness: 0.1, roughness: 0.6 });
-const DARK = metal(0x4A4640, { metalness: 0.2, roughness: 0.6 });
-const TURBINE = metal(0xCFC9C0, { metalness: 0.1, roughness: 0.5 });
-const glow = (color, i) => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: i });
+// ── Materials and helpers ──────────────────────────────────────────────────
+const matte = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, ...o });
+const M = {
+  white: matte(COLORS.white), clay: matte(COLORS.clay), roof: matte(0xE6E0D7), ink: matte(COLORS.ink, { roughness: 0.6 }),
+  panel: matte(0x34322F, { roughness: 0.35, metalness: 0.25 }), frame: matte(0xCFC8BD), path: matte(COLORS.line),
+  orange: matte(COLORS.orange, { emissive: COLORS.orange, emissiveIntensity: 0.15 }),
+};
 const site = new THREE.Group(); scene.add(site);
 
-function box(w, h, d, m, x, y, z, parent = site) {
-  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-  b.position.set(x, y, z); b.castShadow = true; b.receiveShadow = true; parent.add(b); return b;
+function rbox(w, h, d, mat, x, y, z, parent = site, r = 0.35) {
+  const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2)), mat);
+  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
 }
-function edges(mesh) {
-  mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x8F8A82, transparent: true, opacity: 0.45 })));
-  return mesh;
-}
-function cyl(rt, rb, h, m, x, y, z, parent = site, seg = 20) {
-  const c = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m);
-  c.position.set(x, y, z); c.castShadow = true; parent.add(c); return c;
+function cyl(rt, rb, h, mat, x, y, z, parent = site, seg = 32) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
 }
 
-let selected = 'hall';
+// ── The island ─────────────────────────────────────────────────────────────
+const island = cyl(62, 60, 3, matte(0xE7E2DA), 0, -1.5, 0, scene, 128);
+island.castShadow = false;
+cyl(61.2, 61.2, 0.08, matte(0xF7F5F1), 0, 0.04, 0, scene, 128).castShadow = false;
+const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.ShadowMaterial({ opacity: 0.06 }));
+shadowFloor.rotation.x = -Math.PI / 2; shadowFloor.position.y = -3.01; shadowFloor.receiveShadow = true; scene.add(shadowFloor);
+
+// ── Units: one group per thing you can click ───────────────────────────────
 const units = {};
-function platform(key, name, x, z, w, d) {
+function unit(key, name, x, z, labelY) {
   const g = new THREE.Group(); g.position.set(x, 0, z); site.add(g);
-  edges(box(w, 0.9, d, metal(0xC9C3BA, { metalness: 0, roughness: 0.8 }), 0, 0.45, 0, g));
-  box(w - 1.2, 0.12, d - 1.2, metal(0xFFFFFF, { metalness: 0, roughness: 0.7 }), 0, 0.96, 0, g);
-  box(w, 0.16, 0.16, glow(ACCENT, 0.6), 0, 0.92, d / 2, g);
-  box(0.16, 0.16, d * 0.55, glow(ACCENT, 0.6), w / 2, 0.92, d / 2 - d * 0.275, g);
-  const div = document.createElement('div'); div.className = 'tag'; div.textContent = name;
-  div.addEventListener('click', () => { selected = key; update(); });
-  const tag = new CSS2DObject(div); tag.position.set(0, 0, d / 2 + 2.4); g.add(tag);
-  g.traverse(o => { o.userData.key = key; });
-  units[key] = { g, name, div };
+  const chip = document.createElement('div');
+  chip.className = 'chip'; chip.innerHTML = `<i></i><b>${name}</b><span></span>`;
+  chip.addEventListener('click', e => { e.stopPropagation(); select(key, true); });
+  chip.addEventListener('mouseenter', () => setHover(key));
+  chip.addEventListener('mouseleave', () => setHover(null));
+  const label = new CSS2DObject(chip); label.position.set(0, labelY, 0); g.add(label);
+  units[key] = { key, name, g, chip, value: chip.querySelector('span') };
   return g;
 }
+function tagMeshes() { for (const u of Object.values(units)) u.g.traverse(o => { if (o.isMesh) o.userData.key = u.key; }); }
 
-const PANEL = new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.5, map: canvasTexture(256, 384, (g, w, h) => {
-  g.fillStyle = '#3B4048'; g.fillRect(0, 0, w, h); g.strokeStyle = '#D6D2CB'; g.lineWidth = 3;
-  for (let x = 0; x <= w; x += w / 6) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
-  for (let y = 0; y <= h; y += h / 8) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
-}) });
-
-const solar = platform('pv', 'Solar', -26, -12, 13, 11);
-cyl(0.25, 0.25, 3, GREY, 0, 2.4, 1, solar);
-box(9, 0.2, 6.5, [GREY, GREY, PANEL, GREY, GREY, GREY], 0, 4.6, 0, solar).rotation.x = -0.75;
-box(2.6, 1.6, 1.6, WHITE, -4.2, 1.8, 3.2, solar);
-
-const wind = platform('wind', 'Wind', -36, 14, 11, 11);
-cyl(0.35, 0.75, 22, TURBINE, 0, 12, 0, wind);
-box(1.3, 1.3, 3.4, TURBINE, 0, 23.3, 0.3, wind);
-const rotor = new THREE.Group(); rotor.position.set(0, 23.3, 2.2); wind.add(rotor);
-for (let k = 0; k < 3; k++) {
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.55, 10, 0.16), TURBINE);
-  blade.geometry.translate(0, 5, 0); blade.rotation.z = k * 2 * Math.PI / 3; blade.castShadow = true; rotor.add(blade);
+// Production hall with sawtooth roof, rooftop solar and a furnace door that glows when it runs.
+const hall = unit('hall', 'Production hall', 18, -8, 13);
+rbox(22, 8, 14, M.white, 0, 4, 0, hall, 0.6);
+for (let i = 0; i < 4; i++) {
+  const tooth = rbox(5.2, 2.4, 13.6, M.roof, -7.8 + i * 5.2, 9, 0, hall, 0.3);
+  tooth.rotation.z = 0.32;
+  rbox(4.4, 0.18, 12, M.panel, -7.6 + i * 5.2, 10.05, 0, hall, 0.05).rotation.z = 0.32;
 }
-rotor.add(new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 14), TURBINE));
+const windowsMat = matte(0x2E2C29, { emissive: 0xFFC48A, emissiveIntensity: 0 });
+for (let i = 0; i < 5; i++) rbox(2.4, 1.6, 0.2, windowsMat, -8 + i * 4, 5.2, 7.02, hall, 0.08);
+const furnaceDoor = rbox(5, 4.2, 0.25, matte(COLORS.ink, { emissive: COLORS.orange, emissiveIntensity: 0 }), 6.5, 2.1, 7.05, hall, 0.1);
+cyl(0.9, 1.1, 8, M.clay, 8, 12, -4, hall);
+cyl(1.15, 1.15, 0.5, M.ink, 8, 16.1, -4, hall);
 
-const bat = platform('bat', 'Battery', -16, 2, 12, 10);
-edges(box(6, 4, 3.4, WHITE, -1, 3, 0, bat));
-box(2.8, 2.6, 2.6, GREY, 3.6, 2.3, 0.2, bat);
-const batLed = box(5.2, 0.22, 0.06, glow(0x2F9E44, 0.8), -1, 2, 1.73, bat);
-for (let i = 0; i < 3; i++) box(0.05, 3.4, 0.05, DARK, -2.6 + i * 1.6, 3, 1.72, bat);
-
-const hub = platform('hub', 'Grid connection', 2, -2, 11, 11);
-box(4.2, 3.2, 3.2, GREY, 0, 2.6, 0, hub);
-for (let i = 0; i < 3; i++) cyl(0.18, 0.28, 2.2, WHITE, -1.2 + i * 1.2, 5.3, 0, hub, 10);
-const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(8, 7, 8, 2, 2, 2)), new THREE.LineBasicMaterial({ color: 0x8F8A82, transparent: true, opacity: 0.7 }));
-frame.position.set(0, 4.5, 0); hub.add(frame);
-
-const grid = platform('grid', 'Public grid', 4, -30, 10, 10);
-const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.5, 2.8, 24, 4, 7, true)), new THREE.LineBasicMaterial({ color: 0x6F6A62 }));
-pylon.position.set(0, 12.9, 0); pylon.rotation.y = Math.PI / 4; grid.add(pylon);
-box(9, 0.28, 0.28, WHITE, 0, 21, 0, grid); box(6.5, 0.28, 0.28, WHITE, 0, 17.5, 0, grid);
-
-const hall = platform('hall', 'Production hall', 20, 6, 15, 13);
-edges(box(11, 6, 8, metal(0xB5AFA6, { metalness: 0.05, roughness: 0.7 }), -0.5, 4, -0.5, hall));
-edges(box(11.2, 0.4, 8.2, WHITE, -0.5, 7.2, -0.5, hall));
-for (let i = 0; i < 3; i++) box(1.6, 1, 1.6, WHITE, -4 + i * 3, 7.9, -1.5, hall);
-cyl(0.7, 0.85, 5, WHITE, 3.6, 9.5, -3, hall);
-const furnaceGlow = box(3, 1.6, 0.08, glow(ACCENT, 1.6), 2, 2.6, 3.56, hall);
-
-const cold = platform('cold', 'Cold store', 37, -12, 11, 10);
-edges(box(7.5, 3.6, 4.4, WHITE, 0, 2.8, 0, cold));
-for (let i = 0; i < 2; i++) { cyl(0.9, 0.9, 0.5, GREY, -1.6 + i * 3.2, 4.9, 0, cold, 24); cyl(0.7, 0.7, 0.52, DARK, -1.6 + i * 3.2, 4.92, 0, cold, 24); }
-
-const ev = platform('ev', 'EV charging', 16, 26, 14, 10);
-for (let i = 0; i < 3; i++) {
-  box(0.8, 2.6, 0.6, WHITE, -4.5 + i * 4.5, 2.3, -3.2, ev);
-  box(0.6, 0.6, 0.05, glow(ACCENT, 0.8), -4.5 + i * 4.5, 2.9, -2.88, ev);
-  box(2.4, 1.3, 4.2, metal(0xFFFFFF, { metalness: 0.3, roughness: 0.35 }), -4.5 + i * 4.5, 1.7, 0.8, ev);
-  box(2.1, 0.8, 2.2, DARK, -4.5 + i * 4.5, 2.7, 0.6, ev);
+// Field solar: rows of tilted panels.
+const pv = unit('pv', 'Solar', -24, -14, 6.5);
+for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+  const x = -9 + c * 6, z = -6 + r * 6;
+  cyl(0.15, 0.15, 1.6, M.frame, x, 0.8, z + 0.8, pv, 8);
+  rbox(5.2, 0.22, 3.4, M.panel, x, 1.9, z, pv, 0.06).rotation.x = -0.45;
 }
 
-[[-60, -46, 14, 4, 8], [-38, -52, 9, 3, 9], [52, -40, 16, 5, 7], [60, 18, 8, 3, 12], [-62, 30, 10, 3, 8]]
-  .forEach(([x, z, w, h, d]) => box(w, h, d, metal(0xDDD9D2, { metalness: 0, roughness: 0.9 }), x, h / 2, z, scene));
-
-const pulseGeo = new THREE.BoxGeometry(1.4, 0.12, 0.3);
-function cable(pts) {
-  const v = pts.map(([x, z]) => new THREE.Vector3(x, 0.08, z));
-  const path = new THREE.CurvePath();
-  for (let i = 0; i < v.length - 1; i++) path.add(new THREE.LineCurve3(v[i], v[i + 1]));
-  for (let i = 0; i < v.length - 1; i++) {
-    const a = v[i], b = v[i + 1];
-    const seg = new THREE.Mesh(new THREE.BoxGeometry(a.distanceTo(b) + 0.3, 0.06, 0.3), new THREE.MeshStandardMaterial({ color: 0xF8C9A8, roughness: 0.8 }));
-    seg.position.copy(a).add(b).multiplyScalar(0.5); seg.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x); scene.add(seg);
+// Two wind turbines; the rotors spin with the wind output.
+const wind = unit('wind', 'Wind', -40, 12, 33);
+const rotors = [];
+[[0, 0], [10, 14]].forEach(([dx, dz], i) => {
+  cyl(0.45, 0.9, 24, M.white, dx, 12, dz, wind, 24);
+  rbox(1.6, 1.6, 3.6, M.white, dx, 24.4, dz + 0.4, wind, 0.6);
+  const rotor = new THREE.Group(); rotor.position.set(dx, 24.4, dz + 2.4); wind.add(rotor);
+  for (let k = 0; k < 3; k++) {
+    const blade = new THREE.Mesh(new RoundedBoxGeometry(0.9, 11, 0.25, 2, 0.12), M.white);
+    blade.geometry.translate(0, 5.6, 0); blade.rotation.z = k * 2 * Math.PI / 3; blade.castShadow = true; rotor.add(blade);
   }
-  const n = Math.max(3, Math.round(path.getLength() / 6));
-  const pulses = Array.from({ length: n }, () => { const m = new THREE.Mesh(pulseGeo, glow(ACCENT, 0.9)); scene.add(m); return m; });
-  return { path, pulses, kw: 0, t: Math.random() };
-}
-const flows = {
-  pv: cable([[-19.5, -12], [-8, -12], [-8, -4], [-3.5, -4]]),
-  wind: cable([[-30.5, 14], [-24, 14], [-24, 9], [-22, 9]]),
-  windHub: cable([[-10, 4], [-6, 4], [-6, 0], [-3.5, 0]]),
-  grid: cable([[2, -7.5], [2, -25]]),
-  hall: cable([[7.5, -2], [10, -2], [10, 4], [12.5, 4]]),
-  cold: cable([[7.5, -5], [37, -5], [37, -7]]),
-  ev: cable([[4, 3.5], [4, 26], [9, 26]]),
-};
-
-// Fit the camera so the whole site, with its name tags, is visible in the scene card.
-const corners = [];
-for (const u of Object.values(units)) {
-  const b = new THREE.Box3().setFromObject(u.g).expandByVector(new THREE.Vector3(3, 0, 4));
-  for (const x of [b.min.x, b.max.x]) for (const y of [0, b.max.y]) for (const z of [b.min.z, b.max.z]) corners.push(new THREE.Vector3(x, y, z));
-}
-const fitCenter = new THREE.Box3().setFromPoints(corners).getCenter(new THREE.Vector3());
-const DIR = new THREE.Vector3(1, 1.05, 1).normalize();
-function resize() {
-  const w = view.clientWidth, h = view.clientHeight;
-  if (!w || !h) return;
-  renderer.setSize(w, h); labels.setSize(w, h); composer.setSize(w, h);
-  camera.aspect = w / h; camera.updateProjectionMatrix();
-  controls.target.set(fitCenter.x, 3, fitCenter.z);
-  let dist = 200;
-  for (let i = 0; i < 6; i++) {
-    camera.position.copy(controls.target).addScaledVector(DIR, dist);
-    camera.lookAt(controls.target); camera.updateMatrixWorld();
-    const extent = Math.max(...corners.map(c => { const p = c.clone().project(camera); return Math.max(Math.abs(p.x), Math.abs(p.y)); }));
-    dist *= extent / 0.9;
-  }
-  camera.position.copy(controls.target).addScaledVector(DIR, dist);
-  controls.minDistance = dist * 0.45; controls.maxDistance = dist * 1.6;
-  controls.update();
-}
-
-// Numbers come from Python (offpeak/demo_site.py); this file only shows them.
-let OPT = true;
-const fmt = v => Math.round(Math.abs(v));
-const kw = v => `${fmt(v)} kW`;
-const upTo = (rows, h, f) => rows.slice(0, h + 1).reduce((a, r) => a + f(r), 0);
-
-function chart(svg, bars, line, hour, lineColor) {
-  const W = 300, H = 118, L = 4, R = 4, B = 18, T = 6, bw = (W - L - R) / 24;
-  const bmax = Math.max(...bars, 1) * 1.15, lmax = Math.max(...line, 1) * 1.15;
-  let s = '';
-  for (let i = 0; i <= 3; i++) { const y = T + i * (H - B - T) / 3; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#EEEBE6"/>`; }
-  bars.forEach((v, i) => {
-    const h = Math.max(0, v) / bmax * (H - B - T), x = L + i * bw + bw * 0.2;
-    const fill = i === hour ? '#E8590C' : i < hour ? '#D6D2CB' : '#EEEBE6';
-    s += `<rect x="${x.toFixed(1)}" y="${(H - B - h).toFixed(1)}" width="${(bw * 0.6).toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" rx="1"/>`;
-  });
-  const y = v => (H - B - Math.max(0, v) / lmax * (H - B - T)).toFixed(1);
-  s += `<polyline points="${line.map((v, i) => `${(L + i * bw + bw / 2).toFixed(1)},${y(v)}`).join(' ')}" fill="none" stroke="${lineColor}" stroke-width="1.4"/>`;
-  s += `<circle cx="${L + hour * bw + bw / 2}" cy="${y(line[hour])}" r="3" fill="#fff" stroke="${lineColor}" stroke-width="1.4"/>`;
-  [0, 12].forEach(i => { s += `<text x="${L + i * bw + 1}" y="${H - 3}" fill="#6F6A62" font-size="12">${String(i).padStart(2, '0')}:00</text>`; });
-  svg.innerHTML = s;
-}
-
-function update() {
-  const hour = +document.getElementById('hour').value;
-  const rows = OPT ? D.offpeak : D.usual, r = rows[hour];
-  const win = OPT ? D.windows.offpeak : D.windows.usual;
-  document.getElementById('hour-out').textContent = `${String(hour).padStart(2, '0')}:00`;
-  document.getElementById('price-now').innerHTML = `${r.import_ct.toFixed(1)}<small>ct/kWh</small>`;
-  document.getElementById('price-split').textContent = `Spot ${r.price_ct.toFixed(1)} + fees, levies and tax ${(r.import_ct - r.energy_ct).toFixed(1)} + supplier ${(r.energy_ct - r.price_ct).toFixed(1)}`;
-  const sw = document.getElementById('opt-switch');
-  sw.classList.toggle('off', !OPT);
-  document.getElementById('opt-text').textContent = OPT ? 'Offpeak schedule on' : 'Offpeak schedule off';
-  chart(document.getElementById('c-load'), rows.map(x => x.load_kw), rows.map(x => x.import_ct), hour, '#4A4640');
-  chart(document.getElementById('c-gen'), rows.map(x => x.pv_kw + x.wind_kw), rows.map(x => Math.max(x.grid_kw, 0)), hour, '#4A4640');
-
-  const gen = upTo(rows, hour, x => x.pv_kw + x.wind_kw), use = upTo(rows, hour, x => x.load_kw);
-  const own = upTo(rows, hour, x => Math.min(x.pv_kw + x.wind_kw, x.load_kw + Math.max(x.battery_kw, 0)));
-  const save = upTo(D.usual, hour, x => x.cost_eur) - upTo(D.offpeak, hour, x => x.cost_eur);
-  document.getElementById('s-gen').innerHTML = `${fmt(gen)}<small>kWh</small>`;
-  document.getElementById('s-use').innerHTML = `${fmt(use)}<small>kWh</small>`;
-  document.getElementById('s-self').innerHTML = `${gen ? fmt(own / gen * 100) : 0}<small>%</small>`;
-  const daySave = D.bill.usual.total - D.bill.offpeak.total;
-  document.getElementById('s-save').textContent = OPT ? `${daySave < -0.5 ? '−' : ''}€${fmt(daySave)}` : '€0';
-
-  flows.pv.kw = r.pv_kw; flows.wind.kw = r.wind_kw; flows.windHub.kw = r.wind_kw - r.battery_kw;
-  flows.grid.kw = -r.grid_kw; flows.hall.kw = r.furnace_kw; flows.cold.kw = r.cold_kw; flows.ev.kw = r.ev_kw;
-  furnaceGlow.material.emissiveIntensity = r.furnace_kw ? 2.5 : 0.05;
-  batLed.scale.x = Math.max(0.05, r.soc_pct / 100); batLed.position.x = -1 - 2.6 * (1 - batLed.scale.x);
-
-  const price = `${r.import_ct.toFixed(1)} ct/kWh`;
-  const B = OPT ? D.bill.offpeak : D.bill.usual;
-  const info = {
-    pv: ['Solar', [['Power now', kw(r.pv_kw)], ['Today so far', `${fmt(upTo(rows, hour, x => x.pv_kw))} kWh`], ['Installed', `${D.assets.pv_kwp} kWp`]]],
-    wind: ['Wind', [['Power now', kw(r.wind_kw)], ['Today so far', `${fmt(upTo(rows, hour, x => x.wind_kw))} kWh`], ['Installed', `${D.assets.turbines} × ${D.assets.turbine_kw} kW`]]],
-    bat: ['Battery', [['Charge level', `${fmt(r.soc_pct)} %`], [r.battery_kw >= 0 ? 'Charging' : 'Discharging', kw(r.battery_kw)], ['Capacity', `${D.assets.battery_kwh} kWh`]]],
-    hub: ['Grid connection', [[r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Your price', price], ['Grid fees and levies', `${(r.grid_ct + r.levies_ct).toFixed(1)} ct/kWh`], ['Electricity tax', `${r.tax_ct.toFixed(2)} ct/kWh`], ['Peak today', `${fmt(B.peak_kw)} kW`]]],
-    grid: ['Public grid', [[r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Spot price', `${r.price_ct.toFixed(1)} ct/kWh`], ['Feed-in pays', `${r.export_ct.toFixed(1)} ct/kWh`], ['Bill today', `€${fmt(B.total)}`]]],
-    hall: ['Production hall', [['Furnace now', kw(r.furnace_kw)], ['Furnace runs', win.furnace], ['Today so far', `${fmt(upTo(rows, hour, x => x.furnace_kw))} kWh`]]],
-    cold: ['Cold store', [['Power now', kw(r.cold_kw)], ['Runs', 'all day'], ['Today so far', `${fmt(upTo(rows, hour, x => x.cold_kw))} kWh`]]],
-    ev: ['EV charging', [['Power now', kw(r.ev_kw)], ['Charges', win.ev], ['Today so far', `${fmt(upTo(rows, hour, x => x.ev_kw))} kWh`]]],
-  };
-  const [title, lines] = info[selected];
-  document.getElementById('detail').innerHTML = `<h4>${title}</h4>` + lines.map(([a, b]) => `<div class="r"><span>${a}</span><span>${b}</span></div>`).join('');
-  for (const [k, u] of Object.entries(units)) u.div.classList.toggle('sel', k === selected);
-
-  const U = D.windows.usual, O = D.windows.offpeak;
-  const pu = D.bill.usual.peak_kw, po = D.bill.offpeak.peak_kw;
-  const prices = po < pu - 0.5 ? ['good', `Peak lowered from ${fmt(pu)} to ${fmt(po)} kW, a lower demand charge`] : ['', `Peak today ${fmt(po)} kW, as usual`];
-  const move = (name, k) => U[k] === O[k] ? ['', `${name} stays at ${U[k]}, already the cheapest time`] : ['good', `${name} moved from ${U[k]} to ${O[k]}, cheaper hours`];
-  const events = OPT ? [
-    move('Furnace', 'furnace'),
-    move('EV charging', 'ev'),
-    [D.smart_battery ? 'good' : '', D.smart_battery ? 'Battery also covers the most expensive hours' : 'Battery stores surplus own power'],
-    prices,
-  ] : [
-    ['warn', `Furnace runs ${U.furnace}, its usual time`],
-    ['warn', `EV fleet charges ${U.ev}, its usual time`],
-    ['', 'Battery only stores surplus own power'],
-    ['', `Usual peak ${fmt(pu)} kW sets the demand charge`],
-  ];
-  document.getElementById('ticker').innerHTML = events.map(([c, m]) => `<div class="ev ${c}" title="${m}"><b>${m}</b></div>`).join('');
-}
-
-document.getElementById('site-name').textContent = `${D.site.name} · ${D.site.city} · ${D.site.zone}`;
-document.getElementById('date').textContent = D.site.date;
-const sp = document.getElementById('src-price'); sp.textContent = D.real.price ? 'Live prices' : 'Demo prices'; sp.classList.toggle('live', D.real.price);
-const sw2 = document.getElementById('src-weather'); sw2.textContent = D.real.weather ? 'Live weather' : 'Demo weather'; sw2.classList.toggle('live', D.real.weather);
-document.getElementById('a-pv').innerHTML = `${D.assets.pv_kwp}<small>kWp</small>`;
-document.getElementById('a-wind').innerHTML = `${D.assets.turbines * D.assets.turbine_kw}<small>kW</small>`;
-document.getElementById('a-bat').innerHTML = `${D.assets.battery_kwh}<small>kWh</small>`;
-document.getElementById('note').textContent = 'Demo site. The Offpeak schedule tries every allowed start time and keeps the cheapest; the full optimiser comes later.';
-document.getElementById('hour').value = D.hour_now;
-document.getElementById('hour').addEventListener('input', update);
-document.getElementById('opt-switch').addEventListener('click', () => { OPT = !OPT; update(); });
-
-const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
-renderer.domElement.addEventListener('click', e => {
-  const b = renderer.domElement.getBoundingClientRect();
-  mouse.set((e.clientX - b.left) / b.width * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
-  ray.setFromCamera(mouse, camera);
-  const hit = ray.intersectObjects(Object.values(units).map(u => u.g), true).find(h => h.object.userData.key);
-  if (hit) { selected = hit.object.userData.key; update(); }
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.75, 20, 20), M.orange); rotor.add(nose);
+  rotor.rotation.z = i;
+  rotors.push(rotor);
 });
 
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new OutputPass());
-new ResizeObserver(resize).observe(view);
-resize();
-update();
+// Battery: two containers with a charge bar on the front.
+const bat = unit('bat', 'Battery', -14, 16, 7);
+rbox(9, 4.4, 4, M.white, 0, 2.2, 0, bat, 0.4);
+rbox(9, 4.4, 4, M.white, 0, 2.2, 5, bat, 0.4);
+const socTrack = rbox(7, 0.7, 0.2, matte(0xEFEAE3), 0, 3, 7.05, bat, 0.15);
+const socBar = rbox(7, 0.7, 0.26, M.orange, 0, 3, 7.08, bat, 0.15);
+socTrack.castShadow = false; socBar.castShadow = false;
 
-// Name tags never cover each other: keep the selected one, then the rest by importance,
-// and hide a tag that would overlap one already kept. Hidden units stay clickable in 3D.
-const ORDER = ['hall', 'pv', 'wind', 'bat', 'grid', 'ev', 'cold', 'hub'];
+// Cold store with rooftop fans.
+const cold = unit('cold', 'Cold store', 40, 12, 8.5);
+rbox(12, 5.5, 9, M.white, 0, 2.75, 0, cold, 0.5);
+const fans = [];
+for (let i = 0; i < 2; i++) {
+  cyl(1.5, 1.5, 0.7, M.clay, -2.8 + i * 5.6, 5.85, 0, cold);
+  const fan = new THREE.Group(); fan.position.set(-2.8 + i * 5.6, 6.3, 0); cold.add(fan);
+  for (let k = 0; k < 3; k++) { const b = rbox(2.4, 0.08, 0.5, M.ink, 0, 0, 0, fan, 0.04); b.rotation.y = k * Math.PI / 3; }
+  fans.push(fan);
+}
+
+// EV charging: three chargers and three cars.
+const ev = unit('ev', 'EV charging', 16, 22, 6.5);
+const plugs = [];
+for (let i = 0; i < 3; i++) {
+  const x = -6 + i * 6;
+  rbox(0.9, 3, 0.7, M.white, x, 1.5, -3.6, ev, 0.2);
+  plugs.push(rbox(0.5, 0.5, 0.1, matte(0xD9D3CA, { emissive: COLORS.orange, emissiveIntensity: 0 }), x, 2.4, -3.2, ev, 0.08));
+  rbox(3.4, 1.4, 6, M.clay, x, 1, 0.6, ev, 0.6);
+  rbox(2.9, 1.1, 3, matte(0xD4CEC5), x, 2.1, 0.9, ev, 0.5);
+}
+
+// Grid connection: transformer and a slim pylon.
+const grid = unit('grid', 'Grid', 2, -34, 21);
+rbox(5, 4, 4, M.clay, 4, 2, 4, grid, 0.4);
+for (let i = 0; i < 3; i++) cyl(0.25, 0.35, 1.6, M.ink, 2.6 + i * 1.4, 4.8, 4, grid, 12);
+const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
+pylon.position.set(-3, 9, -2); pylon.rotation.y = Math.PI / 4; grid.add(pylon);
+rbox(9, 0.3, 0.3, M.ink, -3, 16.5, -2, grid, 0.1);
+
+// The site meter in the middle, where every flow meets.
+const hubGroup = new THREE.Group(); site.add(hubGroup);
+cyl(3, 3, 0.4, M.white, 0, 0.2, 0, hubGroup, 48);
+cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, hubGroup, 32);
+const hubRing = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.12, 12, 64), M.orange);
+hubRing.rotation.x = Math.PI / 2; hubRing.position.y = 0.45; hubGroup.add(hubRing);
+
+// A few calm trees.
+const treeMat = matte(0xE3DED5);
+[[-48, -26], [-52, 30], [30, -30], [46, -14], [-6, 40], [36, 36], [-30, 40], [52, 26], [-20, -40]].forEach(([x, z], i) => {
+  const s = 0.8 + (i % 3) * 0.25;
+  cyl(0.25, 0.3, 2 * s, M.frame, x, s, z, scene, 8);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(2.2 * s, 20, 16), treeMat);
+  top.position.set(x, 2.6 * s + 1.4, z); top.castShadow = true; scene.add(top);
+});
+tagMeshes();
+
+// ── Energy flows: paths from the meter outwards, with moving dots ──────────
+const DOT = new THREE.SphereGeometry(0.42, 14, 10);
+const DOT_ORANGE = matte(COLORS.orange, { emissive: COLORS.orange, emissiveIntensity: 0.35 });
+const DOT_INK = matte(COLORS.ink);
+function flow(points) {
+  const v = points.map(([x, z]) => new THREE.Vector3(x, 0.32, z));
+  const curve = new THREE.CatmullRomCurve3(v, false, 'catmullrom', 0.05);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.32, 8), M.path);
+  tube.receiveShadow = true; scene.add(tube);
+  const n = Math.max(4, Math.round(curve.getLength() / 5));
+  const dots = Array.from({ length: n }, () => { const m = new THREE.Mesh(DOT, DOT_ORANGE); m.castShadow = false; scene.add(m); return m; });
+  return { curve, dots, kw: 0, t: Math.random(), mat: DOT_ORANGE };
+}
+// Positive kw = power flows from the meter outwards along the path.
+const flows = {
+  pv: flow([[0, -3], [0, -14], [-12, -14]]),
+  wind: flow([[-3, 0], [-24, 0], [-30, 8], [-36, 10]]),
+  bat: flow([[-2, 2], [-8, 10], [-8, 17]]),
+  grid: flow([[0, -3], [2, -12], [3, -28]]),
+  hall: flow([[3, -2], [6, -2], [7, -6]]),
+  cold: flow([[3, 0], [20, 4], [33, 8]]),
+  ev: flow([[2, 2], [8, 10], [12, 16]]),
+};
+
+// ── Camera fit and focus ───────────────────────────────────────────────────
+const HOME_TARGET = new THREE.Vector3(0, 4, 0);
+const HOME_DIR = new THREE.Vector3(0.9, 0.95, 1.15).normalize();
+let homeDist = 170;
+const goal = { target: null, dist: null };
+let placed = false;
+function fit() {
+  const w = view.clientWidth, h = view.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h); labels.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  // distance that keeps the island (radius ~62) inside the view, a bit more on narrow screens
+  const vfov = THREE.MathUtils.degToRad(camera.fov);
+  const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+  // the panel on the right covers part of the view on wide screens: shift the picture left
+  const panelShift = w > 900 ? 140 : 0;
+  camera.setViewOffset(w, h, panelShift, -h * 0.03, w, h);
+  const usableAspect = (w - 2 * panelShift) / h;
+  const hfovUsable = 2 * Math.atan(Math.tan(vfov / 2) * usableAspect);
+  homeDist = Math.max(54 / Math.tan(vfov / 2), 60 / Math.tan(Math.min(hfov, hfovUsable) / 2));
+  controls.minDistance = homeDist * 0.35; controls.maxDistance = homeDist * 1.4;
+  if (!placed) { placed = true; camera.position.copy(HOME_TARGET).addScaledVector(HOME_DIR, homeDist); controls.target.copy(HOME_TARGET); }
+}
+function focusOn(key) {
+  const b = new THREE.Box3().setFromObject(units[key].g);
+  goal.target = b.getCenter(new THREE.Vector3()); goal.target.y = Math.min(goal.target.y, 6);
+  goal.dist = homeDist * 0.55; controls.autoRotate = false;
+}
+document.getElementById('reset').addEventListener('click', () => { goal.target = HOME_TARGET.clone(); goal.dist = homeDist; select('hall', false); });
+
+// ── Data per hour ──────────────────────────────────────────────────────────
+let plan = 'offpeak', hour = Math.min(23, Math.max(0, D.hour_now)), selected = 'hall', hovered = null;
+const rowsFor = p => (p === 'offpeak' ? D.offpeak : D.usual);
+// All-in price per kWh bought (spot + supplier + grid fees, levies, tax) from the tariff
+const allIn = r => r.import_ct ?? r.price_ct;
+const prices = D.offpeak.map(allIn);
+const sorted = [...prices].sort((a, b) => a - b);
+const lowCut = sorted[7], highCut = sorted[16];
+const priceClass = p => (p <= lowCut ? 'cheap' : p >= highCut ? 'dear' : '');
+const hh = h => `${String(h).padStart(2, '0')}:00`;
+const kw = v => `${Math.round(Math.abs(v))} kW`;
+const sum = (rows, f) => rows.reduce((a, r) => a + f(r), 0);
+const euro = v => `${Math.round(v) < 0 ? '−' : ''}€${Math.abs(Math.round(v))}`;
+
+const bars = document.getElementById('bars');
+const maxPrice = Math.max(...prices, 1), minPrice = Math.min(0, ...prices);
+prices.forEach(p => { const d = document.createElement('div'); d.style.height = `${18 + 82 * (p - minPrice) / (maxPrice - minPrice || 1)}%`; bars.appendChild(d); });
+
+const LIVE_CUTOFF = 0.5;
+function unitText(key, r, rows) {
+  const win = D.windows[plan];
+  switch (key) {
+    case 'pv': return { now: kw(r.pv_kw), live: r.pv_kw > LIVE_CUTOFF, text: `${D.assets.pv_kwp} kWp on the field and the hall roof.`, rows: [['Power now', kw(r.pv_kw)], ['Today', `${Math.round(sum(rows, x => x.pv_kw))} kWh`]] };
+    case 'wind': return { now: kw(r.wind_kw), live: r.wind_kw > LIVE_CUTOFF, text: `${D.assets.turbines} small turbines, ${D.assets.turbine_kw} kW each.`, rows: [['Power now', kw(r.wind_kw)], ['Today', `${Math.round(sum(rows, x => x.wind_kw))} kWh`]] };
+    case 'bat': return { now: `${Math.round(r.soc_pct)} %`, live: Math.abs(r.battery_kw) > LIVE_CUTOFF, text: D.smart_battery && plan === 'offpeak' ? 'Stores surplus power and covers the most expensive hours.' : 'Stores surplus own power.', rows: [['Charge', `${Math.round(r.soc_pct)} % of ${D.assets.battery_kwh} kWh`], [r.battery_kw >= 0 ? 'Charging' : 'Discharging', kw(r.battery_kw)]] };
+    case 'grid': return { now: r.grid_kw >= 0 ? `buy ${kw(r.grid_kw)}` : `sell ${kw(r.grid_kw)}`, live: Math.abs(r.grid_kw) > LIVE_CUTOFF, text: 'Where the site buys power when its own is not enough, and sells the surplus.', rows: [[r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Bought today', `${Math.round(sum(rows, x => Math.max(x.grid_kw, 0)))} kWh`]] };
+    case 'hall': return { now: r.furnace_kw ? kw(r.furnace_kw) : 'idle', live: r.furnace_kw > 0, text: `The electric furnace runs ${win.furnace}${plan === 'offpeak' && win.furnace !== D.windows.usual.furnace ? ` instead of ${D.windows.usual.furnace}` : ''}.`, rows: [['Furnace now', r.furnace_kw ? kw(r.furnace_kw) : 'off'], ['Runs', win.furnace]] };
+    case 'cold': return { now: kw(r.cold_kw), live: true, text: 'Runs around the clock; not moved.', rows: [['Power now', kw(r.cold_kw)], ['Today', `${Math.round(sum(rows, x => x.cold_kw))} kWh`]] };
+    case 'ev': return { now: r.ev_kw ? kw(r.ev_kw) : 'idle', live: r.ev_kw > 0, text: `The fleet charges ${win.ev}${plan === 'offpeak' && win.ev !== D.windows.usual.ev ? ` instead of ${D.windows.usual.ev}` : ''}.`, rows: [['Charging now', r.ev_kw ? kw(r.ev_kw) : 'off'], ['Charges', win.ev]] };
+  }
+}
+
+// ── Updating the page for an hour and a plan ───────────────────────────────
+const lightGoal = { sun: 2.2, hemi: 1.6, night: 0 };
+function update() {
+  const rows = rowsFor(plan), r = rows[hour];
+  document.getElementById('clock').textContent = hh(hour);
+  const cls = priceClass(allIn(r));
+  const tag = document.getElementById('price-tag');
+  tag.className = `tag ${cls}`; tag.textContent = cls === 'cheap' ? 'cheap hour' : cls === 'dear' ? 'expensive hour' : 'normal hour';
+  document.getElementById('price').textContent = `${allIn(r).toFixed(1)} ct/kWh`;
+  const gen = r.pv_kw + r.wind_kw;
+  document.getElementById('rows').innerHTML = [
+    ['Spot price', `${r.price_ct.toFixed(1)} ct`], ['Fees, levies, tax', `${(allIn(r) - (r.energy_ct ?? r.price_ct)).toFixed(1)} ct`],
+    ['Generating', kw(gen)], ['Using', kw(r.load_kw)],
+    [r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Battery', `${Math.round(r.soc_pct)} %`],
+  ].map(([a, b]) => `<div class="r"><span>${a}</span><b>${b}</b></div>`).join('');
+
+  for (const u of Object.values(units)) {
+    const t = unitText(u.key, r, rows);
+    u.value.textContent = t.now;
+    u.chip.classList.toggle('live', t.live);
+    u.chip.classList.toggle('selected', u.key === selected);
+  }
+  const s = unitText(selected, r, rows);
+  document.getElementById('sel').innerHTML = `<h4><i></i>${units[selected].name}</h4><p>${s.text}</p><div class="rows">${s.rows.map(([a, b]) => `<div class="r"><span>${a}</span><b>${b}</b></div>`).join('')}</div>`;
+
+  [...bars.children].forEach((b, i) => { b.className = i === hour ? 'on' : priceClass(prices[i]); });
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.plan === plan));
+
+  // flows: positive = from the meter outwards
+  flows.pv.kw = -r.pv_kw; flows.wind.kw = -r.wind_kw; flows.bat.kw = r.battery_kw;
+  flows.grid.kw = -r.grid_kw; flows.hall.kw = r.furnace_kw; flows.cold.kw = r.cold_kw; flows.ev.kw = r.ev_kw;
+  flows.grid.mat = r.grid_kw > 0 ? DOT_INK : DOT_ORANGE;
+  flows.grid.dots.forEach(d => { d.material = flows.grid.mat; });
+
+  furnaceDoor.material.emissiveIntensity = r.furnace_kw ? 0.9 : 0;
+  plugs.forEach(p => { p.material.emissiveIntensity = r.ev_kw ? 1 : 0; });
+  socBar.scale.x = Math.max(0.03, r.soc_pct / 100); socBar.position.x = -3.5 * (1 - socBar.scale.x);
+
+  // the sun follows the hour: rises in the east around 06:00, sets around 18:00
+  const a = (hour + 0.5 - 6) / 12 * Math.PI, up = Math.sin(a);
+  const night = up < 0.05 || r.pv_kw < 0.5;  // dark when the panels produce nothing
+  // by night a soft, cool moonlight from high above keeps the model readable
+  if (night) sun.position.set(25, 130, 45);
+  else sun.position.set(-Math.cos(a) * 80, Math.max(up, 0.55) * 110 + 20, 60);
+  lightGoal.sun = night ? 1.0 : 1.6 + 0.8 * Math.max(0, up);
+  lightGoal.hemi = night ? 1.45 : 1.6 + 0.2 * Math.max(0, up);
+  lightGoal.night = night ? 1 : 0;
+
+  // the day in numbers, for the chosen plan
+  const total = rowsFor(plan);
+  const genDay = sum(total, x => x.pv_kw + x.wind_kw);
+  const own = sum(total, x => Math.min(x.pv_kw + x.wind_kw, x.load_kw + Math.max(x.battery_kw, 0)));
+  // the bills include the day's share of the demand charge and fixed fees
+  const saving = D.bill ? D.bill.usual.total - D.bill.offpeak.total : sum(D.usual, x => x.cost_eur) - sum(D.offpeak, x => x.cost_eur);
+  const kpis = [
+    ['Saved today vs usual', plan === 'offpeak' ? euro(saving) : '€0', true],
+    ['Own power used', `${genDay ? Math.round(own / genDay * 100) : 0}<small>%</small>`],
+    ['Bought from the grid', `${Math.round(sum(total, x => Math.max(x.grid_kw, 0)))}<small>kWh</small>`],
+    ['Cost of power today', euro(D.bill ? D.bill[plan].total : sum(total, x => x.cost_eur))],
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(([l, v, acc]) => `<div class="kpi${acc ? ' accent' : ''}"><p>${l}</p><div class="v">${v}</div></div>`).join('');
+}
+
+function select(key, focus) {
+  selected = key; if (focus) focusOn(key); update();
+}
+function setHover(key) {
+  hovered = key;
+  for (const u of Object.values(units)) u.chip.classList.toggle('hover', u.key === key);
+  renderer.domElement.style.cursor = key ? 'pointer' : 'grab';
+}
+
+// ── Inputs ─────────────────────────────────────────────────────────────────
+const hourInput = document.getElementById('hour');
+hourInput.value = hour;
+hourInput.addEventListener('input', () => { hour = +hourInput.value; stop(); update(); });
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { plan = b.dataset.plan; update(); }));
+
+const PLAY = '<svg viewBox="0 0 14 14"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>';
+const PAUSE = '<svg viewBox="0 0 14 14"><rect x="2.5" y="1.5" width="3" height="11" rx="1" fill="currentColor"/><rect x="8.5" y="1.5" width="3" height="11" rx="1" fill="currentColor"/></svg>';
+const playBtn = document.getElementById('play');
+let timer = null;
+function stop() { clearInterval(timer); timer = null; playBtn.innerHTML = PLAY; }
+playBtn.innerHTML = PLAY;
+playBtn.addEventListener('click', () => {
+  if (timer) return stop();
+  playBtn.innerHTML = PAUSE;
+  timer = setInterval(() => { hour = (hour + 1) % 24; hourInput.value = hour; update(); }, 900);
+});
+
+const ray = new THREE.Raycaster(), pointer = new THREE.Vector2();
+const pickables = () => Object.values(units).map(u => u.g);
+function pick(e) {
+  const b = renderer.domElement.getBoundingClientRect();
+  pointer.set((e.clientX - b.left) / b.width * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
+  ray.setFromCamera(pointer, camera);
+  const hit = ray.intersectObjects(pickables(), true).find(h => h.object.userData.key);
+  return hit ? hit.object.userData.key : null;
+}
+renderer.domElement.addEventListener('pointermove', e => { const k = pick(e); if (k !== hovered) setHover(k); });
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;  // a drag, not a click
+  const k = pick(e); if (k) select(k, true);
+});
+
+// ── Labels never cover each other: keep the selected one, then by importance ─
+const ORDER = ['hall', 'pv', 'wind', 'grid', 'bat', 'ev', 'cold'];
 function declutter() {
   const kept = [];
   for (const k of [selected, ...ORDER.filter(x => x !== selected)]) {
-    const div = units[k].div;
-    div.style.visibility = 'visible';
-    const r = div.getBoundingClientRect();
-    if (kept.some(s => r.left < s.right + 4 && s.left < r.right + 4 && r.top < s.bottom + 2 && s.top < r.bottom + 2)) div.style.visibility = 'hidden';
+    const chip = units[k].chip; chip.style.visibility = 'visible';
+    const r = chip.getBoundingClientRect();
+    if (kept.some(s => r.left < s.right + 4 && s.left < r.right + 4 && r.top < s.bottom + 3 && s.top < r.bottom + 3)) chip.style.visibility = 'hidden';
     else kept.push(r);
   }
 }
-
-// For checks: visible name tags that overlap each other or leave the scene.
+// For automated checks: visible chips that overlap or leave the scene.
 window.offpeakLayoutProblems = () => {
-  const v = view.getBoundingClientRect(), tags = Object.values(units).filter(u => u.div.style.visibility !== 'hidden').map(u => [u.name, u.div.getBoundingClientRect()]);
-  const out = [];
-  tags.forEach(([n, r], i) => {
+  const v = view.getBoundingClientRect(), out = [];
+  const chips = Object.values(units).filter(u => u.chip.style.visibility !== 'hidden').map(u => [u.name, u.chip.getBoundingClientRect()]);
+  chips.forEach(([n, r], i) => {
     if (r.left < v.left || r.right > v.right || r.top < v.top || r.bottom > v.bottom) out.push(`${n} leaves the scene`);
-    tags.slice(i + 1).forEach(([m, s]) => { if (r.left < s.right && s.left < r.right && r.top < s.bottom && s.top < r.bottom) out.push(`${n} overlaps ${m}`); });
+    chips.slice(i + 1).forEach(([m, s]) => { if (r.left < s.right && s.left < r.right && r.top < s.bottom && s.top < r.bottom) out.push(`${n} overlaps ${m}`); });
   });
-  document.querySelectorAll('.card, .ev').forEach(el => { if (el.scrollWidth > el.clientWidth + 1) out.push(`card overflows: ${el.textContent.trim().slice(0, 30)}`); });
   return out;
 };
 
+const src = [D.real.price ? 'Live day-ahead prices' : 'Demo prices (live prices unavailable)', D.real.weather ? 'live weather forecast' : 'demo weather'];
+document.getElementById('foot').textContent = `${D.site.name} · ${D.site.city} · ${D.site.zone} · ${D.site.date}. ${src.join(', ')}. The site's machines are a demo setup; the full optimiser comes later.`;
+
+new ResizeObserver(fit).observe(view);
+fit();
+update();
+
+// ── Animation loop ─────────────────────────────────────────────────────────
 const clock = new THREE.Clock();
-let tick = 0;
+let frame = 0;
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), 0.05);
-  rotor.rotation.z -= dt * flows.wind.kw / 7;
+  const dt = Math.min(clock.getDelta(), 0.05), ease = 1 - Math.pow(0.002, dt);
+  const r = rowsFor(plan)[hour];
+
+  // smooth light and background between hours
+  sun.intensity += (lightGoal.sun - sun.intensity) * ease;
+  hemi.intensity += (lightGoal.hemi - hemi.intensity) * ease;
+  scene.background.lerp(lightGoal.night ? NIGHT_BG : DAY_BG, ease);
+  sun.color.lerp(lightGoal.night ? MOON : DAY_SUN, ease);
+  scene.fog.color.copy(scene.background);
+  windowsMat.emissiveIntensity += ((lightGoal.night ? 0.9 : 0) - windowsMat.emissiveIntensity) * ease;
+
+  // smooth camera moves for focus and reset
+  if (goal.target) {
+    const offset = camera.position.clone().sub(controls.target);
+    controls.target.lerp(goal.target, ease);
+    const dist = offset.length() + ((goal.dist ?? offset.length()) - offset.length()) * ease;
+    camera.position.copy(controls.target).add(offset.setLength(dist));
+    if (controls.target.distanceTo(goal.target) < 0.05 && Math.abs(dist - (goal.dist ?? dist)) < 0.3) { goal.target = null; goal.dist = null; }
+  }
+
+  if (!reduceMotion) {
+    rotors.forEach(rt => { rt.rotation.z -= dt * (0.2 + r.wind_kw / 9); });
+    fans.forEach(f => { f.rotation.y += dt * 4; });
+    hubRing.scale.setScalar(1 + 0.04 * Math.sin(performance.now() / 400));
+  }
   for (const f of Object.values(flows)) {
-    const a = Math.abs(f.kw), on = a > 0.5;
-    f.t += dt * (0.04 + a / 500) * Math.sign(f.kw || 1);
-    f.pulses.forEach((m, i) => {
+    const a = Math.abs(f.kw), on = a > LIVE_CUTOFF;
+    f.t += dt * (0.05 + a / 260) * Math.sign(f.kw || 1) * (reduceMotion ? 0 : 1);
+    const size = 0.7 + Math.min(1, a / 40) * 0.7;
+    f.dots.forEach((m, i) => {
       m.visible = on; if (!on) return;
-      const u = (((i / f.pulses.length + f.t) % 1) + 1) % 1;
-      m.position.copy(f.path.getPointAt(u)); m.position.y = 0.14;
-      const d = f.path.getTangentAt(u); m.rotation.y = -Math.atan2(d.z, d.x);
+      const u = (((i / f.dots.length + f.t) % 1) + 1) % 1;
+      m.position.copy(f.curve.getPointAt(u)); m.position.y = 0.75; m.scale.setScalar(size);
     });
   }
   controls.update();
-  composer.render();
+  renderer.render(scene, camera);
   labels.render(scene, camera);
-  if (tick++ % 15 === 0) declutter();
+  if (frame++ % 10 === 0) declutter();
 });
 </script>
 </body>

@@ -12,60 +12,78 @@ ORANGE = "#E8590C"
 ORANGE_SOFT = "#FDEBDF"
 ORANGE_SOFT_STRONG = "#F8C9A8"
 INK = "#1C1B19"
-MUTED = "#6F6A62"
+MUTED = "#77726A"
 PEAK = "#4A4640"
 OTHER = "#D6D2CB"
-LINE = "#E7E4DE"
+LINE = "#ECE9E4"
 GREEN = "#2F9E44"
 
 CSS = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-.stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp label, .stApp button {{
-    font-family: 'Inter', sans-serif;
+.stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp label, .stApp button, .stApp input {{
+    font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased;
 }}
-.block-container {{ padding-top: 2.2rem; max-width: 1280px; }}
-[data-testid="stSidebar"] {{ border-right: 1px solid {LINE}; }}
-[data-testid="stSidebarNav"] a span {{ font-size: 0.95rem; }}
-[class*="st-key-card"] {{ background: #FFFFFF; border-radius: 16px !important; }}
-.st-key-price_view {{ display: flex; justify-content: flex-end; }}
-.op-eyebrow {{ color: {MUTED}; font-size: 0.9rem; display: flex; gap: 10px; align-items: center; }}
-.op-badge {{ border: 1px solid {LINE}; background: #fff; border-radius: 999px;
-    padding: 2px 10px; font-size: 0.78rem; font-weight: 600; color: {INK}; }}
-.op-dot {{ display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-    margin-right: 6px; vertical-align: middle; }}
-.op-title {{ font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; margin: 2px 0 18px; }}
-.op-kpi {{ background: #fff; border: 1px solid {LINE}; border-radius: 16px; padding: 18px 20px;
-    height: 100%; min-height: 124px; }}
-.op-kpi.accent {{ background: {ORANGE_SOFT}; border-color: #F8C9A8; }}
-.op-kpi .label {{ color: {MUTED}; font-size: 0.9rem; }}
-.op-kpi .value {{ font-size: 1.85rem; font-weight: 700; letter-spacing: -0.02em; margin: 6px 0 4px; }}
+.block-container {{ padding: 2.4rem 2.2rem 3rem; max-width: 1320px; }}
+[data-testid="stHeader"] {{ background: transparent; }}
+
+/* sidebar: white, quiet, one orange accent on the active page */
+[data-testid="stSidebar"] {{ background: #FFFFFF; border-right: 1px solid {LINE}; }}
+[data-testid="stSidebarHeader"] {{ padding: 1.6rem 1.4rem 1rem; }}
+[data-testid="stSidebarNav"] {{ padding: 0 0.6rem; }}
+[data-testid="stNavSectionHeader"] {{ font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #A39E96; margin: 1.1rem 0 0.35rem 0.55rem; }}
+[data-testid="stSidebarNavLink"] {{ border-radius: 10px; padding: 0.5rem 0.7rem; margin: 1px 0; }}
+[data-testid="stSidebarNavLink"] span {{ font-size: 0.92rem; color: #4A4640; }}
+[data-testid="stSidebarNavLink"]:hover {{ background: #F6F5F2; }}
+[data-testid="stSidebarNavLink"][aria-current="page"] {{ background: {ORANGE_SOFT}; }}
+[data-testid="stSidebarNavLink"][aria-current="page"] span {{ color: {INK}; font-weight: 600; }}
+[data-testid="stSidebarNavLink"][aria-current="page"] [data-testid="stIconMaterial"] {{ color: {ORANGE}; }}
+
+/* cards */
+[class*="st-key-card"] {{ background: #FFFFFF; border-radius: 20px !important; border-color: {LINE} !important;
+    padding: 1.3rem 1.4rem !important; }}
+.op-eyebrow {{ color: {MUTED}; font-size: 0.85rem; display: flex; gap: 10px; align-items: center; }}
+.op-badge {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 999px; padding: 2px 10px;
+    font-size: 0.75rem; font-weight: 500; color: {MUTED}; }}
+.op-dot {{ display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }}
+.op-title {{ font-size: 2rem; font-weight: 650; letter-spacing: -0.025em; margin: 4px 0 22px; color: {INK}; }}
+.op-kpi {{ background: #fff; border: 1px solid {LINE}; border-radius: 20px; padding: 20px 22px; height: 100%; min-height: 128px; }}
+.op-kpi.accent {{ background: {ORANGE_SOFT}; border-color: {ORANGE_SOFT_STRONG}; }}
+.op-kpi .label {{ color: {MUTED}; font-size: 0.85rem; }}
+.op-kpi .value {{ font-size: 1.85rem; font-weight: 600; letter-spacing: -0.025em; margin: 8px 0 4px; color: {INK}; }}
 .op-kpi.accent .value {{ color: {ORANGE}; }}
-.op-kpi .unit {{ font-size: 0.9rem; font-weight: 500; color: {MUTED}; margin-left: 4px; }}
-.op-kpi .note {{ color: {MUTED}; font-size: 0.8rem; }}
-.op-h {{ font-weight: 650; font-size: 1.1rem; margin: 0; }}
-.op-sub {{ color: {MUTED}; font-size: 0.85rem; margin: 2px 0 6px; }}
-.op-legend {{ display: flex; gap: 22px; font-size: 0.82rem; color: {INK}; }}
-.op-legend i {{ display: inline-block; width: 10px; height: 10px; border-radius: 2px;
-    margin-right: 7px; vertical-align: -1px; }}
-.op-row {{ display: flex; justify-content: space-between; align-items: center;
-    padding: 11px 0; border-bottom: 1px solid {LINE}; }}
+.op-kpi .unit {{ font-size: 0.85rem; font-weight: 500; color: {MUTED}; margin-left: 4px; }}
+.op-kpi .note {{ color: {MUTED}; font-size: 0.78rem; }}
+.op-h {{ font-weight: 600; font-size: 1.05rem; margin: 0; color: {INK}; }}
+.op-sub {{ color: {MUTED}; font-size: 0.82rem; margin: 3px 0 8px; }}
+.op-legend {{ display: flex; gap: 20px; font-size: 0.8rem; color: {MUTED}; }}
+.op-legend i {{ display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; }}
+.op-row {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid {LINE}; }}
 .op-row:last-child {{ border-bottom: none; }}
-.op-row .name {{ font-weight: 600; font-size: 0.95rem; }}
-.op-row .meta {{ color: {MUTED}; font-size: 0.8rem; }}
-.op-chip {{ background: {ORANGE_SOFT}; color: #B8430A; font-weight: 600; font-size: 0.85rem;
-    padding: 4px 10px; border-radius: 8px; white-space: nowrap; }}
+.op-row .name {{ font-weight: 600; font-size: 0.92rem; color: {INK}; }}
+.op-row .meta {{ color: {MUTED}; font-size: 0.79rem; }}
+.op-row > .meta {{ white-space: nowrap; }}
+.op-chip {{ background: {ORANGE_SOFT}; color: #B8430A; font-weight: 600; font-size: 0.83rem; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }}
 .op-chip.grey {{ background: #F1EFEB; color: {INK}; }}
 .op-tiles {{ display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }}
 @media (max-width: 1100px) {{ .op-tiles {{ grid-template-columns: repeat(4, 1fr); }} }}
-.op-tile {{ border: 1px solid {LINE}; border-radius: 12px; padding: 10px 10px 9px; min-width: 0; }}
-.op-tile.sunny {{ background: #FFF6EF; border-color: #F8C9A8; }}
-.op-tile .t {{ color: {MUTED}; font-size: 0.8rem; }}
-.op-tile .temp {{ font-size: 1.35rem; font-weight: 700; margin: 4px 0 2px; }}
-.op-tile .cond {{ font-size: 0.82rem; min-height: 2.2em; }}
-.op-bar {{ height: 4px; border-radius: 4px; background: #EEEBE6; margin-top: 8px; }}
+.op-tile {{ background: #FAF9F7; border: 1px solid transparent; border-radius: 14px; padding: 11px 10px 10px; min-width: 0; }}
+.op-tile.sunny {{ background: {ORANGE_SOFT}; border-color: {ORANGE_SOFT_STRONG}; }}
+.op-tile .t {{ color: {MUTED}; font-size: 0.75rem; }}
+.op-tile .temp {{ font-size: 1.3rem; font-weight: 600; margin: 4px 0 2px; color: {INK}; }}
+.op-tile .cond {{ font-size: 0.78rem; color: #4A4640; min-height: 2.2em; }}
+.op-bar {{ height: 4px; border-radius: 4px; background: #ECE8E2; margin-top: 8px; }}
 .op-bar span {{ display: block; height: 4px; border-radius: 4px; background: {ORANGE}; }}
-.op-foot {{ color: {MUTED}; font-size: 0.75rem; margin-top: 10px; }}
+.op-foot {{ color: {MUTED}; font-size: 0.74rem; margin-top: 12px; line-height: 1.5; }}
+
+/* segmented control: a quiet pill group like in the site view */
+[data-testid="stButtonGroup"] {{ background: #F6F5F2; border: 1px solid {LINE}; border-radius: 12px; padding: 3px; gap: 0; width: fit-content; }}
+[data-testid="stButtonGroup"] button {{ border: 0 !important; background: transparent !important; border-radius: 9px !important;
+    color: {MUTED} !important; font-weight: 500; box-shadow: none !important; min-height: 34px; }}
+[data-testid="stButtonGroup"] button[aria-checked="true"] {{ background: #FFFFFF !important; color: {INK} !important;
+    box-shadow: 0 1px 3px rgba(28, 27, 25, 0.08) !important; }}
+[data-testid="stDataFrame"] {{ border-radius: 12px; overflow: hidden; }}
 </style>
 """
 
