@@ -45,5 +45,12 @@ def test_failure_is_logged_and_returns_error_code(engine, monkeypatch):
 
 
 def test_without_database_url_the_job_does_nothing(monkeypatch):
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.setattr(db, "database_url", lambda: None)
     assert runner.run("ingest_prices", lambda engine: 1 / 0) == 0
+
+
+def test_missing_secret_on_github_fails_the_run(monkeypatch):
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setattr(db, "database_url", lambda: None)
+    assert runner.run("ingest_prices", lambda engine: 1 / 0) == 1

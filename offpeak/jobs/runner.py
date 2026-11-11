@@ -1,5 +1,6 @@
 """Shared wrapper for every job: connect, time it, log it to job_runs, never crash silently."""
 
+import os
 import sys
 import traceback
 from collections.abc import Callable
@@ -18,6 +19,10 @@ def run(job: str, work: Callable[[Engine], int]) -> int:
     """Run work(engine) -> rows written. Returns a process exit code (0 ok/skipped, 1 failed)."""
     url = db.database_url()
     if url is None:
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            # On GitHub a missing secret is a setup mistake: fail loudly instead of a green run.
+            print(f"{job}: DATABASE_URL is empty. Add it under Settings > Secrets > Actions.")
+            return 1
         print(f"{job}: DATABASE_URL is not set, nothing to do.")
         return 0
     engine = db.get_engine(url)
