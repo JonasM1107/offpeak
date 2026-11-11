@@ -6,7 +6,21 @@ Germany is the first market. The design lets us switch on Portugal and other EU 
 
 ## Status
 
-Planning. Nothing is built yet. The build plan is in `docs/PLAN.md`.
+Early build. Live day-ahead prices (Energy-Charts) and the weather forecast (Open-Meteo) are connected, and a first Streamlit dashboard shows them. The build plan is in `docs/PLAN.md`; the live data setup is in `docs/LIVE_DATA.md`.
+
+## Run it
+
+```bash
+uv sync
+```
+
+```bash
+uv run streamlit run app/main.py
+```
+
+```bash
+uv run pytest
+```
 
 ## Team
 

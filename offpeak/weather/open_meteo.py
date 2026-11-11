@@ -32,6 +32,7 @@ HOURLY = {
     "temperature_2m": "temp_c",
     "cloud_cover": "cloud_pct",
     "wind_speed_10m": "wind_ms",
+    "weather_code": "weather_code",  # WMO code, see offpeak/weather/codes.py
 }
 COLUMNS = ["ts", *MINUTELY_15.values(), *HOURLY.values()]
 
@@ -81,7 +82,7 @@ def parse_weather(payload: dict) -> pd.DataFrame:
 
 
 def fetch_weather(site: Site, days: int = FORECAST_DAYS) -> pd.DataFrame:
-    """Forecast for one site: ts, gti_wm2, ghi_wm2, precip_mm, temp_c, cloud_pct, wind_ms."""
+    """Forecast for one site, one row per 15-minute slot (columns: see COLUMNS)."""
     response = http.get(OPEN_METEO_URL, params=build_params(site, days))
     if response.status_code != 200:
         try:

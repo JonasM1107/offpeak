@@ -12,7 +12,9 @@ This is the code version of the *offpeak — Live Data Tech Setup* doc (11 Nov 2
 | `offpeak/http.py` | One GET helper: timeout, plus retry with backoff on 429 and 5xx |
 | `offpeak/config.py` | Zone, model, URLs, timeouts, attribution texts. No secrets |
 | `scripts/capture_fixtures.py` | Calls both APIs and saves the raw responses to `tests/fixtures/` |
-| `tests/` | 18 offline tests against saved responses |
+| `offpeak/analysis.py` | Cheapest and most expensive windows, current price, daily stats, typical day |
+| `app/` | First Streamlit dashboard: Dashboard, Analytics, Settings |
+| `tests/` | 25 offline tests against saved responses |
 
 Every `ts` is a timezone-aware UTC slot start.
 
@@ -42,7 +44,7 @@ uv run python -c "from offpeak.markets.energy_charts import fetch_tomorrow; prin
 
 The v2 response is `{"interval_minutes": 15, "data": [{"timestamp": "2026-11-10T00:00:00+01:00", "values": {"day_ahead_price": 271.33}}, ...]}`. Each timestamp carries its own UTC offset, so clock-change days parse without special handling. The older `/price` endpoint (without `/v2`) still works but returns parallel `unix_seconds` and `price` arrays.
 
-**Open-Meteo.** It refused every call from our cloud container ("Daily API request limit exceeded"). The limit is counted per IP address and the cloud IP is shared, so this does not affect our own laptops or GitHub Actions. `tests/fixtures/weather_sample.json` is therefore **hand-made** in Open-Meteo's documented format. Replace it with a real response by running `uv run python scripts/capture_fixtures.py`, then rerun the tests.
+**Open-Meteo.** It first refused calls from our cloud container ("Daily API request limit exceeded"). The limit is counted per IP address and cloud IPs are shared. Later the same day it answered, and `tests/fixtures/weather_sample.json` is now a real two-day response for Köln. Its format matched the docs exactly. To refresh both samples, run `uv run python scripts/capture_fixtures.py` and rerun the tests.
 
 ## Where the code differs from the tech setup doc
 

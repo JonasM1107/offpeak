@@ -12,11 +12,10 @@ from pathlib import Path
 
 from offpeak import http
 from offpeak.config import ENERGY_CHARTS_URL, OPEN_METEO_URL
-from offpeak.models import Site
+from offpeak.sites import DEMO_SITE
 from offpeak.weather.open_meteo import build_params
 
 FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
-DEMO_SITE = Site(id=1, name="Demo farm near Munich", lat=48.14, lon=11.58)
 
 
 def save(name: str, payload: dict) -> None:
