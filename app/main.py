@@ -35,6 +35,7 @@ pages = {
         page("outlook", "Price outlook", "online_prediction"),
     ],
     "Results": [
+        page("savings", "Savings", "savings"),
         page("tariff", "Tariff calculator", "receipt_long"),
     ],
     "Setup": [

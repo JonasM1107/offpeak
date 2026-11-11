@@ -17,6 +17,8 @@ OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 # what earlier model runs said (for forecast accuracy) and measured satellite radiation
 OPEN_METEO_PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1/forecast"
 OPEN_METEO_SATELLITE_URL = "https://satellite-api.open-meteo.com/v1/archive"
+# measured (reanalysis) weather for past days, used to replay savings
+OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 OPEN_METEO_MODEL = "dwd_icon_seamless"
 OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com"
 FORECAST_DAYS = 7

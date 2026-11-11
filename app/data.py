@@ -104,6 +104,12 @@ def weather(days: int = 3) -> tuple[pd.DataFrame | None, datetime, str | None, s
     return fetched, now, None, "API"
 
 
+@st.cache_data(ttl=12 * 3600, show_spinner=False)
+def archive_weather(start: date, end: date) -> pd.DataFrame:
+    """Measured weather for past days (to replay savings)."""
+    return open_meteo.fetch_archive(DEMO_SITE, start, end)
+
+
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def solar_check(past_days: int = 7) -> pd.DataFrame | None:
     """Day-ahead solar forecast against satellite measurements, or None if unavailable."""

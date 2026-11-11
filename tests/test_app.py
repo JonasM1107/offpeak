@@ -26,6 +26,8 @@ def offline(monkeypatch):
         json.loads((FIXTURES / "weather_satellite.json").read_text()),
     )
     monkeypatch.setattr(open_meteo, "fetch_solar_check", lambda site, past_days=7: check)
+    archive = open_meteo.parse_archive(json.loads((FIXTURES / "weather_archive.json").read_text()))
+    monkeypatch.setattr(open_meteo, "fetch_archive", lambda site, start, end: archive)
 
 
 def test_app_starts_without_errors():
@@ -40,6 +42,7 @@ def test_app_starts_without_errors():
         "views/analytics.py",
         "views/weather.py",
         "views/outlook.py",
+        "views/savings.py",
         "views/tariff.py",
         "views/components.py",
         "views/settings.py",

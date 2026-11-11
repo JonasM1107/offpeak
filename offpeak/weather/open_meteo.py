@@ -21,6 +21,7 @@ import pandas as pd
 from offpeak import http
 from offpeak.config import (
     FORECAST_DAYS,
+    OPEN_METEO_ARCHIVE_URL,
     OPEN_METEO_MODEL,
     OPEN_METEO_PREVIOUS_RUNS_URL,
     OPEN_METEO_SATELLITE_URL,
@@ -156,3 +157,49 @@ def fetch_solar_check(site: Site, past_days: int = 7) -> pd.DataFrame:
         if response.status_code != 200:
             raise WeatherSourceError(f"Open-Meteo HTTP {response.status_code}")
     return parse_solar_check(runs.json(), sat.json())
+
+
+# ── Past weather, for replaying what the plan would have saved ──────────────
+
+
+def parse_archive(payload: dict) -> pd.DataFrame:
+    """Hourly past weather: ts (UTC hour start), gti_wm2, wind_ms, temp_c. Irradiance is the
+    mean of the hour before its timestamp, so it moves back one hour; wind and temperature
+    are values at the timestamp."""
+    h = payload["hourly"]
+    stamp = pd.to_datetime(h["time"], unit="s", utc=True)
+    gti = pd.DataFrame(
+        {
+            "ts": stamp - pd.Timedelta(hours=1),
+            "gti_wm2": pd.to_numeric(pd.Series(h["global_tilted_irradiance"]), errors="coerce"),
+        }
+    )
+    rest = pd.DataFrame(
+        {
+            "ts": stamp,
+            "wind_ms": pd.to_numeric(pd.Series(h["wind_speed_10m"]), errors="coerce"),
+            "temp_c": pd.to_numeric(pd.Series(h["temperature_2m"]), errors="coerce"),
+        }
+    )
+    return gti.merge(rest, on="ts", how="inner").sort_values("ts").reset_index(drop=True)
+
+
+def fetch_archive(site: Site, start, end) -> pd.DataFrame:
+    """Measured weather for the days start..end (both inclusive)."""
+    response = http.get(
+        OPEN_METEO_ARCHIVE_URL,
+        params={
+            "latitude": site.lat,
+            "longitude": site.lon,
+            "start_date": str(start),
+            "end_date": str(end),
+            "hourly": "global_tilted_irradiance,wind_speed_10m,temperature_2m",
+            "tilt": site.tilt_deg,
+            "azimuth": open_meteo_azimuth(site.azimuth_deg),
+            "wind_speed_unit": "ms",
+            "timeformat": "unixtime",
+        },
+    )
+    if response.status_code != 200:
+        raise WeatherSourceError(f"Open-Meteo archive HTTP {response.status_code}")
+    return parse_archive(response.json())

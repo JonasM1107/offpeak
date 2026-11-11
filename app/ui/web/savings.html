@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--KIT-->
+<style>
+  #daily { height: 300px; }
+  #devices { height: 250px; }
+  #replay { height: 300px; }
+  .cal { display: grid; grid-template-columns: 34px repeat(7, minmax(0, 1fr)); gap: 5px; align-items: center; }
+  .cal .wd { font-size: 11px; color: var(--muted); text-align: center; }
+  .cal .wk { font-size: 10.5px; color: var(--faint); }
+  .cal .cell { aspect-ratio: 1.6; border-radius: 7px; background: var(--card2); border: 1px solid transparent; cursor: pointer;
+    display: grid; place-items: center; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; transition: transform .15s; }
+  .cal .cell:hover { transform: scale(1.06); }
+  .cal .cell.on { border-color: var(--ink); }
+  .cal .cell.empty { background: transparent; cursor: default; }
+  .cal .cell.empty:hover { transform: none; }
+  .scale { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); margin-top: 12px; }
+  .scale i { width: 16px; height: 10px; border-radius: 3px; display: inline-block; }
+  .nav { display: flex; gap: 6px; align-items: center; }
+  .nav button { width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 16px; color: var(--muted); }
+  .nav button:hover { color: var(--ink); border-color: var(--accent-mid); }
+  .bills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 6px 0 12px; }
+  .bill { background: var(--card2); border-radius: 14px; padding: 12px 14px; }
+  .bill p { margin: 0; font-size: 11.5px; color: var(--muted); }
+  .bill b { display: block; font-size: 20px; font-weight: 650; margin-top: 3px; letter-spacing: -.02em; }
+  .bill.save { background: var(--accent-soft); }
+  .bill.save b { color: var(--accent); }
+  .legend-inline { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+  .legend-inline i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legend-inline i.line { height: 2px; width: 14px; vertical-align: 3px; }
+  .legend-inline i.ghost { background: transparent; border: 1.5px solid var(--faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row k4 reveal" id="kpis"></div>
+
+  <div class="card reveal">
+    <div class="head">
+      <div><h3>Savings day by day</h3><div class="sub">Bars: what the plan saved each day. Line: saved in total so far. Click a day to replay it below.</div></div>
+      <div class="legend-inline"><span><i style="background:var(--accent)"></i>Saved that day</span><span><i class="line" style="background:var(--ink)"></i>In total</span></div>
+    </div>
+    <div id="daily" class="chart"></div>
+  </div>
+
+  <div class="row c2 reveal">
+    <div class="card">
+      <div class="head"><div><h3>Calendar</h3><div class="sub">Every day, coloured by what it saved</div></div></div>
+      <div class="cal" id="cal"></div>
+      <div class="scale" id="scale"></div>
+    </div>
+    <div class="card">
+      <div class="head"><div><h3>Where the savings come from</h3><div class="sub">Each machine's share, in euros over the period</div></div></div>
+      <div id="devices" class="chart"></div>
+      <p class="insight" id="devices-text"></p>
+    </div>
+  </div>
+
+  <div class="card reveal" id="replay-card">
+    <div class="head">
+      <div><h3 id="replay-title">Replay</h3><div class="sub">Line: all-in price per hour. Orange bars: when the plan runs each machine. Outlines: when it usually runs.</div></div>
+      <div class="nav"><button id="prev" aria-label="Previous day">‹</button><button id="next" aria-label="Next day">›</button></div>
+    </div>
+    <div class="bills" id="bills"></div>
+    <div id="replay" class="chart"></div>
+  </div>
+  <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
+</div>
+
+<script>window.OFFPEAK = __DATA__;</script>
+<script>
+// Every number comes from Python (offpeak/savings.py replays each day); this page draws them.
+const D = window.OFFPEAK, DAYS = D.days, S = D.summary;
+const { nf, pad } = OP;
+const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const asDate = s => new Date(s + 'T12:00:00Z');
+const short = s => { const d = asDate(s); return `${WD[(d.getUTCDay() + 6) % 7]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
+const eur = (v, d = 0) => `€${nf(v, d)}`;
+let sel = DAYS.length - 1;
+
+// ── KPIs ───────────────────────────────────────────────────────────────────
+const tile = (label, value, unit, note, cls = '') => `<div class="tile ${cls}"><p>${label}</p><div class="v">${value}${unit ? `<small>${unit}</small>` : ''}</div><div class="n">${note}</div></div>`;
+document.getElementById('kpis').innerHTML = [
+  tile(`Saved in ${S.days} days`, eur(S.saving_eur), '', `${eur(S.usual_eur)} usual bill → ${eur(S.plan_eur)} with the plan`, 'hero'),
+  tile('Per day', eur(S.per_day_eur, 2), '', `about ${eur(S.per_day_eur * 365)} a year at this rate`),
+  tile('Share of the power bill', nf(S.share_pct), '%', 'less than running everything at its usual time'),
+  tile('Best day', short(S.best_day), '', `${eur(S.best_day_eur, 2)} saved`),
+].join('');
+
+// ── Daily bars and running total ───────────────────────────────────────────
+let total = 0;
+const running = DAYS.map(d => (total += d.saving_eur));
+const daily = OP.chart(document.getElementById('daily'), c => {
+  const B = OP.base(c);
+  return {
+    ...B,
+    grid: { left: 52, right: 56, top: 16, bottom: 30 },
+    tooltip: { ...B.tooltip, trigger: 'axis', formatter: ps => { const d = DAYS[ps[0].dataIndex]; return `<b>${short(d.date)}</b><br>saved <b>${eur(d.saving_eur, 2)}</b><br><span style="color:${c.muted}">${eur(d.usual_eur, 2)} → ${eur(d.plan_eur, 2)} · ${running[ps[0].dataIndex].toFixed(0)} € so far</span>`; } },
+    xAxis: { type: 'category', data: DAYS.map(d => short(d.date)), ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, hideOverlap: true } },
+    yAxis: [{ type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '€{value}' } },
+      { type: 'value', ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, formatter: '€{value}' } }],
+    series: [
+      { type: 'bar', barMaxWidth: 18, data: DAYS.map((d, i) => ({ value: d.saving_eur, itemStyle: { color: i === sel ? c.accent : c.accentMid, borderRadius: [5, 5, 1, 1] } })),
+        emphasis: { itemStyle: { color: c.accent } } },
+      { type: 'line', yAxisIndex: 1, data: running, symbol: 'none', smooth: .3, lineStyle: { color: c.ink, width: 2 },
+        areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(28,27,25,.10)' }, { offset: 1, color: 'rgba(28,27,25,0)' }]) } },
+    ],
+  };
+});
+daily.onDraw.push(inst => inst.on('click', p => select(p.dataIndex, true)));
+
+// ── Calendar ───────────────────────────────────────────────────────────────
+function renderCal() {
+  const max = Math.max(...DAYS.map(d => d.saving_eur), 1);
+  const first = asDate(DAYS[0].date), offset = (first.getUTCDay() + 6) % 7;
+  let html = '<span></span>' + WD.map(w => `<span class="wd">${w}</span>`).join('');
+  const cells = Array(offset).fill(null).concat(DAYS.map((d, i) => i));
+  for (let r = 0; r < cells.length; r += 7) {
+    const firstIdx = cells.slice(r, r + 7).find(x => x !== null);
+    const label = firstIdx != null ? `${asDate(DAYS[firstIdx].date).getUTCDate()} ${MONTHS[asDate(DAYS[firstIdx].date).getUTCMonth()]}` : '';
+    html += `<span class="wk">${label}</span>`;
+    for (let k = 0; k < 7; k++) {
+      const i = cells[r + k];
+      if (i == null) { html += '<span class="cell empty"></span>'; continue; }
+      const v = DAYS[i].saving_eur, a = Math.max(0.08, v / max);
+      html += `<span class="cell ${i === sel ? 'on' : ''}" data-i="${i}" title="${short(DAYS[i].date)}: ${eur(v, 2)}" style="background:rgba(255,95,0,${(a * 0.9).toFixed(2)});color:${a > .55 ? '#fff' : ''}">${nf(v, 0)}</span>`;
+    }
+  }
+  document.getElementById('cal').innerHTML = html;
+  document.querySelectorAll('.cal .cell[data-i]').forEach(e => e.addEventListener('click', () => select(+e.dataset.i, true)));
+  document.getElementById('scale').innerHTML = `less <i style="background:rgba(255,95,0,.12)"></i><i style="background:rgba(255,95,0,.4)"></i><i style="background:rgba(255,95,0,.65)"></i><i style="background:rgba(255,95,0,.9)"></i> more · numbers in €`;
+}
+
+// ── Devices ────────────────────────────────────────────────────────────────
+const devNames = Object.keys(S.by_device), devVals = Object.values(S.by_device);
+OP.chart(document.getElementById('devices'), c => {
+  const B = OP.base(c);
+  return {
+    ...B,
+    grid: { left: 130, right: 60, top: 6, bottom: 20 },
+    tooltip: { ...B.tooltip, formatter: p => `${p.name}<br><b>${eur(p.value)}</b> (${nf(p.value / S.saving_eur * 100, 0)} % of the saving)` },
+    xAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '€{value}' } },
+    yAxis: { type: 'category', data: devNames, inverse: true, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, fontSize: 12, color: c.ink } },
+    series: [{ type: 'bar', data: devVals, barMaxWidth: 22, itemStyle: { color: c.accent, borderRadius: [0, 6, 6, 0] },
+      label: { show: true, position: 'right', color: c.muted, fontSize: 11, formatter: p => eur(p.value) } }],
+  };
+});
+document.getElementById('devices-text').innerHTML = devNames.length
+  ? `<b>${devNames[0]}</b> contributes most. Machine shares can add up to a little more or less than the total, because moving one machine changes what the others pay.`
+  : 'No flexible machines on this site yet.';
+
+// ── Replay of one day ──────────────────────────────────────────────────────
+const replay = OP.chart(document.getElementById('replay'), c => {
+  const B = OP.base(c);
+  const d = DAYS[sel], devs = d.devices.filter(x => x.role === 'flexible'), hours = [...Array(24).keys()];
+  const rowsN = devs.length, rowH = 1;
+  // device rows below the price chart, as a custom gantt
+  const blocks = [];
+  devs.forEach((dev, r) => {
+    const runs = (arr, test) => { const out = []; let s = null; arr.forEach((v, h) => { if (test(v) && s === null) s = h; if (!test(v) && s !== null) { out.push([s, h]); s = null; } }); if (s !== null) out.push([s, 24]); return out; };
+    runs(dev.usual_kw, v => v > 0).forEach(([a, b]) => blocks.push([a, b, r, 'usual', dev.name]));
+    runs(dev.offpeak_kw, v => v > 0).forEach(([a, b]) => blocks.push([a, b, r, 'plan', dev.name]));
+  });
+  return {
+    ...B,
+    grid: [{ left: 120, right: 20, top: 14, height: 120 }, { left: 120, right: 20, top: 160, height: Math.max(60, rowsN * 34) }],
+    tooltip: { ...B.tooltip },
+    xAxis: [
+      { type: 'value', gridIndex: 0, min: 0, max: 24, interval: 3, ...B.axis, axisLabel: { show: false }, splitLine: { show: false } },
+      { type: 'value', gridIndex: 1, min: 0, max: 24, interval: 3, ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: v => `${pad(v)}:00` } },
+    ],
+    yAxis: [
+      { type: 'value', gridIndex: 0, scale: true, ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} ct' } },
+      { type: 'category', gridIndex: 1, data: devs.map(x => x.name), inverse: true, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, color: c.ink, fontSize: 12 } },
+    ],
+    series: [
+      { type: 'line', xAxisIndex: 0, yAxisIndex: 0, step: 'start', symbol: 'none', data: d.price_ct.map((v, h) => [h, v]).concat([[24, d.price_ct[23]]]),
+        lineStyle: { color: c.ink, width: 1.6 }, areaStyle: { color: 'rgba(28,27,25,.05)' },
+        tooltip: { formatter: p => `${pad(p.value[0])}:00 · <b>${nf(p.value[1])} ct/kWh</b> all-in` } },
+      { type: 'custom', xAxisIndex: 1, yAxisIndex: 1, data: blocks,
+        tooltip: { formatter: p => `${p.value[4]}<br>${p.value[3] === 'plan' ? 'Plan' : 'Usual'}: ${pad(p.value[0])}:00–${pad(p.value[1] % 24)}:00` },
+        renderItem: (params, api) => {
+          const a = api.coord([api.value(0), api.value(2)]), b = api.coord([api.value(1), api.value(2)]);
+          const h = api.size([0, 1])[1];
+          const plan = api.value(3) === 'plan';
+          return { type: 'rect', shape: { x: a[0] + 1, y: a[1] - h * (plan ? 0.3 : 0.38), width: b[0] - a[0] - 2, height: h * (plan ? 0.6 : 0.76), r: 6 },
+            style: plan ? { fill: c.accent } : { fill: 'transparent', stroke: c.faint, lineWidth: 1.5, lineDash: [4, 3] }, z2: plan ? 2 : 1 };
+        } },
+    ],
+  };
+});
+function select(i, scroll) {
+  sel = Math.max(0, Math.min(DAYS.length - 1, i));
+  const d = DAYS[sel];
+  document.getElementById('replay-title').textContent = `Replay: ${short(d.date)}`;
+  document.getElementById('bills').innerHTML = `
+    <div class="bill"><p>Usual times</p><b>${eur(d.usual_eur, 2)}</b></div>
+    <div class="bill"><p>With the plan</p><b>${eur(d.plan_eur, 2)}</b></div>
+    <div class="bill save"><p>Saved · ${d.own_pct} % of own power used on site</p><b>${eur(d.saving_eur, 2)}</b></div>`;
+  document.getElementById('replay').style.height = `${210 + Math.max(60, d.devices.filter(x => x.role === 'flexible').length * 34)}px`;
+  daily.update(); replay.update(); renderCal();
+  if (scroll) document.getElementById('replay-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+document.getElementById('prev').addEventListener('click', () => select(sel - 1));
+document.getElementById('next').addEventListener('click', () => select(sel + 1));
+
+document.getElementById('foot').textContent = `Each past day is replayed with its real day-ahead prices, the German 2026 tariff (all-in prices and the demand charge) and the weather that actually happened (Open-Meteo archive). The plan is shown that weather as if the forecast had been perfect, so real savings come out a little lower. Machines and their allowed hours as set up under Site & components.`;
+OP.start();
+select(sel);
+</script>
+</body>
+</html>
