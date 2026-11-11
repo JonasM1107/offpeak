@@ -20,12 +20,14 @@ from ui.components import (
     status_dot,
 )
 
-from offpeak.analysis import best_window, ct_kwh, current_price, window_mask
-from offpeak.config import ENERGY_CHARTS_ATTRIBUTION, OPEN_METEO_ATTRIBUTION
+from offpeak.analysis import best_window, ct_kwh, current_price, hourly_with_drivers, window_mask
+from offpeak.config import ENERGY_CHARTS_ATTRIBUTION, MARKET_TZ, OPEN_METEO_ATTRIBUTION
+from offpeak.insights import fit_wind_line, headline, outlook, shift_savings
 from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY, DEMO_SITE
 from offpeak.timeutils import market_today
 from offpeak.weather.codes import weather_label
+from offpeak.weather.drivers import daily_wind
 
 now = data.now_utc()
 try:
@@ -45,6 +47,18 @@ header(
 )
 if price_error:
     st.warning("Prices could not be loaded right now. We try again in a few minutes.")
+
+answer = headline(today, tomorrow, MARKET_TZ) if published else None
+st.html(
+    f'<div class="op-insight"><span class="op-insight-tag">Today\'s advice</span>'
+    f"{
+        escape(
+            answer
+            or 'Tomorrow’s prices are published around 13:00 CET. Until then, '
+            'the cards below show today.'
+        )
+    }</div>"
+)
 
 # ── KPI cards ────────────────────────────────────────────────────────────────
 cheap3 = best_window(tomorrow, 3)
@@ -163,6 +177,69 @@ with right, st.container(border=True, key="card_windows"):
             )
         st.html("".join(rows))
         st.caption("Per-load schedules and savings in euros come with the optimiser.")
+
+st.write("")
+
+# ── Insights: what shifting is worth, and the days after tomorrow ────────────
+left, right = st.columns(2, gap="medium")
+with left, st.container(border=True, key="card_shift"):
+    card_title("What moving a load is worth tomorrow", "Cheapest block instead of the dearest")
+    shifts = shift_savings(tomorrow) if published else []
+    if not shifts:
+        st.caption("Shown once tomorrow's prices are published (around 13:00 CET).")
+    else:
+        rows = [
+            f'<div class="op-row"><div><div class="name">{escape(sh.name)}</div>'
+            f'<div class="meta">{sh.kw:.0f} kW for {sh.hours} h · run '
+            f"{hhmm(sh.cheap.start)}–{hhmm(sh.cheap.end, True)}, not "
+            f"{hhmm(sh.peak.start)}–{hhmm(sh.peak.end, True)}</div></div>"
+            f'<span class="op-chip">€{sh.saving_eur:,.2f}</span></div>'
+            for sh in shifts
+        ]
+        st.html("".join(rows))
+        st.caption(
+            "Market price only, for one day. Grid fees and taxes are the same in every hour, "
+            "so they do not change the saving."
+        )
+
+with right, st.container(border=True, key="card_outlook"):
+    card_title("Week ahead", "Rough estimate from the wind forecast in northern Germany")
+    month_start = market_today() - timedelta(days=29)
+    try:
+        history, _, _ = data.prices(month_start, market_today())
+    except PriceSourceError:
+        history = None
+    national = data.drivers(past_days=30, forecast_days=7)
+    fit = None
+    if history is not None and national is not None:
+        joined = hourly_with_drivers(history, national)
+        fit = fit_wind_line(joined)
+    if fit is None:
+        st.caption("The estimate needs 30 days of prices and wind. Not available right now.")
+    else:
+        typical = joined["ct_kwh"].mean()
+        days = daily_wind(national, MARKET_TZ)
+        days = outlook(fit, days[days["day"] > market_today()], typical)
+        chip = {"likely cheaper": "op-chip", "likely pricier": "op-chip grey"}
+        rows = []
+        for _, d in days.iterrows():
+            actual = ""
+            if d["day"] == tomorrow_date and published:
+                actual = f" · published: {ct_kwh(tomorrow['eur_mwh'].mean()):.1f} ct"
+            rows.append(
+                f'<div class="op-row"><div><div class="name">{d["day"]:%a %-d %b}</div>'
+                f'<div class="meta">wind {d["wind_north_ms"]:.1f} m/s · '
+                f"est. {d['est_ct']:.1f} ct/kWh{actual}</div></div>"
+                f'<span class="{chip.get(d["label"], "op-chip plain")}">{d["label"]}</span></div>'
+            )
+        st.html("".join(rows))
+        st.caption(
+            f"A straight line through the last {fit.hours} hours: price ≈ "
+            f"{fit.intercept:.1f} ct {'−' if fit.slope < 0 else '+'} {abs(fit.slope):.1f} ct "
+            "for every m/s of wind. It is off by about "
+            f"{fit.mae:.1f} ct/kWh on a typical hour and ignores time of day and weekends; "
+            f"the 30-day average was {typical:.1f} ct/kWh. The real price model comes later."
+        )
 
 st.write("")
 

@@ -56,6 +56,13 @@ CSS = f"""
 .op-chip {{ background: {ORANGE_SOFT}; color: #B8430A; font-weight: 600; font-size: 0.85rem;
     padding: 4px 10px; border-radius: 8px; white-space: nowrap; }}
 .op-chip.grey {{ background: #F1EFEB; color: {INK}; }}
+.op-chip.plain {{ background: #fff; color: {MUTED}; border: 1px solid {LINE}; }}
+.op-insight {{ background: #fff; border: 1px solid {LINE}; border-left: 4px solid {ORANGE};
+    border-radius: 12px; padding: 14px 18px; font-size: 1.02rem; line-height: 1.5;
+    margin: -4px 0 18px; }}
+.op-insight-tag {{ display: inline-block; background: {ORANGE_SOFT}; color: #B8430A;
+    font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 6px; margin-right: 10px; vertical-align: 1px; }}
 .op-tiles {{ display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }}
 .op-tiles.week {{ grid-template-columns: repeat(7, 1fr); }}
 @media (max-width: 1100px) {{ .op-tiles, .op-tiles.week {{ grid-template-columns: repeat(4, 1fr); }} }}
