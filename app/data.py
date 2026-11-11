@@ -79,14 +79,16 @@ def today_and_tomorrow() -> tuple[pd.DataFrame, pd.DataFrame, datetime, str]:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def weather() -> tuple[pd.DataFrame | None, datetime, str | None, str]:
-    """Forecast for the demo site: (table or None, forecast time, error, 'database' or 'API')."""
+def weather(days: int = 3) -> tuple[pd.DataFrame | None, datetime, str | None, str]:
+    """Forecast for the demo site from today 00:00 (German time) for `days` days:
+    (table or None, forecast time, error, 'database' or 'API')."""
     eng = engine()
     now = datetime.now(UTC)
+    start = day_slots(market_today(), MARKET_TZ)[0]
     if eng is not None:
         try:
             stored, run_at = db.read_latest_weather(
-                eng, DEMO_SITE.id, now - timedelta(hours=1), now + timedelta(days=3)
+                eng, DEMO_SITE.id, start, start + timedelta(days=days)
             )
         except Exception as err:
             print(f"offpeak: database read failed, using the API: {err}")
@@ -94,12 +96,22 @@ def weather() -> tuple[pd.DataFrame | None, datetime, str | None, str]:
             if run_at is not None and now - run_at < WEATHER_MAX_AGE:
                 return stored, run_at, None, "database"
     try:
-        fetched = open_meteo.fetch_weather(DEMO_SITE, days=3)
+        fetched = open_meteo.fetch_weather(DEMO_SITE, days=days)
     except Exception as err:  # shown on the page as a designed state, never as a traceback
         return None, now, str(err), "API"
     if eng is not None:
         _store_quietly(lambda: db.upsert_weather(eng, fetched, DEMO_SITE.id, now))
     return fetched, now, None, "API"
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def solar_check(past_days: int = 7) -> pd.DataFrame | None:
+    """Day-ahead solar forecast against satellite measurements, or None if unavailable."""
+    try:
+        return open_meteo.fetch_solar_check(DEMO_SITE, past_days)
+    except Exception as err:
+        print(f"offpeak: solar check unavailable: {err}")
+        return None
 
 
 @st.cache_data(ttl=60, show_spinner=False)

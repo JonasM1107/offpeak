@@ -19,7 +19,14 @@ Missing values stay missing (NaN); they are never turned into 0.
 import pandas as pd
 
 from offpeak import http
-from offpeak.config import FORECAST_DAYS, OPEN_METEO_MODEL, OPEN_METEO_URL, SLOT_MINUTES
+from offpeak.config import (
+    FORECAST_DAYS,
+    OPEN_METEO_MODEL,
+    OPEN_METEO_PREVIOUS_RUNS_URL,
+    OPEN_METEO_SATELLITE_URL,
+    OPEN_METEO_URL,
+    SLOT_MINUTES,
+)
 from offpeak.models import Site
 
 # Open-Meteo name -> our column name
@@ -91,3 +98,61 @@ def fetch_weather(site: Site, days: int = FORECAST_DAYS) -> pd.DataFrame:
             reason = response.text
         raise WeatherSourceError(f"Open-Meteo HTTP {response.status_code}: {reason[:200]}")
     return parse_weather(response.json())
+
+
+# ── Forecast accuracy: what the forecast said a day ahead against satellite data ─
+
+
+def _hourly_slot_start(block: dict, column: str, name: str) -> pd.DataFrame:
+    """Hourly radiation is the mean of the hour *before* the timestamp: move it back."""
+    df = pd.DataFrame(
+        {
+            "ts": pd.to_datetime(block["time"], unit="s", utc=True) - pd.Timedelta(hours=1),
+            name: pd.to_numeric(pd.Series(block[column]), errors="coerce"),
+        }
+    )
+    return df
+
+
+def parse_solar_check(previous_runs: dict, satellite: dict) -> pd.DataFrame:
+    """One row per hour that both sources cover: ts (UTC hour start), forecast_wm2 (what the
+    forecast made one day earlier said for the panel) and measured_wm2 (satellite)."""
+    forecast = _hourly_slot_start(
+        previous_runs["hourly"], "global_tilted_irradiance_previous_day1", "forecast_wm2"
+    )
+    measured = _hourly_slot_start(satellite["hourly"], "global_tilted_irradiance", "measured_wm2")
+    both = forecast.merge(measured, on="ts", how="inner").dropna()
+    return both.sort_values("ts").reset_index(drop=True)
+
+
+def solar_check_params(site: Site, past_days: int) -> dict:
+    return {
+        "latitude": site.lat,
+        "longitude": site.lon,
+        "tilt": site.tilt_deg,
+        "azimuth": open_meteo_azimuth(site.azimuth_deg),
+        "past_days": past_days,
+        "timeformat": "unixtime",
+    }
+
+
+def fetch_solar_check(site: Site, past_days: int = 7) -> pd.DataFrame:
+    """Day-ahead solar forecast against satellite measurements for the last days."""
+    params = solar_check_params(site, past_days)
+    runs = http.get(
+        OPEN_METEO_PREVIOUS_RUNS_URL,
+        params=params
+        | {
+            "models": OPEN_METEO_MODEL,
+            "hourly": "global_tilted_irradiance_previous_day1",
+            "forecast_days": 1,
+        },
+    )
+    sat = http.get(
+        OPEN_METEO_SATELLITE_URL,
+        params=params | {"hourly": "global_tilted_irradiance", "forecast_days": 0},
+    )
+    for response in (runs, sat):
+        if response.status_code != 200:
+            raise WeatherSourceError(f"Open-Meteo HTTP {response.status_code}")
+    return parse_solar_check(runs.json(), sat.json())

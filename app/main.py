@@ -31,6 +31,7 @@ pages = {
     ],
     "Forecasts": [
         page("analytics", "Prices", "show_chart"),
+        page("weather", "Weather & solar", "partly_cloudy_day"),
     ],
     "Results": [
         page("tariff", "Tariff calculator", "receipt_long"),

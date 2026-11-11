@@ -75,6 +75,18 @@ CSS = f"""
 .op-tile .cond {{ font-size: 0.78rem; color: #4A4640; min-height: 2.2em; }}
 .op-bar {{ height: 4px; border-radius: 4px; background: #ECE8E2; margin-top: 8px; }}
 .op-bar span {{ display: block; height: 4px; border-radius: 4px; background: {ORANGE}; }}
+.op-days {{ display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }}
+@media (max-width: 1100px) {{ .op-days {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }} }}
+.op-day {{ background: #FAF9F7; border: 1px solid transparent; border-radius: 14px; padding: 12px; min-width: 0; }}
+.op-day.best {{ background: {ORANGE_SOFT}; border-color: {ORANGE_SOFT_STRONG}; }}
+.op-day .t {{ font-weight: 600; font-size: 0.9rem; color: {INK}; }}
+.op-day .t span {{ font-weight: 400; color: {MUTED}; font-size: 0.78rem; margin-left: 4px; }}
+.op-day .cond {{ font-size: 0.78rem; color: {MUTED}; margin: 2px 0 6px; min-height: 2.3em; }}
+.op-day .temp {{ font-size: 1.35rem; font-weight: 600; color: {INK}; margin-bottom: 8px; }}
+.op-day .temp span {{ font-size: 0.85rem; font-weight: 500; color: {MUTED}; }}
+.op-day .kv {{ display: flex; justify-content: space-between; font-size: 0.76rem; color: {MUTED}; margin-top: 8px; }}
+.op-day .kv b {{ color: {INK}; font-weight: 600; }}
+.op-bar.dark span {{ background: {PEAK}; }}
 .op-foot {{ color: {MUTED}; font-size: 0.74rem; margin-top: 12px; line-height: 1.5; }}
 
 /* segmented control: a quiet pill group like in the site view */
