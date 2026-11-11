@@ -1,19 +1,11 @@
 /* Shared look for the interactive views (Prices, Weather & solar, Price outlook).
-   Colours follow the dashboard theme in app/ui/components.py: Storm Grey with Safety Orange
-   in light mode, warm near-black with the Emberline colours at night. */
+   Colours follow the dashboard in app/ui/components.py: warm light greys, orange accent. */
 :root {
-  --bg: #D3D6DA; --card: #E7E9EC; --card2: #DADDE1; --line: #C3C7CC; --ink: #111214; --muted: #4E535A;
-  --faint: #7E848B; --accent: #FF5F00; --accent-soft: rgba(255,95,0,.13); --accent-mid: rgba(255,95,0,.40);
-  --accent-ink: #B34200; --dark: #2A2D31; --grey: #9EA3A9; --sun: #F28C28; --wind: #5B6168;
-  --hero-bg: linear-gradient(155deg, #6A6F75 0%, #565B61 45%, #44494F 100%); --hero-ink: #FFFFFF; --hero-muted: #D3D6DA;
-  --glow: rgba(255,95,0,.55); --shadow: 0 1px 2px rgba(17,18,20,.06);
-}
-body.op-dark {
-  --bg: #111111; --card: #181514; --card2: #211B19; --line: #2C2320; --ink: #F2F2F2; --muted: #A89F9A;
-  --faint: #6E625D; --accent: #FF5F00; --accent-soft: rgba(217,72,15,.18); --accent-mid: rgba(242,140,40,.38);
-  --accent-ink: #F28C28; --dark: #E9E2DE; --grey: #5E5450; --sun: #F28C28; --wind: #A89F9A;
-  --hero-bg: radial-gradient(130% 110% at 50% 135%, #D9480F 0%, #7A1405 28%, #2A0D06 55%, #151110 82%);
-  --hero-ink: #F2F2F2; --hero-muted: #B9AEA8; --glow: rgba(242,140,40,.55); --shadow: none;
+  --bg: #F6F5F2; --card: #FFFFFF; --card2: #FAF9F7; --line: #ECE9E4; --ink: #1C1B19; --muted: #77726A;
+  --faint: #A39E96; --accent: #E8590C; --accent-soft: #FDEBDF; --accent-mid: #F8C9A8;
+  --accent-ink: #B8430A; --dark: #3A3733; --grey: #D6D2CB; --sun: #F2A33A; --wind: #4A4640;
+  --hero-bg: linear-gradient(155deg, #4A4640 0%, #2E2B28 100%); --hero-ink: #FFFFFF; --hero-muted: #D6D2CB;
+  --glow: rgba(232,89,12,.5); --shadow: 0 1px 2px rgba(28,27,25,.05);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif;

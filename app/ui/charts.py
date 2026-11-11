@@ -18,11 +18,9 @@ def _layout(fig: go.Figure, height: int = 320) -> go.Figure:
         font=dict(family="Inter, sans-serif", size=12, color=MUTED),
         showlegend=False,
         bargap=0.25,
-        hoverlabel=dict(bgcolor="#FFFFFF", font_color="#16171A", bordercolor="#E4E6E9"),
+        hoverlabel=dict(bgcolor="#fff", font_color=INK, bordercolor=LINE),
     )
-    fig.update_yaxes(
-        gridcolor=LINE, zerolinecolor="rgba(138, 144, 152, 0.45)", ticksuffix=" ", title=None
-    )
+    fig.update_yaxes(gridcolor=LINE, zerolinecolor="#BDB8B0", ticksuffix=" ", title=None)
     fig.update_xaxes(showgrid=False, title=None)
     return fig
 
@@ -58,7 +56,7 @@ def price_line(prices: pd.DataFrame) -> go.Figure:
             mode="lines",
             line=dict(color=ORANGE, width=1.6, shape="hv"),
             fill="tozeroy",
-            fillcolor="rgba(255,95,0,0.10)",
+            fillcolor="rgba(232,89,12,0.08)",
             hovertemplate="%{x|%a %d %b, %H:%M}<br><b>%{y:.1f} ct/kWh</b><extra></extra>",
         )
     )
