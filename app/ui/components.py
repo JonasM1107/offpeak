@@ -1,7 +1,9 @@
 """Shared look: colours, CSS, cards and small formatting helpers."""
 
+import base64
 from datetime import datetime
 from html import escape
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -24,45 +26,61 @@ ORANGE_SOFT = "rgba(255, 95, 0, 0.14)"
 ORANGE_SOFT_STRONG = "rgba(255, 95, 0, 0.45)"
 
 PALETTES = {
+    # Light: Storm Grey (60 %) for the page and surfaces, Matte Black (30 %) for text, hero
+    # and rail, Safety Orange (10 %) for what matters.
     "light": {
-        "bg": "#E9EBEE",
-        "frame": "#F4F5F7",
-        "card": "#FFFFFF",
-        "card2": "#F2F3F5",
-        "line": "#E4E6E9",
-        "ink": "#16171A",
-        "muted": "#6B7079",
-        "faint": "#A3A8AF",
+        "bg": "#5B6066",
+        "frame": "#D3D6DA",
+        "card": "#E7E9EC",
+        "card2": "#DADDE1",
+        "line": "#C3C7CC",
+        "ink": "#111214",
+        "muted": "#4E535A",
+        "faint": "#7E848B",
         "accent": "#FF5F00",
-        "accent-soft": "#FFEADD",
-        "accent-mid": "#FFC7A6",
-        "accent-ink": "#C24700",
-        "rail": "#151618",
-        "rail-ink": "#8C9198",
-        "hero": "#151618",
-        "hero-ink": "#F4F5F6",
-        "hero-muted": "#9AA0A7",
-        "shadow": "0 1px 2px rgba(16,17,19,.04), 0 10px 30px rgba(16,17,19,.05)",
+        "accent-soft": "rgba(255,95,0,.13)",
+        "accent-mid": "rgba(255,95,0,.40)",
+        "accent-ink": "#B34200",
+        "rail": "rgba(17,18,20,.52)",
+        "rail-border": "rgba(255,255,255,.16)",
+        "rail-ink": "#C9CDD2",
+        "hero": "#4E5359",
+        "hero-bg": "linear-gradient(155deg, #6A6F75 0%, #565B61 45%, #44494F 100%)",
+        "hero-ink": "#FFFFFF",
+        "hero-muted": "#D3D6DA",
+        "hero-border": "rgba(255,255,255,.10)",
+        "sel": "#4E5359",
+        "sel-ink": "#FFFFFF",
+        "glow": "rgba(255,95,0,.55)",
+        "shadow": "0 24px 60px rgba(17,18,20,.28)",
     },
+    # Night: near-black with the warm Emberline colours (amber #F28C28, red orange #D9480F,
+    # oxblood #7A1405, off-white #F2F2F2); Safety Orange stays the accent.
     "dark": {
-        "bg": "#0E0F10",
-        "frame": "#16181A",
-        "card": "#1F2124",
-        "card2": "#26292D",
-        "line": "#2C2F33",
-        "ink": "#F1F2F3",
-        "muted": "#9AA0A7",
-        "faint": "#6B7178",
+        "bg": "#0A0A0A",
+        "frame": "#111111",
+        "card": "#181514",
+        "card2": "#211B19",
+        "line": "#2C2320",
+        "ink": "#F2F2F2",
+        "muted": "#A89F9A",
+        "faint": "#6E625D",
         "accent": "#FF5F00",
-        "accent-soft": "rgba(255,95,0,.14)",
-        "accent-mid": "rgba(255,95,0,.38)",
-        "accent-ink": "#FF8A4C",
-        "rail": "#08090A",
-        "rail-ink": "#7A8087",
-        "hero": "#0A0B0C",
-        "hero-ink": "#F4F5F6",
-        "hero-muted": "#8D939A",
-        "shadow": "none",
+        "accent-soft": "rgba(217,72,15,.18)",
+        "accent-mid": "rgba(242,140,40,.38)",
+        "accent-ink": "#F28C28",
+        "rail": "rgba(255,255,255,.045)",
+        "rail-border": "rgba(242,140,40,.18)",
+        "rail-ink": "#A89F9A",
+        "hero": "#111111",
+        "hero-bg": "radial-gradient(130% 110% at 50% 135%, #D9480F 0%, #7A1405 28%, #2A0D06 55%, #151110 82%)",
+        "hero-ink": "#F2F2F2",
+        "hero-muted": "#B9AEA8",
+        "hero-border": "rgba(242,140,40,.20)",
+        "sel": "#7A1405",
+        "sel-ink": "#F2F2F2",
+        "glow": "rgba(242,140,40,.55)",
+        "shadow": "0 0 0 1px rgba(242,140,40,.06), 0 30px 80px rgba(122,20,5,.22)",
     },
 }
 
@@ -82,6 +100,7 @@ body.op-dark { """
     + """ }
 .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp label, .stApp button, .stApp input {
     font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+.stApp { background: var(--op-bg) !important; }
 [data-testid="stHeader"] { background: transparent; }
 
 /* the page sits in one big rounded frame, like a device screen */
@@ -91,29 +110,32 @@ body.op-dark { """
 
 /* sidebar: a dark pill rail of icons on wide screens; labels appear on hover */
 @media (min-width: 900px) {
-  [data-testid="stSidebar"] { width: 92px !important; min-width: 92px !important; max-width: 92px !important;
+  [data-testid="stSidebar"] { width: 76px !important; min-width: 76px !important; max-width: 76px !important;
       background: transparent !important; border: 0 !important; }
-  [data-testid="stSidebar"] > div:first-child { background: var(--op-rail); border-radius: 30px;
-      margin: 14px 0 14px 14px; height: calc(100vh - 28px); overflow: visible; }
+  [data-testid="stSidebar"] > div:first-child { background: var(--op-rail); border-radius: 26px;
+      border: 1px solid var(--op-rail-border); backdrop-filter: blur(18px) saturate(150%);
+      -webkit-backdrop-filter: blur(18px) saturate(150%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 10px 30px rgba(0,0,0,.18);
+      margin: 14px 0 14px 12px; height: calc(100vh - 28px); overflow: visible; }
   [data-testid="stSidebarContent"] { overflow: visible !important; }
-  [data-testid="stSidebarHeader"] { padding: 1.2rem 0 0.6rem; justify-content: center; }
-  [data-testid="stSidebarHeader"] img { height: 40px !important; width: 40px !important; }
+  [data-testid="stSidebarHeader"] { padding: 1rem 0 0.4rem; justify-content: center; }
+  [data-testid="stSidebarHeader"] img { height: 34px !important; width: 34px !important; }
   [data-testid="stSidebarCollapseButton"], [data-testid="stSidebar"] [data-testid="stSidebarResizer"] { display: none !important; }
-  [data-testid="stSidebarNav"] { padding: 0 14px; }
-  [data-testid="stNavSectionHeader"] { font-size: 0 !important; height: 1px; margin: 14px 10px !important;
-      background: rgba(255,255,255,.08); }
-  [data-testid="stSidebarNavLink"] { position: relative; justify-content: center; width: 50px; height: 50px;
-      padding: 0 !important; margin: 6px auto !important; border-radius: 50% !important; overflow: visible; }
-  [data-testid="stSidebarNavLink"] > span[label] { position: absolute; left: 62px; top: 50%;
-      transform: translateY(-50%); background: var(--op-rail); color: #F1F2F3; padding: 6px 12px;
+  [data-testid="stSidebarNav"] { padding: 0 10px; }
+  [data-testid="stNavSectionHeader"] { font-size: 0 !important; height: 1px; margin: 10px 12px !important;
+      background: rgba(255,255,255,.10); }
+  [data-testid="stSidebarNavLink"] { position: relative; justify-content: center; width: 40px; height: 40px;
+      padding: 0 !important; margin: 5px auto !important; border-radius: 50% !important; overflow: visible; }
+  [data-testid="stSidebarNavLink"] > span[label] { position: absolute; left: 50px; top: 50%;
+      transform: translateY(-50%); background: #111214; color: #F1F2F3; padding: 6px 12px;
       border-radius: 999px; white-space: nowrap; opacity: 0; pointer-events: none;
       z-index: 1000; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
   [data-testid="stSidebarNavLink"] > span[label] p { color: #F1F2F3 !important; font-size: .82rem; margin: 0; }
   [data-testid="stSidebarNavLink"]:hover > span[label] { opacity: 1; transition: opacity .15s; }
-  [data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"] { color: var(--op-rail-ink) !important; font-size: 22px; }
+  [data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"] { color: var(--op-rail-ink) !important; font-size: 19px; }
   [data-testid="stSidebarNavLink"]:hover { background: rgba(255,255,255,.07) !important; }
   [data-testid="stSidebarNavLink"][aria-current="page"] { background: var(--op-accent) !important;
-      box-shadow: 0 0 0 5px rgba(255,95,0,.18); }
+      box-shadow: 0 0 0 4px rgba(255,95,0,.20), 0 4px 14px rgba(255,95,0,.35); }
   [data-testid="stSidebarNavLink"][aria-current="page"] [data-testid="stIconMaterial"] { color: #fff !important; }
 }
 
@@ -170,19 +192,25 @@ body.op-dark { """
 .op-bar.dark span { background: var(--op-muted); }
 .op-foot { color: var(--op-muted); font-size: 0.74rem; margin-top: 12px; line-height: 1.5; }
 
-/* hero: always matte black, an orange glow rising from the bottom edge */
-.op-hero { position: relative; overflow: hidden; background: var(--op-hero); color: var(--op-hero-ink);
-    border-radius: 26px; padding: 26px 28px; min-height: 196px; display: flex; flex-direction: column;
+/* brand row at the top of every page */
+.op-brand { display: flex; align-items: center; gap: 10px; margin: -0.4rem 0 1.1rem; }
+.op-brand img { width: 30px; height: 30px; flex: none; }
+.op-brand span { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.04em; color: var(--op-ink); }
+.op-brand span b { color: var(--op-accent); font-weight: 700; }
+
+/* hero: Storm Grey in light mode, warm black in night mode, an orange glow rising from below */
+.op-hero { position: relative; overflow: hidden; background: var(--op-hero-bg); color: var(--op-hero-ink);
+    border: 1px solid var(--op-hero-border); border-radius: 26px; padding: 26px 28px; min-height: 196px; display: flex; flex-direction: column;
     justify-content: space-between; gap: 18px; }
 .op-hero::after { content: ""; position: absolute; left: 10%; right: 10%; bottom: -150px; height: 220px;
-    border-radius: 50%; background: radial-gradient(closest-side, rgba(255,95,0,.55), rgba(255,95,0,0));
+    border-radius: 50%; background: radial-gradient(closest-side, var(--op-glow), transparent);
     pointer-events: none; }
 .op-hero .kicker { font-size: .8rem; color: var(--op-hero-muted); display: flex; gap: 8px; align-items: center; }
 .op-hero h2 { font-size: 1.75rem; font-weight: 600; letter-spacing: -.02em; margin: 6px 0 4px; color: var(--op-hero-ink); line-height: 1.2; }
 .op-hero h2 em { font-style: italic; font-weight: 400; color: var(--op-accent); }
 .op-hero p { color: var(--op-hero-muted); font-size: .88rem; margin: 0; max-width: 560px; }
 .op-hero .facts { display: flex; flex-wrap: wrap; gap: 8px; position: relative; z-index: 1; }
-.op-hero .fact { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); border-radius: 999px;
+.op-hero .fact { background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.14); border-radius: 999px;
     padding: 6px 12px; font-size: .8rem; color: var(--op-hero-ink); white-space: nowrap; }
 .op-hero .fact.on { background: var(--op-accent); border-color: var(--op-accent); color: #fff; font-weight: 600; }
 
@@ -193,8 +221,8 @@ body.op-dark { """
 .op-wkday i { display: block; width: 5px; height: 5px; border-radius: 50%; margin: 0 auto; background: transparent; }
 .op-wkday.has i { background: var(--op-faint); }
 .op-wkday.cheap i { background: var(--op-accent); }
-.op-wkday.on { background: var(--op-hero); color: var(--op-hero-muted); }
-.op-wkday.on b { color: var(--op-hero-ink); }
+.op-wkday.on { background: var(--op-sel); color: var(--op-sel-ink); }
+.op-wkday.on b { color: var(--op-sel-ink); }
 .op-wkday .ct { display: block; font-size: .68rem; margin-top: 4px; }
 
 /* page links styled as the orange pill button */
@@ -216,6 +244,8 @@ body.op-dark { """
   [data-testid="stMain"] { padding: 0; }
   .block-container { border-radius: 0; padding: 3.8rem 1rem 2.4rem; box-shadow: none; }
   .op-hero h2 { font-size: 1.4rem; }
+  .op-brand img { display: none; }  /* the header bar already shows the mark */
+  .op-brand { margin-top: -1.2rem; }
 }
 </style>
 """
@@ -232,10 +262,10 @@ THEME_JS = """
   const apply = () => {
     const app = document.querySelector('.stApp');
     if (!app) return;
-    const m = getComputedStyle(app).backgroundColor.match(/\d+/g);
+    const m = getComputedStyle(app).color.match(/\d+/g);
     if (!m) return;
     const lum = (0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]) / 255;
-    document.body.classList.toggle('op-dark', lum < 0.5);
+    document.body.classList.toggle('op-dark', lum > 0.5);  // light text means dark mode
   };
   apply();
   setInterval(apply, 400);
@@ -244,8 +274,17 @@ THEME_JS = """
 """
 
 
+_MARK = Path(__file__).parent.parent / "assets" / "mark.svg"
+BRAND = (
+    '<div class="op-brand"><img alt="" src="data:image/svg+xml;base64,'
+    + base64.b64encode(_MARK.read_bytes()).decode()
+    + '"><span><b>off</b>peak</span></div>'
+)
+
+
 def inject_css() -> None:
     st.html(CSS)
+    st.html(BRAND)
     st.html(THEME_JS, unsafe_allow_javascript=True)
 
 

@@ -1,5 +1,5 @@
-# Two themes: light, and night mode in Storm Grey (60 %), Matte Black (30 %) and
-# Safety Orange #FF5F00 (10 %). The viewer picks one in the app menu (Settings → theme);
+# Two themes: light in Storm Grey (60 %), Matte Black (30 %) and Safety Orange #FF5F00
+# (10 %); night mode in the warm Emberline blacks, reds and ambers with the same orange. The viewer picks one in the app menu (Settings → theme);
 # app/ui/theme.py reads which one is active and styles our cards and charts to match.
 [theme]
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
@@ -8,33 +8,36 @@ buttonRadius = "full"
 showWidgetBorder = true
 
 [theme.light]
+# Storm Grey surfaces, Matte Black text, Safety Orange accent. Streamlit's background is the
+# page frame; the darker Storm Grey around it comes from app/ui/components.py.
 primaryColor = "#FF5F00"
-backgroundColor = "#E9EBEE"
-secondaryBackgroundColor = "#F2F3F5"
-textColor = "#16171A"
-borderColor = "#E1E4E8"
-linkColor = "#C24700"
+backgroundColor = "#D3D6DA"
+secondaryBackgroundColor = "#DADDE1"
+textColor = "#111214"
+borderColor = "#C3C7CC"
+linkColor = "#B34200"
 
 [theme.light.sidebar]
-backgroundColor = "#151618"
-secondaryBackgroundColor = "#232528"
-textColor = "#C9CDD2"
-borderColor = "#232528"
+backgroundColor = "#5B6066"
+secondaryBackgroundColor = "#4E535A"
+textColor = "#E7E9EC"
+borderColor = "#6B7178"
 primaryColor = "#FF5F00"
 
 [theme.dark]
+# Warm near-black with off-white text; Safety Orange accent, amber links.
 primaryColor = "#FF5F00"
-backgroundColor = "#0E0F10"
-secondaryBackgroundColor = "#26292D"
-textColor = "#F1F2F3"
-borderColor = "#2F3337"
-linkColor = "#FF8A4C"
+backgroundColor = "#111111"
+secondaryBackgroundColor = "#211B19"
+textColor = "#F2F2F2"
+borderColor = "#2C2320"
+linkColor = "#F28C28"
 
 [theme.dark.sidebar]
-backgroundColor = "#08090A"
-secondaryBackgroundColor = "#1C1E21"
-textColor = "#C9CDD2"
-borderColor = "#1C1E21"
+backgroundColor = "#0A0A0A"
+secondaryBackgroundColor = "#181514"
+textColor = "#D8D0CB"
+borderColor = "#2C2320"
 primaryColor = "#FF5F00"
 
 [client]

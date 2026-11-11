@@ -7,17 +7,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #F4F5F7; --card: #FFFFFF; --line: #E4E6E9; --ink: #16171A; --muted: #6B7079; --soft: #F2F3F5;
-    --orange: #FF5F00; --orange-soft: #FFEADD; --orange-mid: #FFC7A6; --dark: #2B2E33; --grey: #D8DCE0; --dear: #8A9098;
-    --glass: rgba(255, 255, 255, .95); --pill: #FFFFFF; --soft2: #F1F2F4; --strip: #F2F3F5; --strip-dear: #E3E6E9;
-    --accent-ink: #C24700; --run-all: #C9CED4; --inv: #FFFFFF; --sun: #F2A33A;
+    --bg: #D3D6DA; --card: #E7E9EC; --line: #C3C7CC; --ink: #111214; --muted: #4E535A; --soft: #DADDE1;
+    --orange: #FF5F00; --orange-soft: rgba(255, 95, 0, .13); --orange-mid: rgba(255, 95, 0, .40); --dark: #2A2D31; --grey: #B9BEC4; --dear: #6B7178;
+    --glass: rgba(231, 233, 236, .86); --pill: #F1F2F4; --soft2: #DADDE1; --strip: #DADDE1; --strip-dear: #C3C7CC;
+    --accent-ink: #B34200; --run-all: #A9AEB4; --inv: #FFFFFF; --sun: #F28C28;
   }
-  /* night mode: Storm Grey surfaces, Matte Black depth, Safety Orange accent (follows the dashboard) */
+  /* night mode: warm near-black with amber, red orange and oxblood; Safety Orange accent */
   body.op-dark {
-    --bg: #16181A; --card: #1F2124; --line: #2C2F33; --ink: #F1F2F3; --muted: #9AA0A7; --soft: #26292D;
-    --orange: #FF5F00; --orange-soft: rgba(255, 95, 0, .16); --orange-mid: rgba(255, 95, 0, .42); --dark: #D5D9DE; --grey: #3A3E43; --dear: #6B7178;
-    --glass: rgba(31, 33, 36, .92); --pill: #2A2D31; --soft2: #2A2D31; --strip: #26292D; --strip-dear: #33373C;
-    --accent-ink: #FF8A4C; --run-all: #4A4F55; --inv: #0E0F10;
+    --bg: #111111; --card: #181514; --line: #2C2320; --ink: #F2F2F2; --muted: #A89F9A; --soft: #211B19;
+    --orange: #FF5F00; --orange-soft: rgba(217, 72, 15, .20); --orange-mid: rgba(242, 140, 40, .42); --dark: #E9E2DE; --grey: #3A2F2B; --dear: #7A6E69;
+    --glass: rgba(24, 21, 20, .88); --pill: #2A2220; --soft2: #2A2220; --strip: #211B19; --strip-dear: #332926;
+    --accent-ink: #F28C28; --run-all: #4A3E3A; --inv: #111111; --sun: #F28C28;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -266,7 +266,7 @@ Object.assign(labels.domElement.style, { position: 'absolute', inset: '0', point
 view.appendChild(labels.domElement);
 
 const cv = name => getComputedStyle(document.body).getPropertyValue(name).trim();
-const DAY_BG = new THREE.Color(0xF7F8FA), NIGHT_BG = new THREE.Color(0xEDEFF2);
+const DAY_BG = new THREE.Color(0xE7E9EC), NIGHT_BG = new THREE.Color(0xDADDE1);
 const DAY_SUN = new THREE.Color(0xFFFAF4), MOON = new THREE.Color(0xDCE3F0);
 const scene = new THREE.Scene();
 scene.background = DAY_BG.clone();
@@ -928,8 +928,8 @@ update();
 // The dashboard marks night mode with body.op-dark; this frame copies it and swaps the
 // few 3D colours that depend on it. Checked twice a second, so a switch shows at once.
 const THEMES = {
-  light: { day: 0xF7F8FA, night: 0xEDEFF2, side: 0xE7E2DA, top: 0xF7F5F1, ground: 0xF1EDE7, shadow: 0.06 },
-  dark: { day: 0x1B1D20, night: 0x131416, side: 0x26292D, top: 0x30343A, ground: 0x2A2D31, shadow: 0.3 },
+  light: { day: 0xE7E9EC, night: 0xDADDE1, side: 0x8E9399, top: 0xC9CDD2, ground: 0x9AA0A6, shadow: 0.12 },
+  dark: { day: 0x141110, night: 0x0D0B0A, side: 0x2A1E1A, top: 0x31251F, ground: 0x3A1A10, shadow: 0.35 },
 };
 let themeNow = null;
 function syncTheme() {
