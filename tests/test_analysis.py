@@ -1,11 +1,17 @@
 import pandas as pd
+import pytest
 
 from offpeak.analysis import (
     best_window,
+    covers_days,
     ct_kwh,
     current_price,
     daily_stats,
+    hourly,
     hourly_profile,
+    monthly_stats,
+    price_summary,
+    weekday_hour,
     window_mask,
 )
 from offpeak.markets.energy_charts import parse_prices
@@ -64,3 +70,47 @@ def test_daily_stats_and_hourly_profile(load_fixture):
     profile = hourly_profile(prices)
     assert len(profile) == 24  # the repeated 02:00 hour is averaged, not duplicated
     assert profile["workday"].isna().all()
+
+
+def test_hourly_mixes_15_minute_and_hourly_history(load_fixture):
+    quarter = parse_prices(load_fixture("prices_sample.json"))  # 96 slots
+    hourly_day = parse_prices(load_fixture("prices_hourly_2025.json"))  # 24 slots
+    both = pd.concat([hourly_day, quarter], ignore_index=True)
+    h = hourly(both)
+    assert h["ts"].dt.minute.eq(0).all()
+    # 24 hours from each day; resample fills the months between with nothing
+    assert len(h) == 48
+    first_hour = quarter["eur_mwh"].iloc[:4].mean() / 10
+    assert h.loc[h["ts"] == quarter["ts"].iloc[0], "ct"].item() == pytest.approx(first_hour)
+
+
+def test_weekday_hour_table(load_fixture):
+    prices = parse_prices(load_fixture("prices_sample.json"))  # Tuesday 10 Nov 2026
+    table = weekday_hour(prices)
+    assert table.shape == (7, 24)
+    assert table.loc[1].notna().all()  # Tuesday has every hour
+    assert table.loc[0].isna().all()  # no Monday in the data
+
+
+def test_monthly_stats_and_summary(load_fixture):
+    prices = parse_prices(load_fixture("prices_spring_forward.json"))  # 23 hours, negatives
+    month = monthly_stats(prices)
+    assert len(month) == 1
+    assert month["negative_hours"].iloc[0] >= 1
+    s = price_summary(prices)
+    assert s["hours"] == 23 and s["days"] == 1
+    assert s["negative_hours"] == month["negative_hours"].iloc[0]
+    assert s["avg_spread_ct"] > 0
+
+
+def test_covers_days_with_any_resolution(load_fixture):
+    from datetime import date
+
+    quarter = parse_prices(load_fixture("prices_sample.json"))  # 10 Nov 2026
+    hourly_day = parse_prices(load_fixture("prices_hourly_2025.json"))  # 1 Sep 2025
+    spring = parse_prices(load_fixture("prices_spring_forward.json"))  # 23-hour day
+    assert covers_days(quarter, date(2026, 11, 10), date(2026, 11, 10))
+    assert covers_days(hourly_day, date(2025, 9, 1), date(2025, 9, 1))
+    assert covers_days(spring, date(2026, 3, 29), date(2026, 3, 29))
+    assert not covers_days(quarter, date(2026, 11, 10), date(2026, 11, 11))  # next day missing
+    assert not covers_days(quarter.iloc[:40], date(2026, 11, 10), date(2026, 11, 10))

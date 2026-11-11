@@ -70,3 +70,12 @@ def test_components_round_trip(engine):
     assert stored[0]["name"] == "Renamed" and stored[0]["params"]["kwp"] == 55
     db.delete_component(engine, pv.id)
     assert db.read_components(engine, 1) == []
+
+
+def test_status_counts_what_is_stored(engine, load_fixture):
+    prices = parse_prices(load_fixture("prices_sample.json"))
+    db.upsert_prices(engine, prices, "DE-LU")
+    s = db.status(engine, "DE-LU", 1)
+    assert s["price_rows"] == 96
+    assert s["price_last"] == prices["ts"].max()
+    assert s["weather_runs"] == 0 and s["weather_last_run"] is None

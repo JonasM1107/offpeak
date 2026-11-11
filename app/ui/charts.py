@@ -150,3 +150,72 @@ def price_stack(prices: pd.DataFrame, tz: str) -> go.Figure:
     fig.update_xaxes(tickformat="%H:%M", dtick=3 * 3600 * 1000)
     fig.update_yaxes(ticksuffix=" ct")
     return _layout(fig)
+
+
+WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def weekday_heatmap(table: pd.DataFrame) -> go.Figure:
+    """Average price per weekday and hour. Light = cheap, orange = expensive."""
+    fig = go.Figure(
+        go.Heatmap(
+            z=table.values,
+            x=[f"{h:02d}" for h in table.columns],
+            y=WEEKDAYS,
+            colorscale=[[0, "#FBFAF8"], [0.45, ORANGE_SOFT_STRONG], [1, ORANGE]],
+            xgap=2,
+            ygap=2,
+            colorbar=dict(title=dict(text="ct", side="top"), thickness=10, len=0.9, outlinewidth=0),
+            hovertemplate="%{y} %{x}:00<br><b>%{z:.1f} ct/kWh</b><extra></extra>",
+        )
+    )
+    _layout(fig, height=300)
+    fig.update_yaxes(autorange="reversed", gridcolor="rgba(0,0,0,0)", ticksuffix="")
+    fig.update_xaxes(dtick=3)
+    return fig
+
+
+def monthly_overview(months: pd.DataFrame) -> go.Figure:
+    """Bars: average price per month. Line: hours with a negative price that month."""
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=months["month"],
+            y=months["mean"],
+            name="Average price",
+            marker_color=ORANGE_SOFT_STRONG,
+            marker_line_width=0,
+            customdata=months["spread"],
+            hovertemplate="%{x|%b %Y}<br>avg <b>%{y:.1f} ct/kWh</b>"
+            "<br>daily spread %{customdata:.1f} ct<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=months["month"],
+            y=months["negative_hours"],
+            name="Hours below zero",
+            yaxis="y2",
+            mode="lines+markers",
+            line=dict(color=INK, width=1.8),
+            marker=dict(size=5),
+            hovertemplate="%{x|%b %Y}<br><b>%{y} hours</b> below zero<extra></extra>",
+        )
+    )
+    _layout(fig)
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(orientation="h", y=1.1, x=0),
+        yaxis2=dict(
+            overlaying="y",
+            side="right",
+            showgrid=False,
+            rangemode="tozero",
+            title=None,
+            ticksuffix=" h",
+            tickformat="d",
+        ),
+    )
+    fig.update_yaxes(ticksuffix=" ct", selector=dict(anchor="x"))
+    fig.update_xaxes(tickformat="%b %y")
+    return fig

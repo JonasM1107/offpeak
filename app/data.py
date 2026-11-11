@@ -14,6 +14,7 @@ import streamlit as st
 from sqlalchemy import Engine
 
 from offpeak import components, db
+from offpeak.analysis import covers_days
 from offpeak.markets import energy_charts
 from offpeak.sites import DEMO_SITE
 from offpeak.timeutils import day_slots, market_today
@@ -60,11 +61,8 @@ def prices(start: date, end: date) -> tuple[pd.DataFrame, datetime, str]:
         except Exception as err:
             print(f"offpeak: database read failed, using the API: {err}")
         else:
-            expected = sum(
-                len(day_slots(start + timedelta(d), MARKET_TZ))
-                for d in range((end - start).days + 1)
-            )
-            if len(stored) >= expected:
+            # history before October 2025 is hourly, so count hours per day, not slots
+            if covers_days(stored, start, end, MARKET_TZ):
                 return stored, datetime.now(UTC), "database"
     fetched = energy_charts.fetch_day_ahead(DEMO_SITE.zone, start, end)
     if eng is not None and not fetched.empty:
@@ -165,3 +163,15 @@ def remove_component(component_id: str) -> str:
         db.save_components(engine(), DEMO_SITE.id, [_as_row(c) for c in current])
     db.delete_component(engine(), component_id)
     return "database"
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def data_status() -> dict | None:
+    """How fresh the stored data is, or None without a database."""
+    eng = engine()
+    if eng is None:
+        return None
+    try:
+        return db.status(eng, DEMO_SITE.zone, DEMO_SITE.id)
+    except Exception as err:
+        return {"error": str(err)}

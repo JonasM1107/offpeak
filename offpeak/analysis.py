@@ -75,3 +75,61 @@ def hourly_profile(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> pd.DataFr
     kind = t.dt.day_of_week.map(lambda d: "weekend" if d >= 5 else "workday")
     profile = (prices["eur_mwh"] / 10).groupby([t.dt.hour.rename("hour"), kind]).mean()
     return profile.unstack().reindex(columns=["workday", "weekend"]).reset_index()
+
+
+def hourly(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> pd.DataFrame:
+    """One row per hour (mean of its slots), so 15-minute and older hourly prices can be
+    compared. Columns: ts (UTC hour start), local (local time), ct (ct/kWh)."""
+    hours = prices.set_index("ts")["eur_mwh"].resample("h").mean().dropna() / 10
+    out = hours.rename("ct").reset_index()
+    out["local"] = out["ts"].dt.tz_convert(tz)
+    return out
+
+
+def weekday_hour(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> pd.DataFrame:
+    """Average ct/kWh for each weekday (rows, Monday first) and local hour (columns)."""
+    h = hourly(prices, tz)
+    table = h.groupby([h["local"].dt.day_of_week, h["local"].dt.hour])["ct"].mean().unstack()
+    return table.reindex(index=range(7), columns=range(24))
+
+
+def monthly_stats(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> pd.DataFrame:
+    """Per month: average ct/kWh, average daily spread (highest minus lowest hour) and the
+    number of hours with a negative price. Columns: month, mean, spread, negative_hours."""
+    h = hourly(prices, tz)
+    h["month"] = h["local"].dt.tz_localize(None).dt.to_period("M").dt.to_timestamp()
+    h["day"] = h["local"].dt.date
+    spread = h.groupby(["month", "day"])["ct"].agg(lambda s: s.max() - s.min())
+    out = h.groupby("month").agg(
+        mean=("ct", "mean"), negative_hours=("ct", lambda s: (s < 0).sum())
+    )
+    out["spread"] = spread.groupby("month").mean()
+    return out.reset_index()
+
+
+def price_summary(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> dict:
+    """Headline numbers for a period, based on hourly prices."""
+    h = hourly(prices, tz)
+    daily = h.groupby(h["local"].dt.date)["ct"].agg(["mean", "min", "max"])
+    return {
+        "mean_ct": float(h["ct"].mean()),
+        "cheapest_day": daily["mean"].idxmin(),
+        "cheapest_day_ct": float(daily["mean"].min()),
+        "dearest_day": daily["mean"].idxmax(),
+        "dearest_day_ct": float(daily["mean"].max()),
+        "negative_hours": int((h["ct"] < 0).sum()),
+        "hours": len(h),
+        "avg_spread_ct": float((daily["max"] - daily["min"]).mean()),
+        "days": len(daily),
+    }
+
+
+def covers_days(prices: pd.DataFrame, start, end, tz: str = "Europe/Berlin") -> bool:
+    """True if every market day from start to end has (at least) 23 hours of prices, at
+    15-minute or hourly resolution. 23 because the spring clock-change day is that long."""
+    if prices.empty:
+        return False
+    local_day = prices["ts"].dt.tz_convert(tz).dt.date
+    hours = (prices["resolution_min"] / 60).groupby(local_day).sum()
+    days = pd.date_range(start, end, freq="D").date
+    return bool(hours.reindex(days).fillna(0).ge(23).all())
