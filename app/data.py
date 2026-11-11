@@ -183,6 +183,34 @@ def remove_component(component_id: str) -> str:
     return "database"
 
 
+# ── Simulation cockpit machines ──────────────────────────────────────────────
+
+
+def cockpit_machines() -> tuple[list[dict] | None, str]:
+    """The saved cockpit machines (None if never saved) and where they are kept: 'database',
+    or 'session' (no database or table missing: kept until the browser tab is closed)."""
+    eng = engine()
+    if eng is not None:
+        try:
+            return db.read_machines(eng, DEMO_SITE.id), "database"
+        except Exception as err:  # e.g. migration 003 not applied yet
+            print(f"offpeak: cannot read cockpit_machines, keeping them in the session: {err}")
+    return st.session_state.get("cockpit_machines"), "session"
+
+
+def save_cockpit_machines(machines: list[dict]) -> str:
+    """Keep the cockpit machines; returns where they went."""
+    eng = engine()
+    if eng is not None:
+        try:
+            db.save_machines(eng, DEMO_SITE.id, machines)
+            return "database"
+        except Exception as err:
+            print(f"offpeak: cannot save cockpit_machines, keeping them in the session: {err}")
+    st.session_state["cockpit_machines"] = machines
+    return "session"
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def price_forecast() -> tuple[pd.Series, pd.DataFrame, object] | None:
     """Hourly spot history (ct/kWh, about 6 months up to the last published hour), the

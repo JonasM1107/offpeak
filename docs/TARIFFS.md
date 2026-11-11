@@ -11,7 +11,7 @@
 | Levies | concession fee, CHP levy, offshore levy, § 19 levy | — |
 | Tax | electricity tax 2.05 ct (0.05 ct for manufacturing and farming) | IEC 0.1 ct |
 | Demand charge | € per kW of the highest slot (Leistungspreis) | € per kW in peak hours, and per kW contracted |
-| Fixed | metering or grid base price | — |
+| Fixed | metering (load-profile meter 221.28 €/a + communication device 219.24 €/a) or grid base price | — |
 | Feed-in | EEG rate, nothing when the spot price is negative | 90 % of OMIE |
 
 All values are net of VAT, which businesses deduct.

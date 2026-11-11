@@ -39,7 +39,10 @@ RHEINNETZ_RLM = {
     ("medium", True): (103.84, 1.26),
 }
 RHEINNETZ_SLP = (150.00, 3.78)  # Preisblatt 1: Grundpreis EUR/a, Arbeitspreis ct/kWh
-RHEINNETZ_RLM_METERING = 219.24  # Preisblatt 9/10: load-profile meter, EUR/a
+# Preisblatt "Entgelte für Messstellenbetrieb" (RLM), EUR/a: the meter itself (Messstellenbetrieb
+# einschließlich Messung) plus its communication device (Zusatzgerät Kommunikationseinrichtung).
+RHEINNETZ_RLM_METERING = 221.28
+RHEINNETZ_RLM_COMMUNICATION = 219.24
 
 
 def eeg_partial_feed_in_ct(kwp: float) -> float:
@@ -81,6 +84,7 @@ def germany_2026(
         )
         fixed = (
             FixedCharge("Metering (load-profile meter)", RHEINNETZ_RLM_METERING, SRC_RHEINNETZ),
+            FixedCharge("Meter communication device", RHEINNETZ_RLM_COMMUNICATION, SRC_RHEINNETZ),
         )
     else:
         base, grid_ct = RHEINNETZ_SLP

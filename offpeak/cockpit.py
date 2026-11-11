@@ -25,6 +25,46 @@ class Machine:
     usual_start: int  # when it runs today, for comparison
 
 
+MAX_MACHINES = 20
+
+
+def _number(value, low: float, high: float, default: float) -> float:
+    try:
+        x = float(value)
+    except (TypeError, ValueError):
+        return default
+    return default if x != x else min(high, max(low, x))  # x != x: not a number
+
+
+def clean_machines(raw) -> list[dict]:
+    """Check a machine list sent back by the browser before it is saved: known fields only,
+    numbers inside the slider ranges, and the job fitting between earliest start and done-by."""
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for m in raw[:MAX_MACHINES]:
+        if not isinstance(m, dict):
+            continue
+        name = str(m.get("name") or "").strip()[:60] or "Machine"
+        hours = int(_number(m.get("hours"), 1, 12, 2))
+        earliest = int(_number(m.get("earliest"), 0, 23, 0))
+        latest_end = int(_number(m.get("latest_end"), 1, 24, 24))
+        if earliest + hours > latest_end:  # same rule as the sliders
+            latest_end = min(24, earliest + hours)
+            earliest = latest_end - hours
+        out.append(
+            {
+                "name": name,
+                "kw": _number(m.get("kw"), 1, 100, 10),
+                "hours": hours,
+                "earliest": earliest,
+                "latest_end": latest_end,
+                "usual_start": int(_number(m.get("usual_start"), 0, 23, 8)),
+            }
+        )
+    return out
+
+
 def job_cost(
     start: int, m: Machine, buy: list[float], sell: list[float], surplus: list[float]
 ) -> float:

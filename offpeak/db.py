@@ -219,3 +219,26 @@ def save_components(engine: Engine, site_id: int, components: list[dict]) -> Non
 def delete_component(engine: Engine, component_id: str) -> None:
     with engine.begin() as conn:
         conn.execute(text("delete from site_components where id = :id"), {"id": component_id})
+
+
+# ── Simulation cockpit machines ─────────────────────────────────────────────
+
+
+def read_machines(engine: Engine, site_id: int) -> list[dict] | None:
+    """The cockpit machines saved for the site, or None if none were ever saved."""
+    query = text("select machines from cockpit_machines where site_id = :site_id")
+    with engine.connect() as conn:
+        row = conn.execute(query, {"site_id": site_id}).first()
+    return None if row is None else list(row[0])
+
+
+def save_machines(engine: Engine, site_id: int, machines: list[dict]) -> None:
+    """Replace the site's cockpit machines with this list (an empty list is kept as empty)."""
+    query = text("""
+        insert into cockpit_machines (site_id, machines, updated_at)
+        values (:site_id, cast(:machines as jsonb), now())
+        on conflict (site_id) do update set
+            machines = excluded.machines, updated_at = excluded.updated_at
+    """)
+    with engine.begin() as conn:
+        conn.execute(query, {"site_id": site_id, "machines": json.dumps(machines)})

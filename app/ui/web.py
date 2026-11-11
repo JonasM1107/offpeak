@@ -4,6 +4,7 @@ Every view gets the shared look (kit.css), helpers (kit.js) and ECharts. The vie
 its own frame, so the height given here is only the first guess before it loads.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -11,6 +12,8 @@ import streamlit.components.v1 as components
 
 WEB = Path(__file__).with_name("web")
 ECHARTS = "https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"
+# A two-way frame (web/bridge/index.html): the view inside can send values back to Python.
+_bridge = components.declare_component("offpeak_view", path=str(WEB / "bridge"))
 
 
 def render_html(view: str, data: dict) -> str:
@@ -30,3 +33,15 @@ def render_html(view: str, data: dict) -> str:
 
 def show(view: str, data: dict, height: int = 900) -> None:
     components.html(render_html(view, data), height=height, scrolling=False)
+
+
+def live(view: str, data: dict, key: str, height: int = 900, keep: tuple[str, ...] = ()):
+    """Like show(), but the view can send a value back with window.parent.offpeakSend(...).
+    Returns the last value sent (a dict with an "id"), or None. It is also in
+    st.session_state[key] at the start of the next run.
+
+    `keep` names data fields the view changes itself (for example its machine list): when
+    only those change, the view on screen is not reloaded, so it keeps scroll and focus."""
+    rest = json.dumps({k: v for k, v in data.items() if k not in keep}, default=str)
+    version = hashlib.sha1(rest.encode()).hexdigest()
+    return _bridge(html=render_html(view, data), version=version, height=height, key=key)

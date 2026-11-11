@@ -68,7 +68,7 @@ def test_bill_adds_up_energy_demand_fixed_and_export():
     assert b.kwh_bought == pytest.approx(2300)
     assert b.lines["energy"] == pytest.approx(2300 * 0.10)
     assert b.lines["demand"] == pytest.approx(100 * 172.43 / 365)
-    assert b.lines["fixed"] == pytest.approx(219.24 / 365)
+    assert b.lines["fixed"] == pytest.approx((221.28 + 219.24) / 365)
     assert b.lines["export"] == pytest.approx(-10 * eeg_partial_feed_in_ct(60) / 100)
     assert b.total == pytest.approx(sum(b.lines.values()))
     assert b.peak_kw == 100

@@ -69,3 +69,28 @@ def test_no_start_in_the_past():
     buy = [5.0] * 10 + [30.0] * 38  # cheapest early in the day, but it is already 14:00
     start, _ = best_start(0, m, buy, [8.0] * 48, [0.0] * 48, not_before=14)
     assert start >= 14
+
+
+def test_clean_machines_keeps_values_inside_the_slider_ranges():
+    from offpeak.cockpit import MAX_MACHINES, clean_machines
+
+    raw = [
+        {
+            "name": " Oven ",
+            "kw": 500,
+            "hours": 3,
+            "earliest": 22,
+            "latest_end": 24,
+            "usual_start": 7,
+        },
+        {"name": "", "kw": "x", "hours": None},
+        "not a machine",
+    ]
+    oven, blank = clean_machines(raw)
+    assert oven["name"] == "Oven"
+    assert oven["kw"] == 100  # capped at the slider's maximum
+    # 3 h does not fit between 22:00 and midnight, so the start moves earlier
+    assert (oven["earliest"], oven["latest_end"]) == (21, 24)
+    assert blank["name"] == "Machine" and blank["kw"] == 10 and blank["hours"] == 2
+    assert clean_machines("nonsense") == []
+    assert len(clean_machines([{}] * 50)) == MAX_MACHINES

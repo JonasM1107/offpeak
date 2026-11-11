@@ -73,6 +73,7 @@
         <select id="preset"></select>
         <button id="add">+ Add</button>
       </div>
+      <p class="insight" style="margin:8px 2px 0;font-size:11.5px" id="kept"></p>
     </div>
   </div>
 
@@ -92,13 +93,16 @@ const D = window.OFFPEAK, H = D.horizon, N = H.t.length, DAYS = H.days;
 const { nf, pad } = OP;
 const NOW = D.now_index;
 const COLORS = ['#FF5F00', '#3A3733', '#F2A33A', '#8C6A5A', '#C24700', '#77726A', '#E8A87C', '#4A4640'];
-const STORE = 'offpeak.cockpit.v1';
+const OLD_STORE = 'offpeak.cockpit.v1';  // earlier versions kept machines only in this browser
 
-// ── Machines: from the site, edits remembered in this browser ──────────────
-let machines;
-try { machines = JSON.parse(localStorage.getItem(STORE)); } catch (e) { machines = null; }
-if (!Array.isArray(machines) || !machines.length) machines = D.machines.map(m => ({ ...m }));
-const save = () => { try { localStorage.setItem(STORE, JSON.stringify(machines)); } catch (e) { /* private window */ } };
+// ── Machines: saved by Python (database or session); every change is sent back ──
+let machines = D.machines.map(m => ({ ...m }));
+const save = () => { try { window.parent.offpeakSend({ machines }); } catch (e) { /* shown outside Streamlit */ } };
+try {  // nothing saved yet: take over machines an earlier version kept in this browser
+  const old = JSON.parse(localStorage.getItem(OLD_STORE));
+  if (!D.saved && Array.isArray(old) && old.length) { machines = old; save(); }
+  localStorage.removeItem(OLD_STORE);
+} catch (e) { /* storage blocked */ }
 let focus = 0;
 let dayMode = 'best';  // 'best' = best day this week, or a day index
 
@@ -211,6 +215,9 @@ const PRESETS = [
   ['Laundry (washers + dryers)', 18, 3, 6, 22, 9], ['Water heater', 6, 3, 0, 24, 6], ['Irrigation pump', 7, 2, 0, 24, 18],
   ['Cold store pre-cooling', 12, 2, 0, 24, 14], ['Kiln / oven batch', 30, 5, 5, 22, 7], ['Forklift charging', 8, 6, 0, 24, 18],
 ];
+document.getElementById('kept').textContent = D.storage === 'database'
+  ? 'Changes are saved automatically and stay for everyone who opens this site.'
+  : 'No database connected: changes stay until you close this tab.';
 document.getElementById('preset').innerHTML = PRESETS.map((p, i) => `<option value="${i}">${p[0]} · ${p[1]} kW, ${p[2]} h</option>`).join('');
 document.getElementById('add').addEventListener('click', () => {
   const [name, kw, hours, earliest, latest_end, usual_start] = PRESETS[+document.getElementById('preset').value];

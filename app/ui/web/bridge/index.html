@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Two-way frame for interactive views (app/ui/web.py: live). Streamlit sends the view's HTML;
+     the view can hand values back with window.parent.offpeakSend(value), which reach Python as
+     the component's value. Uses Streamlit's custom component messages (postMessage). -->
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+  iframe { display: block; width: 100%; height: 900px; border: 0; }
+</style>
+</head>
+<body>
+<iframe id="view" title="offpeak view"></iframe>
+<script>
+const send = (type, extra) => window.parent.postMessage({ isStreamlitMessage: true, type, ...extra }, '*');
+const frame = document.getElementById('view');
+let version = null, timer = null, lastHeight = 0;
+
+// The view sizes its own frame (kit.js); pass that height on to Streamlit.
+function setHeight(h) {
+  if (h > 0 && h !== lastHeight) { lastHeight = h; send('streamlit:setFrameHeight', { height: h }); }
+}
+new ResizeObserver(() => setHeight(Math.ceil(frame.getBoundingClientRect().height))).observe(frame);
+
+// Called by the view. Many quick changes (a slider being dragged) become one message;
+// the id lets Python tell a new message from the same one seen again on a rerun.
+window.offpeakSend = value => {
+  clearTimeout(timer);
+  timer = setTimeout(() => send('streamlit:setComponentValue', {
+    value: { ...value, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` }, dataType: 'json',
+  }), 600);
+};
+
+// The view follows light/dark mode by looking at its parent, so mirror the dashboard's mode here.
+setInterval(() => {
+  try { document.body.classList.toggle('op-dark', window.parent.document.body.classList.contains('op-dark')); } catch (e) { /* not reachable */ }
+}, 500);
+
+window.addEventListener('message', e => {
+  if (e.source !== window.parent || !e.data || e.data.type !== 'streamlit:render') return;
+  const args = e.data.args;
+  // Only load the view when its data changed: a rerun after saving must not reset what is on screen.
+  if (args.version !== version) { version = args.version; frame.srcdoc = args.html; }
+  if (!lastHeight) { frame.style.height = args.height + 'px'; setHeight(args.height); }
+});
+send('streamlit:componentReady', { apiVersion: 1 });
+</script>
+</body>
+</html>

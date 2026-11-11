@@ -70,3 +70,13 @@ def test_components_round_trip(engine):
     assert stored[0]["name"] == "Renamed" and stored[0]["params"]["kwp"] == 55
     db.delete_component(engine, pv.id)
     assert db.read_components(engine, 1) == []
+
+
+def test_cockpit_machines_round_trip(engine):
+    assert db.read_machines(engine, 1) is None  # nothing saved yet
+    oven = {"name": "Oven", "kw": 30.0, "hours": 5, "earliest": 5, "latest_end": 22}
+    db.save_machines(engine, 1, [oven])
+    assert db.read_machines(engine, 1) == [oven]
+    db.save_machines(engine, 1, [])  # removing every machine is kept, not reset to the demo
+    assert db.read_machines(engine, 1) == []
+    assert db.read_machines(engine, 2) is None
