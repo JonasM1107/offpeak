@@ -219,3 +219,59 @@ def monthly_overview(months: pd.DataFrame) -> go.Figure:
     fig.update_yaxes(ticksuffix=" ct", selector=dict(anchor="x"))
     fig.update_xaxes(tickformat="%b %y")
     return fig
+
+
+def generation_week(gen: pd.DataFrame, tz: str = TZ) -> go.Figure:
+    """Expected solar (orange) and wind (dark) power, stacked, for the coming days."""
+    x = gen["ts"].dt.tz_convert(tz)
+    fig = go.Figure()
+    for col, color, fill, name in [
+        ("wind_kw", PEAK, "rgba(74,70,64,0.18)", "Wind"),
+        ("pv_kw", ORANGE, "rgba(232,89,12,0.22)", "Solar"),
+    ]:
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=gen[col],
+                name=name,
+                stackgroup="gen",
+                mode="lines",
+                line=dict(color=color, width=1.4),
+                fillcolor=fill,
+                hovertemplate=f"{name} %{{x|%a %H:%M}}<br><b>%{{y:.0f}} kW</b><extra></extra>",
+            )
+        )
+    _layout(fig, height=300)
+    fig.update_layout(showlegend=True, legend=dict(orientation="h", y=1.1, x=0))
+    fig.update_yaxes(ticksuffix=" kW")
+    fig.update_xaxes(tickformat="%a %d", dtick=24 * 3600 * 1000)
+    return fig
+
+
+def forecast_vs_measured(days: pd.DataFrame) -> go.Figure:
+    """Per day: solar energy the day-ahead forecast promised against what the satellite saw."""
+    fig = go.Figure(
+        [
+            go.Bar(
+                x=days["date"],
+                y=days["forecast_kwh"],
+                name="Forecast a day ahead",
+                marker_color=ORANGE_SOFT_STRONG,
+                marker_line_width=0,
+                hovertemplate="%{x|%a %d %b}<br>forecast <b>%{y:.0f} kWh</b><extra></extra>",
+            ),
+            go.Bar(
+                x=days["date"],
+                y=days["measured_kwh"],
+                name="Measured (satellite)",
+                marker_color=ORANGE,
+                marker_line_width=0,
+                hovertemplate="%{x|%a %d %b}<br>measured <b>%{y:.0f} kWh</b><extra></extra>",
+            ),
+        ]
+    )
+    _layout(fig, height=280)
+    fig.update_layout(showlegend=True, legend=dict(orientation="h", y=1.12, x=0), bargap=0.35)
+    fig.update_yaxes(ticksuffix=" kWh")
+    fig.update_xaxes(tickformat="%a %d", dtick=24 * 3600 * 1000)
+    return fig

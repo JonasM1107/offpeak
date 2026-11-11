@@ -219,22 +219,3 @@ def save_components(engine: Engine, site_id: int, components: list[dict]) -> Non
 def delete_component(engine: Engine, component_id: str) -> None:
     with engine.begin() as conn:
         conn.execute(text("delete from site_components where id = :id"), {"id": component_id})
-
-
-# ── Status ───────────────────────────────────────────────────────────────────
-
-
-def status(engine: Engine, zone: str, site_id: int) -> dict:
-    """Counts and latest timestamps of the stored data, for the data status page."""
-    query = text("""
-        select
-            (select count(*) from prices_da where zone = :zone) as price_rows,
-            (select min(ts) from prices_da where zone = :zone) as price_first,
-            (select max(ts) from prices_da where zone = :zone) as price_last,
-            (select max(inserted_at) from prices_da where zone = :zone) as price_written,
-            (select count(distinct run_at) from weather_fc where site_id = :site) as weather_runs,
-            (select max(run_at) from weather_fc where site_id = :site) as weather_last_run
-    """)
-    with engine.connect() as conn:
-        row = conn.execute(query, {"zone": zone, "site": site_id}).mappings().one()
-    return dict(row)

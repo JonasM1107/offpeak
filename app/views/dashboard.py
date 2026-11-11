@@ -104,7 +104,7 @@ with week_col, st.container(border=True, key="card_week"):
     card_title(f"{tomorrow_date:%B %Y}", "Average day-ahead price per day")
     for i in range(7):
         d = tomorrow_date - timedelta(days=6 - i)
-        cls = ["op-day"]
+        cls = ["op-wkday"]
         price = ""
         if d in daily.index:
             cls.append("cheap" if d == cheapest_day else "has")

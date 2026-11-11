@@ -156,6 +156,18 @@ body.op-dark { """
 .op-tile .cond { font-size: 0.78rem; color: var(--op-muted); min-height: 2.2em; }
 .op-bar { height: 4px; border-radius: 4px; background: var(--op-line); margin-top: 8px; }
 .op-bar span { display: block; height: 4px; border-radius: 4px; background: var(--op-accent); }
+.op-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 1100px) { .op-days { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.op-day { background: var(--op-card2); border: 1px solid transparent; border-radius: 16px; padding: 12px; min-width: 0; }
+.op-day.best { background: var(--op-accent-soft); border-color: var(--op-accent-mid); }
+.op-day .t { font-weight: 600; font-size: 0.9rem; color: var(--op-ink); }
+.op-day .t span { font-weight: 400; color: var(--op-muted); font-size: 0.78rem; margin-left: 4px; }
+.op-day .cond { font-size: 0.78rem; color: var(--op-muted); margin: 2px 0 6px; min-height: 2.3em; }
+.op-day .temp { font-size: 1.35rem; font-weight: 600; color: var(--op-ink); margin-bottom: 8px; }
+.op-day .temp span { font-size: 0.85rem; font-weight: 500; color: var(--op-muted); }
+.op-day .kv { display: flex; justify-content: space-between; font-size: 0.76rem; color: var(--op-muted); margin-top: 8px; }
+.op-day .kv b { color: var(--op-ink); font-weight: 600; }
+.op-bar.dark span { background: var(--op-muted); }
 .op-foot { color: var(--op-muted); font-size: 0.74rem; margin-top: 12px; line-height: 1.5; }
 
 /* hero: always matte black, an orange glow rising from the bottom edge */
@@ -176,14 +188,14 @@ body.op-dark { """
 
 /* week strip, like a calendar card */
 .op-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
-.op-day { text-align: center; border-radius: 16px; padding: 10px 0 8px; color: var(--op-muted); font-size: .72rem; }
-.op-day b { display: block; font-size: 1.05rem; color: var(--op-ink); font-weight: 600; margin: 3px 0; }
-.op-day i { display: block; width: 5px; height: 5px; border-radius: 50%; margin: 0 auto; background: transparent; }
-.op-day.has i { background: var(--op-faint); }
-.op-day.cheap i { background: var(--op-accent); }
-.op-day.on { background: var(--op-hero); color: var(--op-hero-muted); }
-.op-day.on b { color: var(--op-hero-ink); }
-.op-day .ct { display: block; font-size: .68rem; margin-top: 4px; }
+.op-wkday { text-align: center; border-radius: 16px; padding: 10px 0 8px; color: var(--op-muted); font-size: .72rem; }
+.op-wkday b { display: block; font-size: 1.05rem; color: var(--op-ink); font-weight: 600; margin: 3px 0; }
+.op-wkday i { display: block; width: 5px; height: 5px; border-radius: 50%; margin: 0 auto; background: transparent; }
+.op-wkday.has i { background: var(--op-faint); }
+.op-wkday.cheap i { background: var(--op-accent); }
+.op-wkday.on { background: var(--op-hero); color: var(--op-hero-muted); }
+.op-wkday.on b { color: var(--op-hero-ink); }
+.op-wkday .ct { display: block; font-size: .68rem; margin-top: 4px; }
 
 /* page links styled as the orange pill button */
 .st-key-hero_cta a, .st-key-hero_cta2 a { background: var(--op-accent); color: #fff !important; border-radius: 999px;

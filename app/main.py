@@ -31,13 +31,13 @@ pages = {
     ],
     "Forecasts": [
         page("analytics", "Prices", "show_chart"),
+        page("weather", "Weather & solar", "partly_cloudy_day"),
     ],
     "Results": [
         page("tariff", "Tariff calculator", "receipt_long"),
     ],
     "Setup": [
         page("components", "Site & components", "precision_manufacturing"),
-        page("status", "Data & status", "database"),
         page("settings", "Settings", "settings"),
     ],
 }
