@@ -20,7 +20,7 @@ try:
         found = data.price_forecast()
 except PriceSourceError:
     found = None
-payload = view_payload(found[0], found[2], TZ) if found else None
+payload = view_payload(found[0], found[2], TZ, found[3]) if found else None
 if payload is None:
     st.info(
         "The outlook needs a few weeks of price history, which could not be loaded right now. "

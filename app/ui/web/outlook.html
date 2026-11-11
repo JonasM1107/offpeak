@@ -62,7 +62,7 @@
     <div class="card">
       <div class="head"><div><h3>How good is each forecast?</h3><div class="sub" id="models-sub"></div></div></div>
       <table class="models" id="models"></table>
-      <p class="note">The machine learning model (scikit-learn, <code>offpeak/forecast/model.py</code>) learns from the past year how each hour differs from the week's average. It goes through the same backtest as the simple rules and is used for every day ahead where it misses least.</p>
+      <p class="note">The machine learning models (scikit-learn, <code>offpeak/forecast/model.py</code>) learn from the past year how each hour differs from the week's average. The weather version also knows the forecast for wind in the north and sun in the south, as it was forecast at the time. Every forecast goes through the same backtest, and each day ahead uses the one that misses least.</p>
     </div>
     <div class="card">
       <div class="head"><div><h3>Error by days ahead</h3><div class="sub">Average miss in ct/kWh: the further ahead, the harder</div></div></div>
@@ -176,10 +176,11 @@ document.getElementById('models').innerHTML = `<thead><tr><th>Forecast</th><th c
 const leads = OP.chart(document.getElementById('leads'), c => {
   const B = OP.base(c);
   // the forecasts in use stand out; the others stay quiet
-  const colors = MODELS.map(m => (m.key === 'ml' ? c.accent : m.used_for.length ? c.dark : c.grey));
+  const best = MODELS.reduce((x, m) => (m.mae < x.mae ? m : x), MODELS[0]).key;
+  const colors = MODELS.map(m => (m.key === best ? c.accent : m.used_for.length ? c.dark : c.grey));
   return {
     ...B,
-    grid: { left: 44, right: 14, top: 24, bottom: 28 },
+    grid: { left: 44, right: 14, top: 64, bottom: 28 },
     legend: { top: 0, right: 0, textStyle: { color: c.muted, fontSize: 11 }, itemWidth: 14, itemHeight: 3 },
     tooltip: { ...B.tooltip, trigger: 'axis', valueFormatter: v => `${nf(v)} ct/kWh` },
     xAxis: { type: 'category', data: MODELS[0].by_lead.map((_, i) => `D+${i + 2}`), ...B.axis, splitLine: { show: false } },

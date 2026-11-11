@@ -242,3 +242,50 @@ def save_machines(engine: Engine, site_id: int, machines: list[dict]) -> None:
     """)
     with engine.begin() as conn:
         conn.execute(query, {"site_id": site_id, "machines": json.dumps(machines)})
+
+
+# ── Weather drivers for the price model ─────────────────────────────────────
+
+DRIVER_COLUMNS = {"wind": "wind_share", "sun": "sun_wm2", "temp": "temp_c"}
+
+
+def _clean(value) -> float | None:
+    return None if value is None or (isinstance(value, float) and math.isnan(value)) else value
+
+
+def upsert_drivers(engine: Engine, drivers: pd.DataFrame) -> int:
+    """Write the wide table from offpeak.weather.price_drivers (index ts, columns wind_1 ..
+    temp_7) as one row per hour and lead. Returns the number of rows."""
+    rows = []
+    for ts, r in drivers.iterrows():
+        for lead in range(1, 8):
+            values = {db: _clean(r.get(f"{name}_{lead}")) for name, db in DRIVER_COLUMNS.items()}
+            if any(v is not None for v in values.values()):
+                rows.append({"ts": ts.to_pydatetime(), "lead": lead, **values})
+    query = text("""
+        insert into weather_drivers (ts, lead, wind_share, sun_wm2, temp_c)
+        values (:ts, :lead, :wind_share, :sun_wm2, :temp_c)
+        on conflict (ts, lead) do update set wind_share = excluded.wind_share,
+            sun_wm2 = excluded.sun_wm2, temp_c = excluded.temp_c
+    """)
+    if rows:
+        with engine.begin() as conn:
+            conn.execute(query, rows)
+    return len(rows)
+
+
+def read_drivers(engine: Engine, start: datetime, end: datetime) -> pd.DataFrame:
+    """Drivers with start <= ts < end in the same wide shape as fetch_drivers returns."""
+    query = text("""
+        select ts, lead, wind_share, sun_wm2, temp_c from weather_drivers
+        where ts >= :start and ts < :end order by ts, lead
+    """)
+    with engine.connect() as conn:
+        long = pd.read_sql(query, conn, params={"start": start, "end": end})
+    if long.empty:
+        return pd.DataFrame()
+    long["ts"] = pd.to_datetime(long["ts"], utc=True)
+    wide = long.pivot(index="ts", columns="lead")
+    short = {db_col: name for name, db_col in DRIVER_COLUMNS.items()}  # wind_share -> wind
+    wide.columns = [f"{short[db_col]}_{lead}" for db_col, lead in wide.columns]
+    return wide.astype(float).rename_axis(None)

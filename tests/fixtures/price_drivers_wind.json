@@ -1,0 +1,127 @@
+{
+ "_note": "Hand-built in the shape of an Open-Meteo previous-runs response (the API's daily limit was reached when it was made).",
+ "response": [
+  {
+   "latitude": 54.48,
+   "longitude": 9.05,
+   "generationtime_ms": 1.2,
+   "utc_offset_seconds": 0,
+   "timezone": "GMT",
+   "timezone_abbreviation": "GMT",
+   "elevation": 10.0,
+   "hourly_units": {
+    "time": "unixtime",
+    "wind_speed_100m_previous_day1": "m/s",
+    "wind_speed_100m_previous_day2": "m/s",
+    "wind_speed_100m_previous_day3": "m/s",
+    "wind_speed_100m_previous_day4": "m/s",
+    "wind_speed_100m_previous_day5": "m/s",
+    "wind_speed_100m_previous_day6": "m/s",
+    "wind_speed_100m_previous_day7": "m/s"
+   },
+   "hourly": {
+    "time": [
+     1781913600,
+     1781917200,
+     1781920800
+    ],
+    "wind_speed_100m_previous_day1": [
+     2.0,
+     7.5,
+     15.0
+    ],
+    "wind_speed_100m_previous_day2": [
+     2.0,
+     7.5,
+     15.0
+    ],
+    "wind_speed_100m_previous_day3": [
+     2.0,
+     7.5,
+     15.0
+    ],
+    "wind_speed_100m_previous_day4": [
+     2.0,
+     7.5,
+     15.0
+    ],
+    "wind_speed_100m_previous_day5": [
+     2.0,
+     7.5,
+     15.0
+    ],
+    "wind_speed_100m_previous_day6": [
+     2.0,
+     7.5,
+     15.0
+    ],
+    "wind_speed_100m_previous_day7": [
+     2.0,
+     7.5,
+     15.0
+    ]
+   }
+  },
+  {
+   "latitude": 53.37,
+   "longitude": 7.21,
+   "generationtime_ms": 1.2,
+   "utc_offset_seconds": 0,
+   "timezone": "GMT",
+   "timezone_abbreviation": "GMT",
+   "elevation": 10.0,
+   "hourly_units": {
+    "time": "unixtime",
+    "wind_speed_100m_previous_day1": "m/s",
+    "wind_speed_100m_previous_day2": "m/s",
+    "wind_speed_100m_previous_day3": "m/s",
+    "wind_speed_100m_previous_day4": "m/s",
+    "wind_speed_100m_previous_day5": "m/s",
+    "wind_speed_100m_previous_day6": "m/s",
+    "wind_speed_100m_previous_day7": "m/s"
+   },
+   "hourly": {
+    "time": [
+     1781913600,
+     1781917200,
+     1781920800
+    ],
+    "wind_speed_100m_previous_day1": [
+     4.0,
+     7.5,
+     12.0
+    ],
+    "wind_speed_100m_previous_day2": [
+     4.0,
+     7.5,
+     12.0
+    ],
+    "wind_speed_100m_previous_day3": [
+     4.0,
+     7.5,
+     12.0
+    ],
+    "wind_speed_100m_previous_day4": [
+     4.0,
+     7.5,
+     12.0
+    ],
+    "wind_speed_100m_previous_day5": [
+     4.0,
+     7.5,
+     12.0
+    ],
+    "wind_speed_100m_previous_day6": [
+     4.0,
+     7.5,
+     12.0
+    ],
+    "wind_speed_100m_previous_day7": [
+     4.0,
+     null,
+     12.0
+    ]
+   }
+  }
+ ]
+}

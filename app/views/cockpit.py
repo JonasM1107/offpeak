@@ -35,7 +35,7 @@ weather, _, _, _ = data.weather(days=7)
 if not found or weather is None or weather.empty:
     st.info("Prices or the weather forecast could not be loaded right now. We try again soon.")
     st.stop()
-history, forecast, _ = found
+history, forecast, _, _ = found
 
 comps, _ = data.site_components()
 assets, _ = components.site_model(comps)

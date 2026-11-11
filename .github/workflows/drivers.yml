@@ -1,0 +1,25 @@
+name: Weather for the price model
+
+# Once a day, after the night's ECMWF run is published. "Run workflow" with a number of days
+# fills the history once (372 = a year and a week).
+on:
+  schedule:
+    - cron: "40 7 * * *"
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: "Days of history to (re)load"
+        default: "8"
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --locked --no-dev
+      - run: uv run python -m offpeak.jobs.ingest_drivers "${DAYS_BACK:-8}"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DAYS_BACK: ${{ inputs.days_back }}

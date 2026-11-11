@@ -6,7 +6,7 @@ from streamlit.testing.v1 import AppTest
 
 from offpeak import db
 from offpeak.markets import energy_charts
-from offpeak.weather import open_meteo
+from offpeak.weather import open_meteo, price_drivers
 
 APP = Path(__file__).parent.parent / "app" / "main.py"
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -28,6 +28,11 @@ def offline(monkeypatch):
     monkeypatch.setattr(open_meteo, "fetch_solar_check", lambda site, past_days=7: check)
     archive = open_meteo.parse_archive(json.loads((FIXTURES / "weather_archive.json").read_text()))
     monkeypatch.setattr(open_meteo, "fetch_archive", lambda site, start, end: archive)
+
+    def no_drivers(start, end):  # the price outlook then runs without weather, as offline
+        raise price_drivers.DriverSourceError("offline in tests")
+
+    monkeypatch.setattr(price_drivers, "fetch_drivers", no_drivers)
 
 
 def test_app_starts_without_errors():

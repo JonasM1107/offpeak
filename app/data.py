@@ -211,23 +211,69 @@ def save_cockpit_machines(machines: list[dict]) -> str:
     return "session"
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def price_forecast() -> tuple[pd.Series, pd.DataFrame, object] | None:
-    """Hourly spot history (ct/kWh, about a year up to the last published hour), the
-    outlook for the following days (ts, p10, p50, p90) and the backtest behind it. None if
-    there is too little history. The backtest trains the ML model a few times and takes
-    about 15 seconds, so this is cached."""
-    from offpeak.analysis import hourly
-    from offpeak.forecast.outlook import backtest, outlook
+@st.cache_data(ttl=3 * 3600, show_spinner=False)
+def price_drivers(start: date, end: date) -> pd.DataFrame | None:
+    """Wind, sun and temperature as forecast 1..7 days before each hour, for the price model.
 
-    today = market_today()
+    From the database, which the daily job keeps up to date. If the stored days do not reach
+    far enough ahead, only the recent days are fetched again; if the history is missing (the
+    first time), the whole range is fetched once and stored. None if nothing can be had: the
+    forecast then runs without weather."""
+    from offpeak.jobs.ingest_drivers import DAYS_BACK
+    from offpeak.weather.price_drivers import fetch_drivers
+
+    eng = engine()
+    first = pd.Timestamp(start, tz="UTC")
+    after = pd.Timestamp(end, tz="UTC") + timedelta(days=1)
+    stored = pd.DataFrame()
+    if eng is not None:
+        try:
+            stored = db.read_drivers(eng, first, after)
+        except Exception as err:  # e.g. migration 004 not applied yet
+            print(f"offpeak: cannot read weather_drivers: {err}")
+    has_history = not stored.empty and stored.index.min() <= first + timedelta(days=3)
+    if has_history and stored.index.max() >= after - timedelta(days=2):
+        return stored
+    fetch_from = market_today() - timedelta(days=DAYS_BACK) if has_history else start
+    try:
+        fetched = fetch_drivers(fetch_from, end)
+    except Exception as err:
+        print(f"offpeak: price drivers unavailable: {err}")
+        return stored if has_history else None
+    if eng is not None:
+        _store_quietly(lambda: db.upsert_drivers(eng, fetched))
+    if not has_history:
+        return fetched
+    return pd.concat([stored[stored.index < fetched.index.min()], fetched])
+
+
+def price_forecast() -> tuple[pd.Series, pd.DataFrame, object, list] | None:
+    """Hourly spot history (ct/kWh, about a year up to the last published hour), the
+    outlook for the following days (ts, p10, p50, p90), the backtest behind it and the
+    forecasters compared. None if there is too little history.
+
+    The backtest trains the ML models a few times and takes about half a minute, so it only
+    runs again when something new is known: a new day, or tomorrow's prices published."""
+    _, tomorrow, _, _ = today_and_tomorrow()
+    return _price_forecast(market_today(), not tomorrow.empty)
+
+
+@st.cache_data(ttl=12 * 3600, show_spinner=False, max_entries=4)
+def _price_forecast(today: date, tomorrow_published: bool):
+    from offpeak.analysis import hourly
+    from offpeak.forecast.model import WeatherPriceModel
+    from offpeak.forecast.outlook import FORECASTERS, backtest, outlook
+
     loaded, _, _ = prices(today - timedelta(days=365), today + timedelta(days=1))
     if loaded.empty:
         return None
     history = hourly(loaded, MARKET_TZ).set_index("ts")["ct"]
+    # the weather from a week before the history up to a week after the last published day
+    drivers = price_drivers(today - timedelta(days=372), today + timedelta(days=9))
+    forecasters = FORECASTERS + ([WeatherPriceModel(drivers)] if drivers is not None else [])
     try:
-        test = backtest(history, MARKET_TZ)
+        test = backtest(history, MARKET_TZ, forecasters=forecasters)
     except ValueError:
         return None
-    out, _ = outlook(history, MARKET_TZ, test)
-    return history, out, test
+    out, _ = outlook(history, MARKET_TZ, test, forecasters)
+    return history, out, test, forecasters
