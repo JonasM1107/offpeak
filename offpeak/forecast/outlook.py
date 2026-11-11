@@ -10,8 +10,9 @@ from dataclasses import dataclass
 import pandas as pd
 
 from offpeak.forecast.baselines import Blend, LastDay, LastWeek
+from offpeak.forecast.model import PriceModel
 
-FORECASTERS = [LastWeek(), LastDay(), Blend()]  # the ML model joins here once it is trained
+FORECASTERS = [LastWeek(), LastDay(), Blend(), PriceModel()]
 LEAD_DAYS = range(1, 7)  # days after the last published day (D+2 .. D+7)
 
 

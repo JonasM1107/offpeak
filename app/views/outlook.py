@@ -1,5 +1,6 @@
 """Price outlook: forecast prices for the days after the published ones (D+2 to D+7), with
-an honest comparison of the forecasts. The ML model plugs in at offpeak/forecast/model.py."""
+an honest comparison of the forecasts, including the machine learning model
+(offpeak/forecast/model.py)."""
 
 import data
 import streamlit as st

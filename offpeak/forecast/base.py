@@ -2,7 +2,7 @@
 
 A forecaster gets the hourly price history (ct/kWh, indexed by the UTC start of each hour,
 everything up to the last published hour) and returns its best guess (the median, p50) for
-the hours asked for. The ML model (offpeak/forecast/model.py) will be one more forecaster.
+the hours asked for. The ML model (offpeak/forecast/model.py) is one more forecaster.
 """
 
 from typing import Protocol

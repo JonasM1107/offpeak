@@ -62,7 +62,7 @@
     <div class="card">
       <div class="head"><div><h3>How good is each forecast?</h3><div class="sub" id="models-sub"></div></div></div>
       <table class="models" id="models"></table>
-      <p class="note">The ML model plugs into <code>offpeak/forecast/model.py</code>. As soon as it is trained, it appears here, goes through the same backtest and is used for every lead day where it beats the baselines.</p>
+      <p class="note">The machine learning model (scikit-learn, <code>offpeak/forecast/model.py</code>) learns from the past year how each hour differs from the week's average. It goes through the same backtest as the simple rules and is used for every day ahead where it misses least.</p>
     </div>
     <div class="card">
       <div class="head"><div><h3>Error by days ahead</h3><div class="sub">Average miss in ct/kWh: the further ahead, the harder</div></div></div>
@@ -172,12 +172,11 @@ function selectDay(i) {
 const maxMae = Math.max(...MODELS.map(m => m.mae));
 document.getElementById('models-sub').textContent = `Backtest over the last ${D.backtest_days} days: every day pretends to be today and forecasts the days after the published ones.`;
 document.getElementById('models').innerHTML = `<thead><tr><th>Forecast</th><th class="n">Average miss</th><th class="n">Cheapest hours found</th><th>Used for</th></tr></thead><tbody>
-  ${MODELS.map(m => `<tr class="${m.used_for.length ? 'best' : ''}"><td><b>${m.label}</b></td><td class="n">${nf(m.mae)} ct<span class="bar-mini"><i style="width:${(m.mae / maxMae * 100).toFixed(0)}%"></i></span></td><td class="n">${m.decision} %</td><td>${m.used_for.length ? m.used_for.map(l => `D+${l}`).join(', ') : '–'}</td></tr>`).join('')}
-  <tr class="slot"><td><b>Machine learning model</b></td><td class="n">not trained yet</td><td class="n">–</td><td>–</td></tr></tbody>`;
+  ${MODELS.map(m => `<tr class="${m.used_for.length ? 'best' : ''}"><td><b>${m.label}</b></td><td class="n">${nf(m.mae)} ct<span class="bar-mini"><i style="width:${(m.mae / maxMae * 100).toFixed(0)}%"></i></span></td><td class="n">${m.decision} %</td><td>${m.used_for.length ? m.used_for.map(l => `D+${l}`).join(', ') : '–'}</td></tr>`).join('')}</tbody>`;
 const leads = OP.chart(document.getElementById('leads'), c => {
   const B = OP.base(c);
   // the forecasts in use stand out; the others stay quiet
-  const colors = MODELS.map(m => (m.key === 'blend' ? c.accent : m.used_for.length ? c.dark : c.grey));
+  const colors = MODELS.map(m => (m.key === 'ml' ? c.accent : m.used_for.length ? c.dark : c.grey));
   return {
     ...B,
     grid: { left: 44, right: 14, top: 24, bottom: 28 },

@@ -213,14 +213,15 @@ def save_cockpit_machines(machines: list[dict]) -> str:
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def price_forecast() -> tuple[pd.Series, pd.DataFrame, object] | None:
-    """Hourly spot history (ct/kWh, about 6 months up to the last published hour), the
+    """Hourly spot history (ct/kWh, about a year up to the last published hour), the
     outlook for the following days (ts, p10, p50, p90) and the backtest behind it. None if
-    there is too little history. The backtest takes a few seconds, so this is cached."""
+    there is too little history. The backtest trains the ML model a few times and takes
+    about 15 seconds, so this is cached."""
     from offpeak.analysis import hourly
     from offpeak.forecast.outlook import backtest, outlook
 
     today = market_today()
-    loaded, _, _ = prices(today - timedelta(days=180), today + timedelta(days=1))
+    loaded, _, _ = prices(today - timedelta(days=365), today + timedelta(days=1))
     if loaded.empty:
         return None
     history = hourly(loaded, MARKET_TZ).set_index("ts")["ct"]

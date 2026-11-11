@@ -2,11 +2,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from offpeak.forecast.baselines import LastDay, LastWeek
-from offpeak.forecast.model import PriceModel
+from offpeak.forecast.baselines import Blend, LastDay, LastWeek
 from offpeak.forecast.outlook import backtest, day_summaries, local_day_hours, outlook
 
 TZ = "Europe/Berlin"
+BASELINES = [LastWeek(), LastDay(), Blend()]
 
 
 def weekly_history(weeks: int = 12, noise: float = 0.0) -> pd.Series:
@@ -44,9 +44,10 @@ def test_backtest_finds_the_weekly_pattern():
 
 def test_outlook_covers_six_days_with_a_band():
     h = weekly_history(noise=1.5)
-    test = backtest(h, TZ, days=21)
-    out, used = outlook(h, TZ, test)
-    assert set(used.values()) == {"last_week"}  # a weekly pattern: last week wins at every lead
+    test = backtest(h, TZ, days=21, forecasters=BASELINES)
+    out, used = outlook(h, TZ, test, forecasters=BASELINES)
+    # among the simple rules, last week wins at every lead on a weekly pattern
+    assert set(used.values()) == {"last_week"}
     assert out["lead"].nunique() == 6
     assert (out["p10"] <= out["p50"] + 1e-9).all() and (out["p50"] <= out["p90"] + 1e-9).all()
     assert out["ts"].min() > h.index.max()
@@ -57,9 +58,10 @@ def test_local_day_hours_on_clock_change():
     assert len(local_day_hours(pd.Timestamp("2026-03-29").date(), TZ)) == 23
 
 
-def test_ml_slot_is_honest_until_trained():
-    with pytest.raises(NotImplementedError):
-        PriceModel().predict(weekly_history(), pd.DatetimeIndex([]))
+def test_ml_model_beats_last_week_on_a_noisy_weekly_pattern():
+    # it averages the last 7 days, so random noise in one week does not get copied forward
+    _, used = outlook(weekly_history(noise=1.5), TZ, backtest(weekly_history(noise=1.5), TZ, 21))
+    assert set(used.values()) == {"ml"}
 
 
 def test_day_summaries_find_the_cheapest_window():
@@ -79,7 +81,7 @@ def test_view_payload():
     p = view_payload(h, backtest(h, TZ, days=21), TZ)
     assert len(p["forecast"]["t"]) == len(p["forecast"]["p50"]) >= 6 * 23
     assert len(p["days"]) == 6 and p["days"][0]["end"] > p["days"][0]["start"]
-    assert {m["key"] for m in p["models"]} == {"last_week", "last_day", "blend"}
+    assert {m["key"] for m in p["models"]} == {"last_week", "last_day", "blend", "ml"}
     assert sorted(sum((m["used_for"] for m in p["models"]), [])) == [2, 3, 4, 5, 6, 7]
 
 
