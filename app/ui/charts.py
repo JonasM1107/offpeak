@@ -109,3 +109,55 @@ def hour_profile(profile: pd.DataFrame) -> go.Figure:
         tickvals=list(range(0, 24, 3)), ticktext=[f"{h:02d}:00" for h in range(0, 24, 3)]
     )
     return fig
+
+
+def solar_hours(ts: pd.Series, kw: pd.Series) -> go.Figure:
+    """Expected solar power over several days, as a filled area."""
+    fig = go.Figure(
+        go.Scatter(
+            x=ts.dt.tz_convert(TZ),
+            y=kw,
+            mode="lines",
+            line=dict(color=ORANGE, width=1.4),
+            fill="tozeroy",
+            fillcolor="rgba(232,89,12,0.15)",
+            hovertemplate="%{x|%a %d %b, %H:%M}<br><b>%{y:.1f} kW</b><extra></extra>",
+        )
+    )
+    fig.update_xaxes(tickformat="%a %d", dtick=24 * 3600 * 1000)
+    fig.update_yaxes(ticksuffix=" kW", rangemode="tozero")
+    return _layout(fig, height=260)
+
+
+def temp_wind(weather: pd.DataFrame) -> go.Figure:
+    """Temperature (left axis) and wind speed (right axis), hourly."""
+    hours = weather[weather["ts"].dt.minute == 0]
+    x = hours["ts"].dt.tz_convert(TZ)
+    temp = go.Scatter(
+        x=x,
+        y=hours["temp_c"],
+        name="Temperature",
+        mode="lines",
+        line=dict(color=ORANGE, width=2, shape="spline"),
+        hovertemplate="%{x|%a %H:%M}<br><b>%{y:.0f} °C</b><extra></extra>",
+    )
+    wind = go.Scatter(
+        x=x,
+        y=hours["wind_ms"],
+        name="Wind",
+        yaxis="y2",
+        mode="lines",
+        line=dict(color=PEAK, width=1.4, dash="dot"),
+        hovertemplate="%{x|%a %H:%M}<br><b>%{y:.1f} m/s</b><extra></extra>",
+    )
+    fig = _layout(go.Figure([temp, wind]), height=260)
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(orientation="h", y=1.1, x=0),
+        yaxis=dict(ticksuffix=" °C"),
+        yaxis2=dict(
+            overlaying="y", side="right", showgrid=False, ticksuffix=" m/s", tickformat=".0f"
+        ),
+    )
+    fig.update_xaxes(tickformat="%a %d", dtick=24 * 3600 * 1000)
+    return fig

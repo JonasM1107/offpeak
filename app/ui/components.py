@@ -57,7 +57,8 @@ CSS = f"""
     padding: 4px 10px; border-radius: 8px; white-space: nowrap; }}
 .op-chip.grey {{ background: #F1EFEB; color: {INK}; }}
 .op-tiles {{ display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }}
-@media (max-width: 1100px) {{ .op-tiles {{ grid-template-columns: repeat(4, 1fr); }} }}
+.op-tiles.week {{ grid-template-columns: repeat(7, 1fr); }}
+@media (max-width: 1100px) {{ .op-tiles, .op-tiles.week {{ grid-template-columns: repeat(4, 1fr); }} }}
 .op-tile {{ border: 1px solid {LINE}; border-radius: 12px; padding: 10px 10px 9px; min-width: 0; }}
 .op-tile.sunny {{ background: #FFF6EF; border-color: #F8C9A8; }}
 .op-tile .t {{ color: {MUTED}; font-size: 0.8rem; }}

@@ -103,6 +103,18 @@ def weather() -> tuple[pd.DataFrame | None, datetime, str | None, str]:
     return fetched, now, None, "API"
 
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def weather_week() -> tuple[pd.DataFrame | None, datetime, str | None]:
+    """Seven-day forecast for the demo site, straight from Open-Meteo: (table or None,
+    when fetched, error). Reading the job's stored seven-day run from the database can
+    come later; one call every 30 minutes is well inside Open-Meteo's free limit."""
+    now = datetime.now(UTC)
+    try:
+        return open_meteo.fetch_weather(DEMO_SITE, days=7), now, None
+    except Exception as err:  # shown on the page as a designed state, never as a traceback
+        return None, now, str(err)
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def job_runs() -> pd.DataFrame | None:
     """Recent job runs, or None without a database."""
