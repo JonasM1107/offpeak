@@ -25,6 +25,7 @@ pages = {
             icon=":material/dashboard:",
             default=True,
         ),
+        st.Page(HERE / "views" / "site.py", title="Site view", icon=":material/view_in_ar:"),
         st.Page(HERE / "views" / "analytics.py", title="Analytics", icon=":material/insights:"),
     ],
     "Setup": [
