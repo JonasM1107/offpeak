@@ -1,0 +1,50 @@
+# Write "@claude ..." in a pull request or issue comment and Claude does it, for example
+# "@claude fix the review comments". It pushes to the pull request's branch, which starts
+# the next Claude review (claude-review.yml) and CI.
+name: Claude
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    env:
+      HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Skip when no Claude secret is set
+        if: env.HAS_CLAUDE != 'true'
+        run: echo "::notice::No CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY secret, so Claude cannot answer."
+      - uses: actions/checkout@v6
+        if: env.HAS_CLAUDE == 'true'
+        with:
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v7
+        if: env.HAS_CLAUDE == 'true'
+      - uses: anthropics/claude-code-action@v1
+        if: env.HAS_CLAUDE == 'true'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --max-turns 30
+            --allowedTools "Bash(uv sync:*),Bash(uv run pytest:*),Bash(uv run ruff:*)"
+            --append-system-prompt "Follow AGENTS.md. Run uv run ruff format, uv run ruff check and uv run pytest before you push, and say in your reply whether they passed."
