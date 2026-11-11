@@ -16,6 +16,7 @@ from offpeak import db
 from offpeak.markets import energy_charts
 from offpeak.sites import DEMO_SITE
 from offpeak.timeutils import day_slots, market_today
+from offpeak.weather import drivers as weather_drivers
 from offpeak.weather import open_meteo
 
 MARKET_TZ = "Europe/Berlin"
@@ -113,6 +114,16 @@ def weather_week() -> tuple[pd.DataFrame | None, datetime, str | None]:
         return open_meteo.fetch_weather(DEMO_SITE, days=7), now, None
     except Exception as err:  # shown on the page as a designed state, never as a traceback
         return None, now, str(err)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def drivers(past_days: int, forecast_days: int) -> pd.DataFrame | None:
+    """National wind (north, 100 m) and sun (south), hourly, or None if Open-Meteo fails."""
+    try:
+        return weather_drivers.fetch_drivers(past_days, forecast_days)
+    except Exception as err:  # the page shows a designed state instead
+        print(f"offpeak: national weather unavailable: {err}")
+        return None
 
 
 @st.cache_data(ttl=60, show_spinner=False)

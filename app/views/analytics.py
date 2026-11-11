@@ -7,7 +7,13 @@ import streamlit as st
 from ui import charts
 from ui.components import card_title, header, kpi
 
-from offpeak.analysis import daily_stats, hourly_profile
+from offpeak.analysis import (
+    daily_stats,
+    hourly_profile,
+    hourly_with_drivers,
+    price_by_wind,
+    wind_price_correlation,
+)
 from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY, DEMO_SITE
 from offpeak.timeutils import market_today
@@ -67,3 +73,31 @@ with right, st.container(border=True, key="card_profile"):
     st.plotly_chart(charts.hour_profile(profile), config=charts.CONFIG)
     low_hour = int(profile.set_index("hour")["workday"].idxmin())
     st.caption(f"On workdays the cheapest hour on average starts at {low_hour:02d}:00.")
+
+st.write("")
+with st.container(border=True, key="card_wind"):
+    card_title(
+        "Price and wind, last 30 days",
+        "Average price by wind at 100 m in northern Germany (Open-Meteo, hour by hour)",
+    )
+    national = data.drivers(past_days=DAYS, forecast_days=1)
+    joined = hourly_with_drivers(prices, national) if national is not None else None
+    if joined is None or joined.empty:
+        st.info("The wind history is not available right now. We try again soon.")
+    else:
+        bands = price_by_wind(joined)
+        st.plotly_chart(charts.wind_bands(bands), config=charts.CONFIG)
+        calm, windy = bands.iloc[0], bands.iloc[-1]
+        corr = wind_price_correlation(joined)
+        link = ""
+        if corr is not None:
+            link = (
+                f" The correlation between wind and price was {corr:.2f}; "
+                "−1 would mean power always gets cheaper as the wind rises."
+            )
+        st.caption(
+            f"Over {len(joined)} hours, power cost {calm['ct_kwh']:.1f} ct/kWh on average when "
+            f"it was {calm['band'].split(',')[0]} and {windy['ct_kwh']:.1f} ct/kWh when it was "
+            f"{windy['band'].split(',')[0]}.{link} This is why the price model uses the wind "
+            "forecast."
+        )

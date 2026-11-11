@@ -161,3 +161,70 @@ def temp_wind(weather: pd.DataFrame) -> go.Figure:
     )
     fig.update_xaxes(tickformat="%a %d", dtick=24 * 3600 * 1000)
     return fig
+
+
+def _price_bars_hourly(joined: pd.DataFrame) -> go.Bar:
+    return go.Bar(
+        x=joined["ts"].dt.tz_convert(TZ),
+        y=joined["ct_kwh"],
+        name="Price",
+        marker_color=OTHER,
+        marker_line_width=0,
+        hovertemplate="%{x|%a %H:%M}<br><b>%{y:.1f} ct/kWh</b><extra></extra>",
+    )
+
+
+def price_and_wind(joined: pd.DataFrame | None, drivers: pd.DataFrame) -> go.Figure:
+    """Hourly price as bars (left axis) and wind in northern Germany as a line (right axis).
+    The wind line runs on past the last published price, into the forecast. Without prices
+    (joined is None) only the wind is drawn."""
+    traces = []
+    if joined is not None:
+        traces.append(_price_bars_hourly(joined))
+    wind = go.Scatter(
+        x=drivers["ts"].dt.tz_convert(TZ),
+        y=drivers["wind_north_ms"],
+        name="Wind, north Germany",
+        yaxis="y2",
+        mode="lines",
+        line=dict(color=ORANGE, width=2.2, shape="spline"),
+        hovertemplate="%{x|%a %H:%M}<br><b>%{y:.1f} m/s</b><extra></extra>",
+    )
+    traces.append(wind)
+    fig = _layout(go.Figure(traces), height=300)
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(orientation="h", y=1.1, x=0),
+        bargap=0.1,
+        yaxis=dict(ticksuffix=" ct"),
+        yaxis2=dict(
+            overlaying="y",
+            side="right",
+            showgrid=False,
+            ticksuffix=" m/s",
+            tickformat=".0f",
+            rangemode="tozero",
+        ),
+    )
+    fig.update_xaxes(tickformat="%a %d", dtick=24 * 3600 * 1000)
+    return fig
+
+
+def wind_bands(bands: pd.DataFrame) -> go.Figure:
+    """Average price in calm, moderate and windy hours. Columns: band, hours, ct_kwh."""
+    colour = {"calm": PEAK, "moderate": OTHER, "windy": ORANGE}
+    shades = [colour[band.split(",")[0]] for band in bands["band"]]
+    fig = go.Figure(
+        go.Bar(
+            x=bands["band"],
+            y=bands["ct_kwh"],
+            customdata=bands["hours"],
+            marker_color=shades,
+            marker_line_width=0,
+            text=[f"{v:.1f} ct" for v in bands["ct_kwh"]],
+            textposition="outside",
+            hovertemplate="%{x}<br><b>%{y:.1f} ct/kWh</b> over %{customdata} hours<extra></extra>",
+        )
+    )
+    fig.update_yaxes(ticksuffix=" ct", rangemode="tozero")
+    return _layout(fig, height=300)

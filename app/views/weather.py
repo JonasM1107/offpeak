@@ -1,5 +1,6 @@
 """Weather: the seven-day forecast for the demo site, and what it means for solar power."""
 
+from datetime import timedelta
 from html import escape
 
 import data
@@ -7,12 +8,16 @@ import streamlit as st
 from ui import charts
 from ui.components import card_title, header, hhmm, kpi, local
 
+from offpeak.analysis import hourly_with_drivers
 from offpeak.config import MARKET_TZ, OPEN_METEO_ATTRIBUTION
 from offpeak.demo_site import ASSETS
 from offpeak.generation.pv import pv_kw
+from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY, DEMO_SITE
+from offpeak.timeutils import market_today
 from offpeak.weather.codes import weather_label
 from offpeak.weather.daily import daily_outlook
+from offpeak.weather.drivers import NORTH_WIND, daily_wind
 
 weather, fetched, _ = data.weather_week()
 header(f"{DEMO_SITE.name} · {DEMO_CITY}", "Weather, next 7 days", live=weather is not None)
@@ -26,7 +31,10 @@ if days.empty:
     st.stop()
 sunniest = days.loc[days["solar_kwh"].idxmax()]
 coldest = days.loc[days["temp_min"].idxmin()]
-windiest = days.loc[days["wind_max"].idxmax()]
+national = data.drivers(past_days=1, forecast_days=7)
+if national is not None:
+    north = daily_wind(national, MARKET_TZ)
+    north = north[north["day"].isin(days["day"])]
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
@@ -46,11 +54,15 @@ with c2:
 with c3:
     kpi("Coldest night", f"{coldest['temp_min']:.0f}", "°C", f"{coldest['day']:%a %-d %b}")
 with c4:
-    kpi(
-        "Windiest day",
-        f"{windiest['day']:%a %-d %b}",
-        note=f"Wind up to {windiest['wind_max']:.0f} m/s",
-    )
+    if national is None or north.empty:
+        kpi("Windiest day", "–", note="National wind forecast unavailable")
+    else:
+        windiest = north.loc[north["wind_north_ms"].idxmax()]
+        kpi(
+            "Windiest day in the north",
+            f"{windiest['day']:%a %-d %b}",
+            note=f"Avg {windiest['wind_north_ms']:.1f} m/s at 100 m · often cheaper power",
+        )
 
 st.write("")
 best = days["solar_kwh"].idxmax()
@@ -93,8 +105,34 @@ with right, st.container(border=True, key="card_temp"):
     card_title("Temperature and wind", "Hourly, wind at 10 m")
     st.plotly_chart(charts.temp_wind(weather), config=charts.CONFIG)
     st.caption(
-        "Cold hours raise heating demand and often prices. Strong wind across Germany usually "
-        "makes power cheaper, though wind here in the city is only a rough hint of that."
+        "Cold hours raise heating demand and often prices. Wind here in the city is only a "
+        "rough hint for prices; the card below uses the wind where the turbines stand."
     )
+
+st.write("")
+with st.container(border=True, key="card_drivers"):
+    card_title(
+        "What moves German prices: wind in the north",
+        f"Wind at 100 m (turbine height), average of {len(NORTH_WIND)} places from Emden to "
+        "Cottbus, against the hourly day-ahead price",
+    )
+    today = market_today()
+    try:
+        prices, _, _ = data.prices(today - timedelta(days=1), today + timedelta(days=1))
+    except PriceSourceError:
+        prices = None
+    if national is None:
+        st.info("The national wind forecast is not available right now. We try again soon.")
+    else:
+        until = data.now_utc().floor("D") + timedelta(days=4)
+        shown = national[national["ts"] < until]
+        joined = hourly_with_drivers(prices, shown) if prices is not None else None
+        st.plotly_chart(charts.price_and_wind(joined, shown), config=charts.CONFIG)
+        st.caption(
+            "When the orange wind line rises, the grey price bars usually drop: wind farms "
+            "then produce a lot of cheap power. Prices exist up to tomorrow; after that the "
+            "wind forecast hints at which days will be cheap. The Analytics tab measures how "
+            "strong this link was over the last 30 days."
+        )
 
 st.caption(f"{OPEN_METEO_ATTRIBUTION} · forecast loaded {hhmm(fetched)}")

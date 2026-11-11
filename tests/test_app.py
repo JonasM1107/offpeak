@@ -6,7 +6,7 @@ from streamlit.testing.v1 import AppTest
 
 from offpeak import db
 from offpeak.markets import energy_charts
-from offpeak.weather import open_meteo
+from offpeak.weather import drivers, open_meteo
 
 APP = Path(__file__).parent.parent / "app" / "main.py"
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -21,6 +21,8 @@ def offline(monkeypatch):
     weather = open_meteo.parse_weather(json.loads((FIXTURES / "weather_sample.json").read_text()))
     monkeypatch.setattr(energy_charts, "fetch_day_ahead", lambda zone, start, end: prices)
     monkeypatch.setattr(open_meteo, "fetch_weather", lambda site, days=7: weather)
+    national = drivers.parse_drivers(json.loads((FIXTURES / "drivers_sample.json").read_text()))
+    monkeypatch.setattr(drivers, "fetch_drivers", lambda past_days=0, forecast_days=3: national)
 
 
 def test_app_starts_without_errors():

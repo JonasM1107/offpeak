@@ -75,3 +75,43 @@ def hourly_profile(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> pd.DataFr
     kind = t.dt.day_of_week.map(lambda d: "weekend" if d >= 5 else "workday")
     profile = (prices["eur_mwh"] / 10).groupby([t.dt.hour.rename("hour"), kind]).mean()
     return profile.unstack().reindex(columns=["workday", "weekend"]).reset_index()
+
+
+WIND_BANDS = [
+    (0, 4, "calm, under 4 m/s"),
+    (4, 8, "moderate, 4–8 m/s"),
+    (8, 99, "windy, over 8 m/s"),
+]
+
+
+def hourly_with_drivers(prices: pd.DataFrame, drivers: pd.DataFrame) -> pd.DataFrame:
+    """Hourly average price next to the national wind and sun of that hour.
+
+    15-minute prices are averaged to the hour first. Only hours present in both tables are
+    kept. Columns: ts (UTC hour start), ct_kwh, wind_north_ms, sun_south_wm2.
+    """
+    hour = prices["ts"].dt.floor("h").rename("ts")
+    hourly = (prices["eur_mwh"] / 10).groupby(hour).mean().rename("ct_kwh").reset_index()
+    return hourly.merge(drivers, on="ts", how="inner").dropna(subset=["wind_north_ms"])
+
+
+def price_by_wind(joined: pd.DataFrame) -> pd.DataFrame:
+    """Average price in calm, moderate and windy hours.
+
+    Columns: band, hours (how many hours fell in it), ct_kwh (their average price).
+    Bands without any hour are left out.
+    """
+    rows = []
+    for low, high, label in WIND_BANDS:
+        inside = joined[(joined["wind_north_ms"] >= low) & (joined["wind_north_ms"] < high)]
+        if not inside.empty:
+            rows.append({"band": label, "hours": len(inside), "ct_kwh": inside["ct_kwh"].mean()})
+    return pd.DataFrame(rows, columns=["band", "hours", "ct_kwh"])
+
+
+def wind_price_correlation(joined: pd.DataFrame) -> float | None:
+    """Correlation between wind and price, from -1 to 1. Negative: windier hours are cheaper.
+    None when there are too few hours to say anything."""
+    if len(joined) < 24:
+        return None
+    return float(joined["wind_north_ms"].corr(joined["ct_kwh"]))
