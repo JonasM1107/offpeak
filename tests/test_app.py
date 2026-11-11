@@ -28,8 +28,24 @@ def test_app_starts_without_errors():
     assert not at.exception
 
 
-@pytest.mark.parametrize("page", ["views/analytics.py", "views/settings.py"])
+@pytest.mark.parametrize("page", ["views/site.py", "views/analytics.py", "views/settings.py"])
 def test_other_pages_load(page):
     at = AppTest.from_file(str(APP), default_timeout=30).run()
     at.switch_page(page).run()
     assert not at.exception
+
+
+def test_site_scene_payload_is_embedded_safely():
+    import sys
+
+    sys.path.insert(0, str(APP.parent))
+    from ui import site_scene
+
+    from offpeak import demo_site
+
+    inputs = demo_site.hourly_inputs(None, None, "Europe/Berlin")
+    site = {"name": "</script><b>x</b>", "city": "Köln", "zone": "DE-LU", "date": "2026-11-11"}
+    html = site_scene.render_html(site_scene.payload(inputs, site, 12))
+    assert "__DATA__" not in html
+    assert "</script><b>" not in html  # the JSON cannot close the script tag
+    assert len(site_scene.payload(inputs, site, 12)["offpeak"]) == 24
