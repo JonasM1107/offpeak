@@ -28,7 +28,9 @@ def test_app_starts_without_errors():
     assert not at.exception
 
 
-@pytest.mark.parametrize("page", ["views/site.py", "views/analytics.py", "views/settings.py"])
+@pytest.mark.parametrize(
+    "page", ["views/site.py", "views/analytics.py", "views/tariff.py", "views/settings.py"]
+)
 def test_other_pages_load(page):
     at = AppTest.from_file(str(APP), default_timeout=30).run()
     at.switch_page(page).run()
@@ -39,13 +41,18 @@ def test_site_scene_payload_is_embedded_safely():
     import sys
 
     sys.path.insert(0, str(APP.parent))
+    from datetime import date
+
     from ui import site_scene
 
     from offpeak import demo_site
+    from offpeak.tariffs import germany_2026
 
+    tariff = germany_2026()
     inputs = demo_site.hourly_inputs(None, None, "Europe/Berlin")
+    inputs = demo_site.apply_tariff(inputs, tariff, date(2026, 11, 11))
     site = {"name": "</script><b>x</b>", "city": "Köln", "zone": "DE-LU", "date": "2026-11-11"}
-    html = site_scene.render_html(site_scene.payload(inputs, site, 12))
+    html = site_scene.render_html(site_scene.payload(inputs, site, 12, tariff))
     assert "__DATA__" not in html
     assert "</script><b>" not in html  # the JSON cannot close the script tag
-    assert len(site_scene.payload(inputs, site, 12)["offpeak"]) == 24
+    assert len(site_scene.payload(inputs, site, 12, tariff)["offpeak"]) == 24

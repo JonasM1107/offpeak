@@ -11,18 +11,32 @@ import pandas as pd
 import streamlit.components.v1 as components
 
 from offpeak import demo_site
+from offpeak.tariffs import Tariff
 
 TEMPLATE = Path(__file__).with_name("site_scene.html")
 
 
-def payload(inputs: pd.DataFrame, site: dict, hour_now: int) -> dict:
-    """Everything the page needs: both schedules for all 24 hours, plus site facts."""
-    a = demo_site.ASSETS
+def _bill(b) -> dict:
+    return {
+        "lines": {k: round(v, 2) for k, v in b.lines.items()},
+        "total": round(b.total, 2),
+        "peak_kw": round(b.peak_kw, 1),
+        "ct_per_kwh": round(b.ct_per_kwh, 2),
+    }
 
-    plan = demo_site.plan_day(inputs)
+
+def payload(inputs: pd.DataFrame, site: dict, hour_now: int, tariff: Tariff) -> dict:
+    """Everything the page needs: both schedules for all 24 hours, priced with the tariff,
+    plus each schedule's bill for the day and the site facts.
+
+    `inputs` comes from demo_site.apply_tariff(), so every hour has its all-in price."""
+    a = demo_site.ASSETS
+    plan = demo_site.plan_day(inputs, tariff)
+    price_cols = ["energy_ct", "grid_ct", "levies_ct", "tax_ct", "import_ct", "export_ct"]
 
     def rows(p: demo_site.Plan) -> list[dict]:
-        return demo_site.simulate(inputs, p).round(3).to_dict("records")
+        day = demo_site.simulate(inputs, p).join(inputs[price_cols].reset_index(drop=True))
+        return day.round(3).to_dict("records")
 
     return {
         "site": site,
@@ -37,8 +51,13 @@ def payload(inputs: pd.DataFrame, site: dict, hour_now: int) -> dict:
             "turbine_kw": a.turbine_kw,
             "battery_kwh": a.battery_kwh,
         },
+        "tariff": {"name": tariff.name},
         "offpeak": rows(plan),
         "usual": rows(demo_site.USUAL),
+        "bill": {
+            "offpeak": _bill(demo_site.day_bill(inputs, plan, tariff)),
+            "usual": _bill(demo_site.day_bill(inputs, demo_site.USUAL, tariff)),
+        },
         "windows": {
             "offpeak": demo_site.windows(plan),
             "usual": demo_site.windows(demo_site.USUAL),
