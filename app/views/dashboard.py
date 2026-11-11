@@ -11,7 +11,6 @@ from ui.components import (
     ORANGE,
     OTHER,
     PEAK,
-    TZ,
     card_title,
     header,
     hhmm,
@@ -47,83 +46,9 @@ header(
 if price_error:
     st.warning("Prices could not be loaded right now. We try again in a few minutes.")
 
-# ── Hero and week strip ──────────────────────────────────────────────────────
+# ── KPI cards ────────────────────────────────────────────────────────────────
 cheap3 = best_window(tomorrow, 3)
 peak3 = best_window(tomorrow, 3, cheapest=False)
-now_row = current_price(today, now)
-hour_local = local(now).hour
-greeting = (
-    "Good morning" if hour_local < 12 else "Good afternoon" if hour_local < 18 else "Good evening"
-)
-
-hero_col, week_col = st.columns([2.15, 1], gap="medium")
-with hero_col:
-    if published and cheap3:
-        headline = (
-            f"Tomorrow's power is <em>cheapest</em> from {hhmm(cheap3.start)} "
-            f"to {hhmm(cheap3.end, True)}"
-        )
-        below = ct_kwh(peak3.avg_eur_mwh - cheap3.avg_eur_mwh) if peak3 else 0
-        text = (
-            f"Average {ct_kwh(cheap3.avg_eur_mwh):.1f} ct/kWh in that window, {below:.1f} ct below "
-            "the most expensive three hours. Run flexible loads there."
-        )
-    else:
-        headline = "Tomorrow's prices arrive <em>around 13:00</em>"
-        text = "The day-ahead auction publishes at noon. The plan updates as soon as they are in."
-    facts = []
-    if now_row is not None:
-        facts.append(f'<span class="fact">Now {ct_kwh(now_row["eur_mwh"]):.1f} ct/kWh</span>')
-    if published:
-        low, high = ct_kwh(tomorrow["eur_mwh"].min()), ct_kwh(tomorrow["eur_mwh"].max())
-        facts.append(f'<span class="fact">Tomorrow {low:.1f}–{high:.1f} ct</span>')
-    if cheap3:
-        facts.append(
-            f'<span class="fact on">Best {hhmm(cheap3.start)}–{hhmm(cheap3.end, True)}</span>'
-        )
-    st.html(
-        f'<div class="op-hero"><div><div class="kicker"><span>{greeting}</span><span>·</span>'
-        f"<span>{escape(DEMO_SITE.name)}, {escape(DEMO_CITY)}</span></div>"
-        f"<h2>{headline}</h2><p>{escape(text)}</p></div>"
-        f'<div class="facts">{"".join(facts)}</div></div>'
-    )
-
-with week_col, st.container(border=True, key="card_week"):
-    try:
-        week, _, _ = data.prices(tomorrow_date - timedelta(days=6), tomorrow_date)
-    except PriceSourceError:
-        week = pd.DataFrame(columns=["ts", "eur_mwh"])
-    days = []
-    if not week.empty:
-        daily = (
-            week.assign(day=week["ts"].dt.tz_convert(TZ).dt.date).groupby("day")["eur_mwh"].mean()
-        )
-    else:
-        daily = pd.Series(dtype=float)
-    cheapest_day = daily.idxmin() if len(daily) else None
-    card_title(f"{tomorrow_date:%B %Y}", "Average day-ahead price per day")
-    for i in range(7):
-        d = tomorrow_date - timedelta(days=6 - i)
-        cls = ["op-wkday"]
-        price = ""
-        if d in daily.index:
-            cls.append("cheap" if d == cheapest_day else "has")
-            price = f'<span class="ct">{ct_kwh(daily[d]):.0f} ct</span>'
-        if d == tomorrow_date:
-            cls.append("on")
-        days.append(f'<div class="{" ".join(cls)}">{d:%a}<b>{d.day}</b><i></i>{price}</div>')
-    st.html(f'<div class="op-week">{"".join(days)}</div>')
-    if cheapest_day is not None:
-        st.html(
-            f'<div class="op-foot">Cheapest day this week: {cheapest_day:%A} at '
-            f"{ct_kwh(daily[cheapest_day]):.1f} ct/kWh on average. Tomorrow is highlighted.</div>"
-        )
-    else:
-        st.html('<div class="op-foot">Prices for the week are not available right now.</div>')
-
-st.write("")
-
-# ── KPI cards ────────────────────────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     row = current_price(today, now)

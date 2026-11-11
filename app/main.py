@@ -12,7 +12,7 @@ sys.path.insert(0, str(HERE.parent))
 from ui.components import inject_css  # noqa: E402
 
 st.set_page_config(page_title="offpeak", page_icon="⚡", layout="wide")
-st.logo(str(HERE / "assets" / "mark.svg"), size="large")
+st.logo(str(HERE / "assets" / "logo.svg"), size="large")
 inject_css()
 
 

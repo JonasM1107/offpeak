@@ -1,47 +1,13 @@
-# Two themes: light in Storm Grey (60 %), Matte Black (30 %) and Safety Orange #FF5F00
-# (10 %); night mode in the warm Emberline blacks, reds and ambers with the same orange. The viewer picks one in the app menu (Settings → theme);
-# app/ui/theme.py reads which one is active and styles our cards and charts to match.
 [theme]
-font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-baseRadius = "12px"
-buttonRadius = "full"
-showWidgetBorder = true
-
-[theme.light]
-# Storm Grey surfaces, Matte Black text, Safety Orange accent. Streamlit's background is the
-# page frame; the darker Storm Grey around it comes from app/ui/components.py.
-primaryColor = "#FF5F00"
-backgroundColor = "#D3D6DA"
-secondaryBackgroundColor = "#DADDE1"
-textColor = "#111214"
-borderColor = "#C3C7CC"
-linkColor = "#B34200"
-
-[theme.light.sidebar]
-backgroundColor = "#5B6066"
-secondaryBackgroundColor = "#4E535A"
-textColor = "#E7E9EC"
-borderColor = "#6B7178"
-primaryColor = "#FF5F00"
-
-[theme.dark]
-# Warm near-black with off-white text; Safety Orange accent, amber links.
-primaryColor = "#FF5F00"
-backgroundColor = "#111111"
-secondaryBackgroundColor = "#211B19"
-textColor = "#F2F2F2"
-borderColor = "#2C2320"
-linkColor = "#F28C28"
-
-[theme.dark.sidebar]
-backgroundColor = "#0A0A0A"
-secondaryBackgroundColor = "#181514"
-textColor = "#D8D0CB"
-borderColor = "#2C2320"
-primaryColor = "#FF5F00"
+base = "light"
+primaryColor = "#E8590C"
+backgroundColor = "#F6F5F2"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1C1B19"
+font = "sans-serif"
 
 [client]
-toolbarMode = "viewer"
+toolbarMode = "minimal"
 
 [server]
 headless = true
