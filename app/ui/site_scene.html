@@ -3,54 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #121417; --card: #1b1e22; --line: rgba(255, 255, 255, .07); --text: #d7dbe0; --muted: #7f868f; --cyan: #2fd3e8; --brand: #ff8a3d; --green: #43d17a; }
+  /* Same palette as the dashboard (app/ui/components.py) */
+  :root { --bg: #F6F5F2; --card: #FFFFFF; --line: #E7E4DE; --text: #1C1B19; --muted: #6F6A62; --accent: #E8590C; --accent-soft: #FDEBDF; --accent-line: #F8C9A8; --accent-ink: #B8430A; --peak: #4A4640; --other: #D6D2CB; --green: #2F9E44; }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; }
-  body { display: grid; grid-template-rows: 44px minmax(0, 1fr) auto; gap: 10px; height: 100vh; padding: 0 12px 12px; overflow: hidden; }
-  header { display: flex; align-items: center; gap: 16px; margin: 0 -12px; padding: 0 16px; border-bottom: 1px solid var(--line); font-size: 13px; min-width: 0; }
-  header .logo { color: var(--brand); font-weight: 700; font-size: 17px; }
+  body { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; height: 100vh; padding: 0 2px 2px; overflow: hidden; }
+  header { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); min-width: 0; padding-top: 2px; }
   header .site { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  header .right { margin-left: auto; display: flex; gap: 14px; color: var(--muted); white-space: nowrap; }
-  .pill { border: 1px solid var(--line); border-radius: 10px; padding: 2px 8px; font-size: 11px; }
-  .pill.live { color: var(--green); border-color: rgba(67, 209, 122, .4); }
-  main { display: grid; grid-template-columns: 220px minmax(0, 1fr) 260px; gap: 10px; min-height: 0; }
-  .col { display: flex; flex-direction: column; gap: 10px; min-height: 0; min-width: 0; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; min-width: 0; }
-  .card h4 { margin: 0 0 10px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
-  .card h4 small { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 11px; }
-  .switch { display: inline-flex; align-items: center; gap: 8px; background: #0f6f7c; color: #e9fbff; border: 0; border-radius: 14px; padding: 4px 5px 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }
-  .switch.off { background: #3a3f46; color: var(--muted); flex-direction: row-reverse; padding: 4px 12px 4px 5px; }
-  .switch span { width: 18px; height: 18px; border-radius: 50%; background: #fff; }
-  .field { margin-top: 12px; font-size: 11px; color: var(--muted); }
+  header .right { margin-left: auto; display: flex; gap: 8px; white-space: nowrap; }
+  .pill { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; color: var(--text); }
+  .pill.live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 6px; vertical-align: 1px; }
+  main { display: grid; grid-template-columns: 230px minmax(0, 1fr) 270px; gap: 12px; min-height: 0; }
+  .col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; min-width: 0; }
+  .card h4 { margin: 0 0 10px; font-size: 15px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+  .card h4 small { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 12px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 4px 5px 4px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .switch.off { background: #F1EFEB; color: var(--muted); flex-direction: row-reverse; padding: 4px 12px 4px 5px; }
+  .switch span { width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .06); }
+  .field { margin-top: 12px; font-size: 12px; color: var(--muted); }
   .field .top { display: flex; justify-content: space-between; }
-  .field .top b { color: #fff; font-weight: 500; }
-  input[type=range] { width: 100%; accent-color: var(--cyan); margin: 6px 0 0; }
-  .big { font-size: 24px; color: #fff; font-weight: 500; margin-top: 4px; }
-  .big small, .n small { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 3px; }
+  .field .top b { color: var(--text); font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 6px 0 0; }
+  .big { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); margin-top: 2px; }
+  .big small, .n small { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 3px; letter-spacing: 0; }
   .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 8px; }
   .stats.three { grid-template-columns: repeat(3, 1fr); }
-  .stat p { margin: 0; font-size: 11px; color: var(--muted); white-space: nowrap; }
-  .n { font-size: 17px; color: var(--cyan); margin-top: 3px; white-space: nowrap; }
+  .stat p { margin: 0; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .n { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; white-space: nowrap; }
+  .n.accent { color: var(--accent); }
   .scene { position: relative; padding: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  .scene h4 { padding: 12px 14px 0; margin: 0; }
-  #view { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .scene h4 { padding: 14px 16px 0; margin: 0; }
+  #view { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 0 0 16px 16px; }
   #view canvas { display: block; }
   .tag[style*="hidden"] { pointer-events: none; }
-  .tag { font-size: 11px; color: #c9ced4; white-space: nowrap; letter-spacing: .03em; text-shadow: 0 1px 3px #000; cursor: pointer; pointer-events: auto; padding: 2px 4px; border-radius: 3px; }
-  .tag.sel { color: #0b1f24; background: var(--cyan); text-shadow: none; }
-  .legend { display: flex; gap: 12px; font-size: 10px; color: var(--muted); margin-bottom: 4px; flex-wrap: wrap; }
-  .legend i { display: inline-block; width: 10px; height: 3px; margin-right: 4px; vertical-align: middle; }
+  .tag { font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; cursor: pointer; pointer-events: auto; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .92); border: 1px solid var(--line); }
+  .tag.sel { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--text); margin-bottom: 4px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   svg.chart { width: 100%; height: auto; display: block; }
-  .detail .r { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .detail .r { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
   .detail .r:last-child { border-bottom: 0; }
-  .detail .r span:last-child { color: var(--cyan); font-size: 15px; }
-  .ticker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  .ev { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 8px 12px; font-size: 11px; line-height: 1.4; color: var(--muted); }
-  .ev.warn { border-color: rgba(255, 138, 61, .5); }
-  .ev.warn b { color: var(--brand); }
-  .ev b { color: var(--text); font-weight: 400; }
-  .note { font-size: 10px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+  .detail .r span:last-child { color: var(--text); font-weight: 650; font-size: 15px; }
+  .ticker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .ev { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 9px 14px; font-size: 12px; line-height: 1.4; }
+  .ev b { font-weight: 500; color: var(--text); }
+  .ev.good { background: var(--accent-soft); border-color: var(--accent-line); }
+  .ev.good b { color: var(--accent-ink); font-weight: 600; }
+  .ev.warn { background: #F1EFEB; }
+  .note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
   @media (max-width: 1180px) {
     .ticker { grid-template-columns: 1fr 1fr; }
   }
@@ -58,14 +62,11 @@
     body { height: auto; overflow: auto; }
     main { grid-template-columns: 1fr 1fr; }
     .scene { grid-column: 1 / -1; order: -1; height: 460px; }
-    .ticker { grid-template-columns: 1fr 1fr; }
   }
   @media (max-width: 640px) {
     main { grid-template-columns: 1fr; }
     .ticker { grid-template-columns: 1fr; }
-    body { grid-template-rows: auto auto auto; }
-    header { flex-wrap: wrap; row-gap: 6px; padding: 10px 16px; }
-    header .pre, header .right .pill:not(.live) { display: none; }
+    header { flex-wrap: wrap; row-gap: 6px; }
     header .right { margin-left: 0; }
     .scene { height: 360px; }
   }
@@ -79,9 +80,8 @@
 </head>
 <body>
 <header>
-  <span class="logo">offpeak</span>
-  <span class="site"><span class="pre">Energy management · </span><span id="site-name"></span></span>
-  <span class="right"><span class="pill" id="date"></span><span class="pill" id="src-price"></span><span class="pill" id="src-weather"></span></span>
+  <span class="site" id="site-name"></span>
+  <span class="right"><span class="pill" id="date" style="font-weight:500;color:var(--muted)"></span><span class="pill" id="src-price"></span><span class="pill" id="src-weather"></span></span>
 </header>
 <main>
   <div class="col">
@@ -98,7 +98,7 @@
         <div class="stat"><p>Generated</p><div class="n" id="s-gen">0</div></div>
         <div class="stat"><p>Consumed</p><div class="n" id="s-use">0</div></div>
         <div class="stat"><p>Own power used</p><div class="n" id="s-self">0</div></div>
-        <div class="stat"><p>Saved vs usual</p><div class="n" id="s-save">€0</div></div>
+        <div class="stat"><p>Saved vs usual</p><div class="n accent" id="s-save">€0</div></div>
       </div>
     </div>
     <div class="card">
@@ -118,12 +118,12 @@
   <div class="col">
     <div class="card">
       <h4>Consumption <small>today</small></h4>
-      <div class="legend"><span><i style="background:#9aa3ad"></i>Demand kW</span><span><i style="background:var(--brand)"></i>Price ct/kWh</span></div>
+      <div class="legend"><span><i style="background:var(--other)"></i>Demand kW</span><span><i style="background:var(--peak);height:2px"></i>Price ct/kWh</span></div>
       <svg class="chart" id="c-load" viewBox="0 0 300 118"></svg>
     </div>
     <div class="card">
       <h4>Generation <small>today</small></h4>
-      <div class="legend"><span><i style="background:#9aa3ad"></i>Solar + wind kW</span><span><i style="background:#7a8cff"></i>Bought kW</span></div>
+      <div class="legend"><span><i style="background:var(--other)"></i>Solar + wind kW</span><span><i style="background:var(--peak);height:2px"></i>Bought kW</span></div>
       <svg class="chart" id="c-gen" viewBox="0 0 300 118"></svg>
     </div>
     <div class="card detail" id="detail"></div>
@@ -138,15 +138,13 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const D = window.OFFPEAK;
 const view = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.35;
+renderer.toneMapping = THREE.NoToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 view.appendChild(renderer.domElement);
@@ -155,42 +153,47 @@ Object.assign(labels.domElement.style, { position: 'absolute', top: '0', left: '
 view.appendChild(labels.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x15181b);
-scene.fog = new THREE.Fog(0x15181b, 320, 620);
+scene.background = new THREE.Color(0xEDEAE4);
+scene.fog = new THREE.Fog(0xEDEAE4, 320, 620);
 const camera = new THREE.PerspectiveCamera(24, 1, 1, 900);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.maxPolarAngle = 1.15;
 
-scene.add(new THREE.HemisphereLight(0xc8d2dc, 0x1a1d21, 1.1));
-const key = new THREE.DirectionalLight(0xffffff, 2.6);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xb9b2a8, 1.05));
+const key = new THREE.DirectionalLight(0xfff8f0, 1.5);
 key.position.set(45, 90, 70); key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
 Object.assign(key.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, far: 300 });
 key.shadow.bias = -0.0005;
 scene.add(key);
-const rim = new THREE.DirectionalLight(0x7fd8ff, 0.35); rim.position.set(60, 30, -50); scene.add(rim);
+const rim = new THREE.DirectionalLight(0xffffff, 0.4); rim.position.set(60, 30, -50); scene.add(rim);
 
 function canvasTexture(w, h, draw) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-const tiles = canvasTexture(256, 256, (g) => { g.fillStyle = '#181b1f'; g.fillRect(0, 0, 256, 256); g.strokeStyle = '#22262b'; g.lineWidth = 3; g.strokeRect(0, 0, 256, 256); });
+const tiles = canvasTexture(256, 256, (g) => { g.fillStyle = '#EDEAE4'; g.fillRect(0, 0, 256, 256); g.strokeStyle = '#E0DCD5'; g.lineWidth = 3; g.strokeRect(0, 0, 256, 256); });
 tiles.wrapS = tiles.wrapT = THREE.RepeatWrapping; tiles.repeat.set(40, 40);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map: tiles, roughness: 0.9 }));
 floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-const CYAN = 0x2fd3e8;
+const ACCENT = 0xE8590C;
 const metal = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.45, ...o });
-const WHITE = metal(0xd9dde2, { metalness: 0.25, roughness: 0.35 });
-const GREY = metal(0x5d646c);
-const DARK = metal(0x2a2e33, { metalness: 0.3, roughness: 0.6 });
+const WHITE = metal(0xFFFFFF, { metalness: 0.05, roughness: 0.55 });
+const GREY = metal(0x8F8A82, { metalness: 0.1, roughness: 0.6 });
+const DARK = metal(0x4A4640, { metalness: 0.2, roughness: 0.6 });
+const TURBINE = metal(0xCFC9C0, { metalness: 0.1, roughness: 0.5 });
 const glow = (color, i) => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: i });
 const site = new THREE.Group(); scene.add(site);
 
 function box(w, h, d, m, x, y, z, parent = site) {
   const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
   b.position.set(x, y, z); b.castShadow = true; b.receiveShadow = true; parent.add(b); return b;
+}
+function edges(mesh) {
+  mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x8F8A82, transparent: true, opacity: 0.45 })));
+  return mesh;
 }
 function cyl(rt, rb, h, m, x, y, z, parent = site, seg = 20) {
   const c = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m);
@@ -201,10 +204,10 @@ let selected = 'hall';
 const units = {};
 function platform(key, name, x, z, w, d) {
   const g = new THREE.Group(); g.position.set(x, 0, z); site.add(g);
-  box(w, 0.9, d, metal(0x23272c, { metalness: 0.2, roughness: 0.7 }), 0, 0.45, 0, g);
-  box(w - 1.2, 0.12, d - 1.2, metal(0x30353b, { metalness: 0.2, roughness: 0.6 }), 0, 0.96, 0, g);
-  box(w, 0.14, 0.14, glow(CYAN, 1.4), 0, 0.92, d / 2, g);
-  box(0.14, 0.14, d * 0.55, glow(CYAN, 1.4), w / 2, 0.92, d / 2 - d * 0.275, g);
+  edges(box(w, 0.9, d, metal(0xC9C3BA, { metalness: 0, roughness: 0.8 }), 0, 0.45, 0, g));
+  box(w - 1.2, 0.12, d - 1.2, metal(0xFFFFFF, { metalness: 0, roughness: 0.7 }), 0, 0.96, 0, g);
+  box(w, 0.16, 0.16, glow(ACCENT, 0.6), 0, 0.92, d / 2, g);
+  box(0.16, 0.16, d * 0.55, glow(ACCENT, 0.6), w / 2, 0.92, d / 2 - d * 0.275, g);
   const div = document.createElement('div'); div.className = 'tag'; div.textContent = name;
   div.addEventListener('click', () => { selected = key; update(); });
   const tag = new CSS2DObject(div); tag.position.set(0, 0, d / 2 + 2.4); g.add(tag);
@@ -214,7 +217,7 @@ function platform(key, name, x, z, w, d) {
 }
 
 const PANEL = new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.5, map: canvasTexture(256, 384, (g, w, h) => {
-  g.fillStyle = '#26303c'; g.fillRect(0, 0, w, h); g.strokeStyle = '#c9d3dd'; g.lineWidth = 3;
+  g.fillStyle = '#3B4048'; g.fillRect(0, 0, w, h); g.strokeStyle = '#D6D2CB'; g.lineWidth = 3;
   for (let x = 0; x <= w; x += w / 6) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
   for (let y = 0; y <= h; y += h / 8) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
 }) });
@@ -225,53 +228,53 @@ box(9, 0.2, 6.5, [GREY, GREY, PANEL, GREY, GREY, GREY], 0, 4.6, 0, solar).rotati
 box(2.6, 1.6, 1.6, WHITE, -4.2, 1.8, 3.2, solar);
 
 const wind = platform('wind', 'Wind', -36, 14, 11, 11);
-cyl(0.35, 0.75, 22, WHITE, 0, 12, 0, wind);
-box(1.3, 1.3, 3.4, WHITE, 0, 23.3, 0.3, wind);
+cyl(0.35, 0.75, 22, TURBINE, 0, 12, 0, wind);
+box(1.3, 1.3, 3.4, TURBINE, 0, 23.3, 0.3, wind);
 const rotor = new THREE.Group(); rotor.position.set(0, 23.3, 2.2); wind.add(rotor);
 for (let k = 0; k < 3; k++) {
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.55, 10, 0.16), WHITE);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.55, 10, 0.16), TURBINE);
   blade.geometry.translate(0, 5, 0); blade.rotation.z = k * 2 * Math.PI / 3; blade.castShadow = true; rotor.add(blade);
 }
-rotor.add(new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 14), WHITE));
+rotor.add(new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 14), TURBINE));
 
 const bat = platform('bat', 'Battery', -16, 2, 12, 10);
-box(6, 4, 3.4, WHITE, -1, 3, 0, bat);
+edges(box(6, 4, 3.4, WHITE, -1, 3, 0, bat));
 box(2.8, 2.6, 2.6, GREY, 3.6, 2.3, 0.2, bat);
-const batLed = box(5.2, 0.18, 0.06, glow(0x43d17a, 1.2), -1, 2, 1.73, bat);
+const batLed = box(5.2, 0.22, 0.06, glow(0x2F9E44, 0.8), -1, 2, 1.73, bat);
 for (let i = 0; i < 3; i++) box(0.05, 3.4, 0.05, DARK, -2.6 + i * 1.6, 3, 1.72, bat);
 
 const hub = platform('hub', 'Grid connection', 2, -2, 11, 11);
 box(4.2, 3.2, 3.2, GREY, 0, 2.6, 0, hub);
 for (let i = 0; i < 3; i++) cyl(0.18, 0.28, 2.2, WHITE, -1.2 + i * 1.2, 5.3, 0, hub, 10);
-const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(8, 7, 8, 2, 2, 2)), new THREE.LineBasicMaterial({ color: 0x8c949d, transparent: true, opacity: 0.6 }));
+const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(8, 7, 8, 2, 2, 2)), new THREE.LineBasicMaterial({ color: 0x8F8A82, transparent: true, opacity: 0.7 }));
 frame.position.set(0, 4.5, 0); hub.add(frame);
 
 const grid = platform('grid', 'Public grid', 4, -30, 10, 10);
-const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.5, 2.8, 24, 4, 7, true)), new THREE.LineBasicMaterial({ color: 0xaab2bb }));
+const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.5, 2.8, 24, 4, 7, true)), new THREE.LineBasicMaterial({ color: 0x6F6A62 }));
 pylon.position.set(0, 12.9, 0); pylon.rotation.y = Math.PI / 4; grid.add(pylon);
 box(9, 0.28, 0.28, WHITE, 0, 21, 0, grid); box(6.5, 0.28, 0.28, WHITE, 0, 17.5, 0, grid);
 
 const hall = platform('hall', 'Production hall', 20, 6, 15, 13);
-box(11, 6, 8, metal(0x3a4048), -0.5, 4, -0.5, hall);
-box(11.2, 0.4, 8.2, WHITE, -0.5, 7.2, -0.5, hall);
+edges(box(11, 6, 8, metal(0xB5AFA6, { metalness: 0.05, roughness: 0.7 }), -0.5, 4, -0.5, hall));
+edges(box(11.2, 0.4, 8.2, WHITE, -0.5, 7.2, -0.5, hall));
 for (let i = 0; i < 3; i++) box(1.6, 1, 1.6, WHITE, -4 + i * 3, 7.9, -1.5, hall);
 cyl(0.7, 0.85, 5, WHITE, 3.6, 9.5, -3, hall);
-const furnaceGlow = box(3, 1.6, 0.08, glow(0xff8a3d, 2.5), 2, 2.6, 3.56, hall);
+const furnaceGlow = box(3, 1.6, 0.08, glow(ACCENT, 1.6), 2, 2.6, 3.56, hall);
 
 const cold = platform('cold', 'Cold store', 37, -12, 11, 10);
-box(7.5, 3.6, 4.4, WHITE, 0, 2.8, 0, cold);
+edges(box(7.5, 3.6, 4.4, WHITE, 0, 2.8, 0, cold));
 for (let i = 0; i < 2; i++) { cyl(0.9, 0.9, 0.5, GREY, -1.6 + i * 3.2, 4.9, 0, cold, 24); cyl(0.7, 0.7, 0.52, DARK, -1.6 + i * 3.2, 4.92, 0, cold, 24); }
 
 const ev = platform('ev', 'EV charging', 16, 26, 14, 10);
 for (let i = 0; i < 3; i++) {
   box(0.8, 2.6, 0.6, WHITE, -4.5 + i * 4.5, 2.3, -3.2, ev);
-  box(0.6, 0.6, 0.05, glow(CYAN, 1.2), -4.5 + i * 4.5, 2.9, -2.88, ev);
-  box(2.4, 1.3, 4.2, metal(0xb9c0c8, { metalness: 0.6, roughness: 0.3 }), -4.5 + i * 4.5, 1.7, 0.8, ev);
+  box(0.6, 0.6, 0.05, glow(ACCENT, 0.8), -4.5 + i * 4.5, 2.9, -2.88, ev);
+  box(2.4, 1.3, 4.2, metal(0xFFFFFF, { metalness: 0.3, roughness: 0.35 }), -4.5 + i * 4.5, 1.7, 0.8, ev);
   box(2.1, 0.8, 2.2, DARK, -4.5 + i * 4.5, 2.7, 0.6, ev);
 }
 
 [[-60, -46, 14, 4, 8], [-38, -52, 9, 3, 9], [52, -40, 16, 5, 7], [60, 18, 8, 3, 12], [-62, 30, 10, 3, 8]]
-  .forEach(([x, z, w, h, d]) => box(w, h, d, metal(0x1c1f23, { metalness: 0.2, roughness: 0.8 }), x, h / 2, z, scene));
+  .forEach(([x, z, w, h, d]) => box(w, h, d, metal(0xDDD9D2, { metalness: 0, roughness: 0.9 }), x, h / 2, z, scene));
 
 const pulseGeo = new THREE.BoxGeometry(1.4, 0.12, 0.3);
 function cable(pts) {
@@ -280,11 +283,11 @@ function cable(pts) {
   for (let i = 0; i < v.length - 1; i++) path.add(new THREE.LineCurve3(v[i], v[i + 1]));
   for (let i = 0; i < v.length - 1; i++) {
     const a = v[i], b = v[i + 1];
-    const seg = new THREE.Mesh(new THREE.BoxGeometry(a.distanceTo(b) + 0.3, 0.06, 0.3), new THREE.MeshStandardMaterial({ color: 0x1f6f7a, emissive: 0x1f6f7a, emissiveIntensity: 0.5 }));
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(a.distanceTo(b) + 0.3, 0.06, 0.3), new THREE.MeshStandardMaterial({ color: 0xF8C9A8, roughness: 0.8 }));
     seg.position.copy(a).add(b).multiplyScalar(0.5); seg.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x); scene.add(seg);
   }
   const n = Math.max(3, Math.round(path.getLength() / 6));
-  const pulses = Array.from({ length: n }, () => { const m = new THREE.Mesh(pulseGeo, glow(CYAN, 3)); scene.add(m); return m; });
+  const pulses = Array.from({ length: n }, () => { const m = new THREE.Mesh(pulseGeo, glow(ACCENT, 0.9)); scene.add(m); return m; });
   return { path, pulses, kw: 0, t: Math.random() };
 }
 const flows = {
@@ -333,16 +336,16 @@ function chart(svg, bars, line, hour, lineColor) {
   const W = 300, H = 118, L = 4, R = 4, B = 18, T = 6, bw = (W - L - R) / 24;
   const bmax = Math.max(...bars, 1) * 1.15, lmax = Math.max(...line, 1) * 1.15;
   let s = '';
-  for (let i = 0; i <= 3; i++) { const y = T + i * (H - B - T) / 3; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="rgba(255,255,255,.05)"/>`; }
+  for (let i = 0; i <= 3; i++) { const y = T + i * (H - B - T) / 3; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#EEEBE6"/>`; }
   bars.forEach((v, i) => {
     const h = Math.max(0, v) / bmax * (H - B - T), x = L + i * bw + bw * 0.2;
-    const fill = i === hour ? '#2fd3e8' : i < hour ? '#8d969f' : '#3a4047';
+    const fill = i === hour ? '#E8590C' : i < hour ? '#D6D2CB' : '#EEEBE6';
     s += `<rect x="${x.toFixed(1)}" y="${(H - B - h).toFixed(1)}" width="${(bw * 0.6).toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" rx="1"/>`;
   });
   const y = v => (H - B - Math.max(0, v) / lmax * (H - B - T)).toFixed(1);
   s += `<polyline points="${line.map((v, i) => `${(L + i * bw + bw / 2).toFixed(1)},${y(v)}`).join(' ')}" fill="none" stroke="${lineColor}" stroke-width="1.4"/>`;
-  s += `<circle cx="${L + hour * bw + bw / 2}" cy="${y(line[hour])}" r="3" fill="#1b1e22" stroke="${lineColor}" stroke-width="1.4"/>`;
-  [0, 12].forEach(i => { s += `<text x="${L + i * bw + 1}" y="${H - 3}" fill="#7f868f" font-size="12">${String(i).padStart(2, '0')}:00</text>`; });
+  s += `<circle cx="${L + hour * bw + bw / 2}" cy="${y(line[hour])}" r="3" fill="#fff" stroke="${lineColor}" stroke-width="1.4"/>`;
+  [0, 12].forEach(i => { s += `<text x="${L + i * bw + 1}" y="${H - 3}" fill="#6F6A62" font-size="12">${String(i).padStart(2, '0')}:00</text>`; });
   svg.innerHTML = s;
 }
 
@@ -355,8 +358,8 @@ function update() {
   const sw = document.getElementById('opt-switch');
   sw.classList.toggle('off', !OPT);
   document.getElementById('opt-text').textContent = OPT ? 'Offpeak schedule on' : 'Offpeak schedule off';
-  chart(document.getElementById('c-load'), rows.map(x => x.load_kw), rows.map(x => x.price_ct), hour, '#ff8a3d');
-  chart(document.getElementById('c-gen'), rows.map(x => x.pv_kw + x.wind_kw), rows.map(x => Math.max(x.grid_kw, 0)), hour, '#7a8cff');
+  chart(document.getElementById('c-load'), rows.map(x => x.load_kw), rows.map(x => x.price_ct), hour, '#4A4640');
+  chart(document.getElementById('c-gen'), rows.map(x => x.pv_kw + x.wind_kw), rows.map(x => Math.max(x.grid_kw, 0)), hour, '#4A4640');
 
   const gen = upTo(rows, hour, x => x.pv_kw + x.wind_kw), use = upTo(rows, hour, x => x.load_kw);
   const own = upTo(rows, hour, x => Math.min(x.pv_kw + x.wind_kw, x.load_kw + Math.max(x.battery_kw, 0)));
@@ -387,11 +390,11 @@ function update() {
   for (const [k, u] of Object.entries(units)) u.div.classList.toggle('sel', k === selected);
 
   const U = D.windows.usual, O = D.windows.offpeak, prices = D.real.price ? "Prices: today's day-ahead auction" : 'Prices: demo curve, live prices unavailable';
-  const move = (name, k) => U[k] === O[k] ? ['', `${name} stays at ${U[k]}, already the cheapest time`] : ['', `${name} moved from ${U[k]} to ${O[k]}, cheaper hours`];
+  const move = (name, k) => U[k] === O[k] ? ['', `${name} stays at ${U[k]}, already the cheapest time`] : ['good', `${name} moved from ${U[k]} to ${O[k]}, cheaper hours`];
   const events = OPT ? [
     move('Furnace', 'furnace'),
     move('EV charging', 'ev'),
-    ['', D.smart_battery ? 'Battery also covers the most expensive hours' : 'Battery stores surplus own power'],
+    [D.smart_battery ? 'good' : '', D.smart_battery ? 'Battery also covers the most expensive hours' : 'Battery stores surplus own power'],
     ['', prices],
   ] : [
     ['warn', `Furnace runs ${U.furnace}, its usual time`],
@@ -425,7 +428,6 @@ renderer.domElement.addEventListener('click', e => {
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.45, 0.35, 0.55));
 composer.addPass(new OutputPass());
 new ResizeObserver(resize).observe(view);
 resize();
