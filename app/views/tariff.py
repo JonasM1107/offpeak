@@ -175,11 +175,13 @@ with st.container(border=True, key="card_tariff_check"):
     )
     st.html(
         "<style>.op-table{width:100%;border-collapse:collapse;font-size:.9rem}"
-        ".op-table th,.op-table td{padding:9px 10px;border-bottom:1px solid #E7E4DE;"
+        ".op-table th,.op-table td{padding:9px 10px;border-bottom:1px solid var(--op-line);"
         "text-align:right;white-space:nowrap}.op-table th:first-child,.op-table td:first-child"
-        "{text-align:left;color:#6F6A62;white-space:normal}.op-table th{font-weight:600;"
-        "font-size:.82rem;color:#1C1B19}.op-table tr.total td{font-weight:700;color:#1C1B19}"
-        ".op-table .win{color:#E8590C}.op-table th .kind{font-weight:500;color:#6F6A62}"
+        "{text-align:left;color:var(--op-muted);white-space:normal}.op-table th{font-weight:600;"
+        "font-size:.82rem;color:var(--op-ink)}"
+        ".op-table tr.total td{font-weight:700;color:var(--op-ink)}"
+        ".op-table td{color:var(--op-ink)}.op-table .win{color:var(--op-accent)}"
+        ".op-table th .kind{font-weight:500;color:var(--op-muted)}"
         ".op-table th{white-space:normal;vertical-align:bottom}.op-wrap{overflow-x:auto}"
         "@media (max-width:640px){.op-table{font-size:.76rem}"
         ".op-table th,.op-table td{padding:7px 3px}}</style>"
