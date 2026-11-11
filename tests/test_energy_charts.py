@@ -92,3 +92,13 @@ def test_history_is_fetched_month_by_month(monkeypatch, load_fixture):
         (date(2026, 3, 1), date(2026, 3, 10)),
     ]
     assert df["ts"].is_unique
+
+
+def test_mixed_resolution_answer(load_fixture):
+    # 30 Sep 2025 is hourly, 1 Oct 2025 the first 15-minute day: the API then sends no
+    # single interval_minutes
+    df = parse_prices(load_fixture("prices_mixed_resolution.json"))
+    local = df["ts"].dt.tz_convert("Europe/Berlin").dt.date.astype(str)
+    assert (df.loc[local == "2025-09-30", "resolution_min"] == 60).all()
+    assert (df.loc[local == "2025-10-01", "resolution_min"] == 15).all()
+    assert len(df) == 24 + 96

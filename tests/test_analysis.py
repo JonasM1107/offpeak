@@ -114,3 +114,13 @@ def test_covers_days_with_any_resolution(load_fixture):
     assert covers_days(spring, date(2026, 3, 29), date(2026, 3, 29))
     assert not covers_days(quarter, date(2026, 11, 10), date(2026, 11, 11))  # next day missing
     assert not covers_days(quarter.iloc[:40], date(2026, 11, 10), date(2026, 11, 10))
+
+
+def test_hourly_payload_lists_line_up(load_fixture):
+    from offpeak.analysis import hourly_payload
+
+    p = hourly_payload(parse_prices(load_fixture("prices_fall_back.json")))  # 25-hour day
+    assert len(p["t"]) == len(p["ct"]) == len(p["hour"]) == 25
+    assert set(p["day"]) == {20261025} and set(p["wd"]) == {6}  # a Sunday
+    assert p["hour"].count(2) == 2  # the repeated hour when clocks go back
+    assert p["t"][0] == 1792879200  # 25 Oct 2026 00:00 in Berlin = 24 Oct 22:00 UTC

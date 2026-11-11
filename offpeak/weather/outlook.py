@@ -97,3 +97,75 @@ def solar_accuracy(check: pd.DataFrame, kwp: float, tz: str) -> tuple[pd.DataFra
         "bias_pct": float((days["forecast_kwh"].sum() - total) / total * 100) if total else 0.0,
     }
     return days.reset_index().rename(columns={"day": "date"}), summary
+
+
+def _unix(ts: pd.Series) -> list[int]:
+    return ((ts - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta(seconds=1)).tolist()
+
+
+def view_payload(
+    weather: pd.DataFrame,
+    gen: pd.DataFrame,
+    days: pd.DataFrame,
+    check: pd.DataFrame | None,
+    pv_kwp: float,
+    tz: str,
+) -> dict:
+    """Everything the Weather & solar view draws, as plain lists."""
+    df = weather.merge(gen, on="ts")
+    starts = [pd.Timestamp(d, tz=tz) for d in days["date"]]
+    out = {
+        "days": [
+            {
+                "name": f"{start:%a %-d %b}",
+                "date": str(d["date"]),
+                "label": d["label"],
+                "temp_min": round(float(d["temp_min"]), 1),
+                "temp_max": round(float(d["temp_max"]), 1),
+                "sun_hours": round(d["sun_hours"], 1),
+                "solar_kwh": round(d["solar_kwh"], 1),
+                "wind_kwh": round(d["wind_kwh"], 1),
+                "best_solar": d["best_solar"],
+                "start": int(start.timestamp()),
+                "end": int((start + pd.Timedelta(days=1)).timestamp()),
+            }
+            for start, (_, d) in zip(starts, days.iterrows(), strict=True)
+        ],
+        "series": {
+            "t": _unix(df["ts"]),
+            "pv_kw": df["pv_kw"].round(2).tolist(),
+            "wind_kw": pd.Series(df["wind_kw"]).round(2).tolist(),
+            "temp_c": df["temp_c"].round(1).tolist(),
+            "cloud_pct": df["cloud_pct"].fillna(0).round(0).tolist(),
+            "gti": df["gti_wm2"].fillna(0).round(0).tolist(),
+            "precip_mm": df["precip_mm"].fillna(0).round(2).tolist(),
+        },
+        "accuracy": None,
+    }
+    if check is not None and not check.empty:
+        past, summary = solar_accuracy(check, pv_kwp, tz)
+        hourly = check.assign(
+            day=check["ts"].dt.tz_convert(tz).dt.date.astype(str),
+            forecast_kw=pv_kw(check["forecast_wm2"], pv_kwp).round(2),
+            measured_kw=pv_kw(check["measured_wm2"], pv_kwp).round(2),
+        )
+        out["accuracy"] = {
+            "days": [
+                {
+                    "name": f"{pd.Timestamp(r['date']):%a %-d %b}",
+                    "date": str(r["date"]),
+                    "forecast_kwh": round(r["forecast_kwh"], 1),
+                    "measured_kwh": round(r["measured_kwh"], 1),
+                    "error_pct": round(r["error_pct"], 1) if pd.notna(r["error_pct"]) else 0.0,
+                }
+                for _, r in past.iterrows()
+            ],
+            "summary": {k: round(v, 1) for k, v in summary.items()},
+            "hourly": {
+                "t": _unix(hourly["ts"]),
+                "day": hourly["day"].tolist(),
+                "forecast_kw": hourly["forecast_kw"].tolist(),
+                "measured_kw": hourly["measured_kw"].tolist(),
+            },
+        }
+    return out

@@ -58,3 +58,16 @@ def test_solar_accuracy(check):
     assert summary["mae_kwh"] >= 0 and summary["mae_pct"] >= 0
     error = days["forecast_kwh"] - days["measured_kwh"]
     assert summary["mae_kwh"] == pytest.approx(error.abs().mean())
+
+
+def test_view_payload_has_every_list(weather, check):
+    from offpeak.weather.outlook import view_payload
+
+    gen = generation(weather, 60, 30)
+    days = daily_outlook(weather, gen, TZ)
+    p = view_payload(weather, gen, days, check, 60, TZ)
+    s = p["series"]
+    assert len(s["t"]) == len(s["pv_kw"]) == len(s["temp_c"]) == len(weather)
+    assert p["days"][0]["end"] - p["days"][0]["start"] in (23 * 3600, 24 * 3600, 25 * 3600)
+    assert len(p["accuracy"]["hourly"]["t"]) == len(check)
+    assert view_payload(weather, gen, days, None, 60, TZ)["accuracy"] is None

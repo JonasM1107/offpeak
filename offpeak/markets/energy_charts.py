@@ -53,7 +53,13 @@ def parse_prices(payload: dict) -> pd.DataFrame:
     )
     df = df.dropna(subset=["eur_mwh"])  # a missing price is skipped, never stored as 0
     df["eur_mwh"] = df["eur_mwh"].astype(float)
-    df["resolution_min"] = int(payload["interval_minutes"])
+    if payload.get("interval_minutes"):
+        df["resolution_min"] = int(payload["interval_minutes"])
+    else:
+        # The answer mixes resolutions (hourly until 30 Sep 2025, then 15 minutes): each
+        # slot lasts until the next timestamp; the last one as long as the one before.
+        gap = (df["ts"].shift(-1) - df["ts"]) / pd.Timedelta(minutes=1)
+        df["resolution_min"] = gap.ffill().fillna(60).clip(15, 60).astype(int)
     df["source"] = ENERGY_CHARTS_SOURCE
     return df[COLUMNS].reset_index(drop=True)
 

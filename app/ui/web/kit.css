@@ -1,0 +1,77 @@
+/* Shared look for the interactive views (Prices, Weather & solar, Price outlook).
+   Colours follow the dashboard theme in app/ui/components.py: Storm Grey with Safety Orange
+   in light mode, warm near-black with the Emberline colours at night. */
+:root {
+  --bg: #D3D6DA; --card: #E7E9EC; --card2: #DADDE1; --line: #C3C7CC; --ink: #111214; --muted: #4E535A;
+  --faint: #7E848B; --accent: #FF5F00; --accent-soft: rgba(255,95,0,.13); --accent-mid: rgba(255,95,0,.40);
+  --accent-ink: #B34200; --dark: #2A2D31; --grey: #9EA3A9; --sun: #F28C28; --wind: #5B6168;
+  --hero-bg: linear-gradient(155deg, #6A6F75 0%, #565B61 45%, #44494F 100%); --hero-ink: #FFFFFF; --hero-muted: #D3D6DA;
+  --glow: rgba(255,95,0,.55); --shadow: 0 1px 2px rgba(17,18,20,.06);
+}
+body.op-dark {
+  --bg: #111111; --card: #181514; --card2: #211B19; --line: #2C2320; --ink: #F2F2F2; --muted: #A89F9A;
+  --faint: #6E625D; --accent: #FF5F00; --accent-soft: rgba(217,72,15,.18); --accent-mid: rgba(242,140,40,.38);
+  --accent-ink: #F28C28; --dark: #E9E2DE; --grey: #5E5450; --sun: #F28C28; --wind: #A89F9A;
+  --hero-bg: radial-gradient(130% 110% at 50% 135%, #D9480F 0%, #7A1405 28%, #2A0D06 55%, #151110 82%);
+  --hero-ink: #F2F2F2; --hero-muted: #B9AEA8; --glow: rgba(242,140,40,.55); --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; transition: background .3s; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.wrap { display: flex; flex-direction: column; gap: 14px; padding-bottom: 4px; }
+.row { display: grid; gap: 14px; }
+.row.k4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.row.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.row.c21 { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 20px 22px;
+  box-shadow: var(--shadow); min-width: 0; display: flex; flex-direction: column; }
+.card.flush { padding: 0; overflow: hidden; }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 8px; }
+.head h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.head .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.4; }
+.insight { margin: 10px 0 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.insight b { color: var(--ink); font-weight: 600; }
+.chart { width: 100%; flex: 1 0 auto; }
+
+/* toolbar, pills and buttons */
+.bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.seg { display: inline-flex; background: var(--card2); border: 1px solid var(--line); border-radius: 14px; padding: 3px; }
+.seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 11px; font-size: 13px;
+  font-weight: 500; color: var(--muted); transition: all .2s; white-space: nowrap; }
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.10); }
+.ghost { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--card);
+  border-radius: 11px; padding: 6px 11px; font-size: 12px; color: var(--muted); transition: all .2s; white-space: nowrap; }
+.ghost:hover { color: var(--ink); border-color: var(--accent-mid); }
+.ghost svg { width: 13px; height: 13px; }
+.ghost[hidden] { display: none; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 4px 10px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); white-space: nowrap; }
+.chip.grey { background: var(--card2); color: var(--muted); }
+.range { font-size: 12px; color: var(--muted); }
+.range b { color: var(--ink); font-weight: 600; }
+
+/* KPI tiles */
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px 18px;
+  min-width: 0; position: relative; overflow: hidden; }
+.tile p { margin: 0; font-size: 12.5px; color: var(--muted); }
+.tile .v { font-size: 26px; font-weight: 650; letter-spacing: -.025em; margin: 6px 0 2px; white-space: nowrap;
+  font-variant-numeric: tabular-nums; transition: color .2s; }
+.tile .v small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+.tile .n { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile.hero { background: var(--hero-bg); border-color: transparent; color: var(--hero-ink); }
+.tile.hero p, .tile.hero .n, .tile.hero .v small { color: var(--hero-muted); }
+.tile.hero .v { color: var(--hero-ink); }
+.tile.hero::after { content: ''; position: absolute; right: -30px; bottom: -40px; width: 120px; height: 120px;
+  border-radius: 50%; background: var(--glow); filter: blur(40px); opacity: .55; pointer-events: none; }
+
+/* fade-in on load */
+.reveal { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .reveal { animation: none; } }
+
+@media (max-width: 900px) {
+  .row.k4 { grid-template-columns: 1fr 1fr; }
+  .row.c2, .row.c21 { grid-template-columns: 1fr; }
+}

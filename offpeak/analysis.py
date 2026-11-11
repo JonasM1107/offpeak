@@ -133,3 +133,18 @@ def covers_days(prices: pd.DataFrame, start, end, tz: str = "Europe/Berlin") -> 
     hours = (prices["resolution_min"] / 60).groupby(local_day).sum()
     days = pd.date_range(start, end, freq="D").date
     return bool(hours.reindex(days).fillna(0).ge(23).all())
+
+
+def hourly_payload(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> dict:
+    """Hourly prices as plain lists for an interactive chart: UTC start (unix seconds),
+    ct/kWh, and the local hour, weekday (Monday = 0) and date (YYYYMMDD) of each hour."""
+    h = hourly(prices, tz)
+    return {
+        "t": ((h["ts"] - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta(seconds=1)).tolist(),
+        "ct": h["ct"].round(2).tolist(),
+        "hour": h["local"].dt.hour.tolist(),
+        "wd": h["local"].dt.day_of_week.tolist(),
+        "day": (
+            h["local"].dt.year * 10000 + h["local"].dt.month * 100 + h["local"].dt.day
+        ).tolist(),
+    }

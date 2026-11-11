@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--KIT-->
+<style>
+  #fan { height: 360px; }
+  #leads { height: 250px; }
+  .days { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+  .day { text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+    display: flex; flex-direction: column; gap: 6px; transition: transform .18s, border-color .18s, box-shadow .18s; min-width: 0; }
+  .day:hover { transform: translateY(-2px); border-color: var(--accent-mid); }
+  .day.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .day.best { background: var(--accent-soft); }
+  .day .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .day .name { font-weight: 650; font-size: 14px; }
+  .day .lead { font-size: 11px; color: var(--muted); }
+  .day .avg { font-size: 22px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .day .avg small { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+  .day .band { position: relative; height: 6px; border-radius: 6px; background: var(--card2); margin: 4px 0 2px; }
+  .day .band i { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: var(--accent-mid); }
+  .day .band b { position: absolute; top: -3px; width: 3px; height: 12px; border-radius: 2px; background: var(--accent); }
+  .day .kv { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .day .kv b { color: var(--ink); font-weight: 600; }
+  table.models { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.models th { text-align: left; font-size: 11px; font-weight: 500; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  table.models td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.models td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  table.models tr.best td:first-child b::after { content: 'in use'; margin-left: 8px; font-size: 10.5px; font-weight: 600; padding: 2px 7px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); }
+  table.models tr.slot td { color: var(--muted); }
+  .bar-mini { display: inline-block; width: 70px; height: 6px; border-radius: 6px; background: var(--card2); vertical-align: middle; margin-left: 8px; overflow: hidden; }
+  .bar-mini i { display: block; height: 100%; background: var(--accent); border-radius: 6px; }
+  .legend-inline { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+  .legend-inline i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legend-inline i.line { height: 2px; width: 14px; vertical-align: 3px; }
+  .legend-inline i.dash { height: 0; width: 14px; border-top: 2px dashed var(--accent); vertical-align: 3px; border-radius: 0; }
+  .note { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 12px 0 0; }
+  .note code { font-size: 11.5px; background: var(--card2); padding: 1px 6px; border-radius: 6px; }
+  @media (max-width: 1000px) { .days { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row k4 reveal" id="kpis"></div>
+
+  <div class="card reveal">
+    <div class="head">
+      <div><h3 id="fan-title">Published prices and the outlook</h3><div class="sub" id="fan-sub"></div></div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="legend-inline"><span><i class="line" style="background:var(--ink)"></i>Published</span><span><i class="dash"></i>Forecast</span><span><i style="background:var(--accent-mid)"></i>10–90 % range</span></div>
+        <button class="ghost" id="reset" hidden></button>
+      </div>
+    </div>
+    <div id="fan" class="chart"></div>
+  </div>
+
+  <div class="days reveal" id="days"></div>
+
+  <div class="row c21 reveal">
+    <div class="card">
+      <div class="head"><div><h3>How good is each forecast?</h3><div class="sub" id="models-sub"></div></div></div>
+      <table class="models" id="models"></table>
+      <p class="note">The ML model plugs into <code>offpeak/forecast/model.py</code>. As soon as it is trained, it appears here, goes through the same backtest and is used for every lead day where it beats the baselines.</p>
+    </div>
+    <div class="card">
+      <div class="head"><div><h3>Error by days ahead</h3><div class="sub">Average miss in ct/kWh: the further ahead, the harder</div></div></div>
+      <div id="leads" class="chart"></div>
+    </div>
+  </div>
+  <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
+</div>
+
+<script>window.OFFPEAK = __DATA__;</script>
+<script>
+// Forecasts, bands and scores are computed in Python (offpeak/forecast/); this page draws them.
+const D = window.OFFPEAK, PUB = D.published, FC = D.forecast, DAYS = D.days, MODELS = D.models;
+const { nf } = OP;
+const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const best = DAYS.reduce((m, d) => (d.p50 < m.p50 ? d : m), DAYS[0]);
+const inUse = MODELS.filter(m => m.used_for.length);
+const bestModel = MODELS.reduce((m, x) => (x.mae < m.mae ? x : m), MODELS[0]);
+
+// ── KPIs ───────────────────────────────────────────────────────────────────
+const tile = (label, value, unit, note, cls = '') => `<div class="tile ${cls}"><p>${label}</p><div class="v">${value}${unit ? `<small>${unit}</small>` : ''}</div><div class="n">${note}</div></div>`;
+document.getElementById('kpis').innerHTML = [
+  tile('Best day for big jobs', best.name, '', `expected ${nf(best.p50)} ct/kWh · cheapest ${best.window}`, 'hero'),
+  tile('Expected average', nf(DAYS.reduce((s, d) => s + d.p50, 0) / DAYS.length), 'ct/kWh', `over the next ${DAYS.length} days, spot price`),
+  tile('Typical miss', nf(bestModel.mae), 'ct/kWh', `best model in the ${D.backtest_days}-day backtest`),
+  tile('Cheapest hours found', bestModel.decision, '%', 'of its 4 cheapest hours were truly cheap'),
+].join('');
+
+// ── Fan chart ──────────────────────────────────────────────────────────────
+const pubT = PUB.t.map(t => t * 1000), fcT = FC.t.map(t => t * 1000);
+const fan = OP.chart(document.getElementById('fan'), c => {
+  const B = OP.base(c);
+  const lastPub = [pubT[pubT.length - 1], PUB.ct[PUB.ct.length - 1]];
+  return {
+    ...B,
+    grid: { left: 48, right: 18, top: 18, bottom: 66 },
+    tooltip: { ...B.tooltip, trigger: 'axis', formatter: ps => {
+      const t = ps[0].value[0];
+      const i = fcT.indexOf(t);
+      if (i >= 0) return `<b>${fmt.format(t)}</b><br>forecast <b>${nf(FC.p50[i])} ct</b><br><span style="color:${c.muted}">likely ${nf(FC.p10[i])} – ${nf(FC.p90[i])} ct</span>`;
+      const j = pubT.indexOf(t);
+      return j >= 0 ? `<b>${fmt.format(t)}</b><br>published <b>${nf(PUB.ct[j])} ct/kWh</b>` : '';
+    } },
+    xAxis: { type: 'time', ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, hideOverlap: true, formatter: { day: '{ee} {d}', hour: '{HH}:{mm}' } } },
+    yAxis: { type: 'value', scale: true, ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} ct' } },
+    dataZoom: [
+      { type: 'inside', filterMode: 'none' },
+      { type: 'slider', height: 26, bottom: 12, borderColor: 'transparent', backgroundColor: c.card2, fillerColor: c.accentSoft,
+        handleStyle: { color: c.accent, borderColor: c.accent }, moveHandleStyle: { color: c.accentMid },
+        dataBackground: { lineStyle: { color: c.grey }, areaStyle: { color: c.accentSoft } },
+        selectedDataBackground: { lineStyle: { color: c.accent }, areaStyle: { color: c.accentMid } },
+        textStyle: { color: c.muted, fontSize: 10 }, labelFormatter: v => fmt.format(v) },
+    ],
+    series: [
+      { type: 'line', stack: 'band', symbol: 'none', lineStyle: { opacity: 0 }, data: fcT.map((t, i) => [t, FC.p10[i]]), silent: true, tooltip: { show: false } },
+      { type: 'line', stack: 'band', symbol: 'none', lineStyle: { opacity: 0 }, areaStyle: { color: c.accentMid, opacity: .5 },
+        data: fcT.map((t, i) => [t, FC.p90[i] - FC.p10[i]]), silent: true, tooltip: { show: false } },
+      { name: 'Published', type: 'line', symbol: 'none', data: pubT.map((t, i) => [t, PUB.ct[i]]), lineStyle: { color: c.ink, width: 1.6 },
+        markArea: { silent: true, itemStyle: { color: c.card2, opacity: .6 }, label: { show: true, position: 'insideTopRight', color: c.muted, fontSize: 11, formatter: 'forecast →' },
+          data: [[{ xAxis: fcT[0] }, { xAxis: fcT[fcT.length - 1] }]] },
+        markLine: { silent: true, symbol: 'none', lineStyle: { color: c.muted, type: [2, 3] }, label: { show: false }, data: [{ yAxis: 0 }] } },
+      { name: 'Forecast', type: 'line', symbol: 'none', smooth: .2, data: [lastPub, ...fcT.map((t, i) => [t, FC.p50[i]])],
+        lineStyle: { color: c.accent, width: 2, type: [6, 4] } },
+    ],
+  };
+});
+let selected = null, quiet = false;
+const resetBtn = document.getElementById('reset');
+resetBtn.innerHTML = `${OP.resetIcon}Reset zoom`;
+resetBtn.addEventListener('click', () => selectDay(null));
+fan.onDraw.push(inst => {
+  inst.on('datazoom', () => { if (!quiet) { resetBtn.hidden = false; if (selected !== null) { selected = null; renderDays(); } } });
+  applyZoom();
+});
+function applyZoom() {
+  if (!fan.inst) return;
+  quiet = true;
+  if (selected === null) fan.inst.dispatchAction({ type: 'dataZoom', start: 0, end: 100 });
+  else fan.inst.dispatchAction({ type: 'dataZoom', startValue: DAYS[selected].start * 1000, endValue: DAYS[selected].end * 1000 });
+  quiet = false;
+}
+
+// ── Day cards ──────────────────────────────────────────────────────────────
+const lo = Math.min(...DAYS.map(d => d.p10)), hi = Math.max(...DAYS.map(d => d.p90));
+const pos = v => ((v - lo) / (hi - lo || 1) * 100).toFixed(1);
+function renderDays() {
+  document.getElementById('days').innerHTML = DAYS.map((d, i) => `
+    <button class="day ${i === selected ? 'on' : ''} ${d === best ? 'best' : ''}" data-i="${i}">
+      <div class="top"><span class="name">${d.name.split(' ')[0]} ${d.name.split(' ')[1]}</span><span class="lead">D+${d.lead + 1}</span></div>
+      <div class="avg">${nf(d.p50)}<small>ct/kWh</small></div>
+      <div class="band" title="likely between ${nf(d.p10)} and ${nf(d.p90)} ct"><i style="left:${pos(d.p10)}%;right:${100 - pos(d.p90)}%"></i><b style="left:calc(${pos(d.p50)}% - 1.5px)"></b></div>
+      <div class="kv"><span>likely</span><b>${nf(d.p10, 0)}–${nf(d.p90, 0)} ct</b></div>
+      <div class="kv"><span>cheapest 3 h</span><b>${d.window}</b></div>
+    </button>`).join('');
+  document.querySelectorAll('.day').forEach(b => b.addEventListener('click', () => selectDay(+b.dataset.i === selected ? null : +b.dataset.i)));
+}
+function selectDay(i) {
+  selected = i; renderDays(); applyZoom(); resetBtn.hidden = i === null;
+  const d = i === null ? null : DAYS[i];
+  document.getElementById('fan-title').textContent = d ? `Outlook for ${d.name}` : 'Published prices and the outlook';
+  document.getElementById('fan-sub').textContent = d
+    ? `Expected ${nf(d.p50)} ct/kWh on average, likely ${nf(d.p10)} to ${nf(d.p90)}. Cheapest 3 hours ${d.window} (${nf(d.window_ct)} ct). Forecast: ${d.model.toLowerCase()}.`
+    : `Published prices up to ${D.last_published} (solid), then the forecast with its likely range. The range widens with every day ahead. Click a day to zoom in.`;
+}
+
+// ── Models ─────────────────────────────────────────────────────────────────
+const maxMae = Math.max(...MODELS.map(m => m.mae));
+document.getElementById('models-sub').textContent = `Backtest over the last ${D.backtest_days} days: every day pretends to be today and forecasts the days after the published ones.`;
+document.getElementById('models').innerHTML = `<thead><tr><th>Forecast</th><th class="n">Average miss</th><th class="n">Cheapest hours found</th><th>Used for</th></tr></thead><tbody>
+  ${MODELS.map(m => `<tr class="${m.used_for.length ? 'best' : ''}"><td><b>${m.label}</b></td><td class="n">${nf(m.mae)} ct<span class="bar-mini"><i style="width:${(m.mae / maxMae * 100).toFixed(0)}%"></i></span></td><td class="n">${m.decision} %</td><td>${m.used_for.length ? m.used_for.map(l => `D+${l}`).join(', ') : '–'}</td></tr>`).join('')}
+  <tr class="slot"><td><b>Machine learning model</b></td><td class="n">not trained yet</td><td class="n">–</td><td>–</td></tr></tbody>`;
+const leads = OP.chart(document.getElementById('leads'), c => {
+  const B = OP.base(c);
+  // the forecasts in use stand out; the others stay quiet
+  const colors = MODELS.map(m => (m.key === 'blend' ? c.accent : m.used_for.length ? c.dark : c.grey));
+  return {
+    ...B,
+    grid: { left: 44, right: 14, top: 24, bottom: 28 },
+    legend: { top: 0, right: 0, textStyle: { color: c.muted, fontSize: 11 }, itemWidth: 14, itemHeight: 3 },
+    tooltip: { ...B.tooltip, trigger: 'axis', valueFormatter: v => `${nf(v)} ct/kWh` },
+    xAxis: { type: 'category', data: MODELS[0].by_lead.map((_, i) => `D+${i + 2}`), ...B.axis, splitLine: { show: false } },
+    yAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} ct' } },
+    series: MODELS.map((m, k) => ({ name: m.label, type: 'line', data: m.by_lead, symbol: 'circle', symbolSize: 7, smooth: .3,
+      lineStyle: { color: colors[k], width: 2.2 }, itemStyle: { color: colors[k] } })),
+  };
+});
+
+document.getElementById('foot').textContent = `Spot prices DE-LU without fees or taxes. Published prices: Energy-Charts / Bundesnetzagentur | SMARD.de, CC BY 4.0. The outlook is a forecast, not a price anyone has agreed to.`;
+OP.start();
+renderDays();
+selectDay(null);
+</script>
+</body>
+</html>

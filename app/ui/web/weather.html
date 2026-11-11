@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--KIT-->
+<style>
+  #power { height: 360px; }
+  #dumbbell { height: 300px; }
+  #hours { height: 230px; }
+  .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+  .day { text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+    display: flex; flex-direction: column; gap: 6px; transition: transform .18s, border-color .18s, box-shadow .18s; min-width: 0; }
+  .day:hover { transform: translateY(-2px); border-color: var(--accent-mid); }
+  .day.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .day.best { background: var(--accent-soft); }
+  .day .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .day .name { font-weight: 650; font-size: 14px; }
+  .day .date { font-size: 11.5px; color: var(--muted); }
+  .day svg.wx { width: 34px; height: 34px; margin: 2px 0; }
+  .day .label { font-size: 12px; color: var(--muted); min-height: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .day .temp { font-size: 20px; font-weight: 650; letter-spacing: -.02em; }
+  .day .temp span { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .day .kv { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .day .kv b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .meter { height: 5px; border-radius: 5px; background: var(--card2); overflow: hidden; }
+  .meter i { display: block; height: 100%; border-radius: 5px; background: var(--accent); transition: width .5s cubic-bezier(.2,.7,.2,1); }
+  .meter.wind i { background: var(--wind); }
+  .stat { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .stat:last-child, .row .stat { border-bottom: 0; }
+  .stat p { margin: 0; font-size: 12px; color: var(--muted); }
+  .stat b { display: block; font-size: 20px; font-weight: 650; letter-spacing: -.02em; margin-top: 3px; }
+  .stat b small { font-size: 12.5px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+  .legend-inline { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+  .legend-inline i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legend-inline i.line { height: 2px; width: 14px; vertical-align: 3px; }
+  .legend-inline i.ring { border-radius: 50%; border: 2px solid var(--accent); background: transparent; }
+  .legend-inline i.dot { border-radius: 50%; }
+  @media (max-width: 1000px) { .days { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row k4 reveal" id="kpis"></div>
+
+  <div class="days reveal" id="days"></div>
+
+  <div class="card reveal">
+    <div class="head">
+      <div><h3 id="power-title">Expected own power, next 7 days</h3><div class="sub" id="power-sub"></div></div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="legend-inline"><span><i style="background:var(--accent)"></i>Solar</span><span><i style="background:var(--wind)"></i>Wind</span><span><i class="line" style="background:var(--muted)"></i>Temperature</span></div>
+        <button class="ghost" id="reset" hidden></button>
+      </div>
+    </div>
+    <div id="power" class="chart"></div>
+    <p class="insight" id="power-text"></p>
+  </div>
+
+  <div class="row c21 reveal">
+    <div class="card">
+      <div class="head">
+        <div><h3>How good is the solar forecast?</h3><div class="sub">For each of the last days: what the forecast said one day ahead, and what the satellite measured. Click a day for its hours.</div></div>
+        <div class="legend-inline"><span><i class="ring"></i>Forecast</span><span><i class="dot" style="background:var(--accent)"></i>Measured</span></div>
+      </div>
+      <div id="dumbbell" class="chart"></div>
+    </div>
+    <div class="card">
+      <div class="head"><div><h3 id="hours-title">Hour by hour</h3><div class="sub" id="hours-sub"></div></div></div>
+      <div id="hours" class="chart"></div>
+      <div id="stats"></div>
+    </div>
+  </div>
+  <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
+</div>
+
+<script>window.OFFPEAK = __DATA__;</script>
+<script>
+// Everything is computed in Python (offpeak/weather/outlook.py); this page draws it.
+const D = window.OFFPEAK, W = D.series, DAYS = D.days, ACC = D.accuracy;
+const { nf, pad } = OP;
+const TZ = 'Europe/Berlin';
+const fmtTime = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', hour: '2-digit', minute: '2-digit' });
+const fmtHour = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+const ms = W.t.map(t => t * 1000);
+
+// small weather icons, by the label Python sends
+const ICON = {
+  sun: '<circle cx="12" cy="12" r="4.2" fill="var(--sun)"/><g stroke="var(--sun)" stroke-width="1.8" stroke-linecap="round"><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></g>',
+  part: '<circle cx="9" cy="9" r="3.6" fill="var(--sun)"/><g stroke="var(--sun)" stroke-width="1.6" stroke-linecap="round"><path d="M9 2.6v1.6M2.6 9h1.6M4.4 4.4l1.1 1.1M13.6 4.4l-1.1 1.1"/></g><path d="M8 19h9.5a3.5 3.5 0 0 0 .3-7 4.8 4.8 0 0 0-9.2 1.1A3 3 0 0 0 8 19z" fill="var(--card2)" stroke="var(--muted)" stroke-width="1.4"/>',
+  cloud: '<path d="M6.5 18.5h11a4 4 0 0 0 .3-8 5.5 5.5 0 0 0-10.6 1.3A3.4 3.4 0 0 0 6.5 18.5z" fill="var(--card2)" stroke="var(--muted)" stroke-width="1.5"/>',
+  rain: '<path d="M6.5 15h11a4 4 0 0 0 .3-8 5.5 5.5 0 0 0-10.6 1.3A3.4 3.4 0 0 0 6.5 15z" fill="var(--card2)" stroke="var(--muted)" stroke-width="1.5"/><g stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"><path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/></g>',
+  fog: '<g stroke="var(--muted)" stroke-width="1.7" stroke-linecap="round"><path d="M4 9h16M6 13h12M4 17h16"/></g>',
+  snow: '<path d="M6.5 15h11a4 4 0 0 0 .3-8 5.5 5.5 0 0 0-10.6 1.3A3.4 3.4 0 0 0 6.5 15z" fill="var(--card2)" stroke="var(--muted)" stroke-width="1.5"/><g fill="var(--muted)"><circle cx="9" cy="19" r="1"/><circle cx="13" cy="20" r="1"/><circle cx="17" cy="19" r="1"/></g>',
+  storm: '<path d="M6.5 14h11a4 4 0 0 0 .3-8 5.5 5.5 0 0 0-10.6 1.3A3.4 3.4 0 0 0 6.5 14z" fill="var(--card2)" stroke="var(--muted)" stroke-width="1.5"/><path d="M12.5 14l-2.5 4h3l-2 4" stroke="var(--accent)" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+function iconFor(label) {
+  const l = label.toLowerCase();
+  const k = l.includes('thunder') ? 'storm' : l.includes('snow') ? 'snow' : l.includes('fog') ? 'fog'
+    : /rain|drizzle|shower/.test(l) ? 'rain' : l.includes('overcast') ? 'cloud' : /partly|mostly clear/.test(l) ? 'part' : l.includes('clear') ? 'sun' : 'cloud';
+  return `<svg class="wx" viewBox="0 0 24 24">${ICON[k]}</svg>`;
+}
+
+// ── KPIs ───────────────────────────────────────────────────────────────────
+const best = DAYS.reduce((m, d) => (d.solar_kwh > m.solar_kwh ? d : m), DAYS[0]);
+const t0 = DAYS[0], t1 = DAYS[1] || DAYS[0];
+const tile = (label, value, unit, note, cls = '') => `<div class="tile ${cls}"><p>${label}</p><div class="v">${value}${unit ? `<small>${unit}</small>` : ''}</div><div class="n">${note}</div></div>`;
+document.getElementById('kpis').innerHTML = [
+  tile('Solar today', nf(t0.solar_kwh, 0), 'kWh', `${nf(t0.sun_hours, 0)} sunny hours · ${D.meta.pv_kwp} kWp`),
+  tile('Solar tomorrow', nf(t1.solar_kwh, 0), 'kWh', `strongest ${t1.best_solar} · ${t1.label.toLowerCase()}`),
+  tile('Wind tomorrow', nf(t1.wind_kwh, 0), 'kWh', `${D.meta.wind_kw} kW of turbines`),
+  tile('Sunniest day this week', best.name, '', `${nf(best.solar_kwh, 0)} kWh: plan big jobs there`, 'hero'),
+].join('');
+
+// ── Day cards ──────────────────────────────────────────────────────────────
+const maxKwh = Math.max(1, ...DAYS.map(d => Math.max(d.solar_kwh, d.wind_kwh)));
+let selected = null;  // index of the selected day, or null for the whole week
+function renderDays() {
+  document.getElementById('days').innerHTML = DAYS.map((d, i) => `
+    <button class="day ${i === selected ? 'on' : ''} ${d === best ? 'best' : ''}" data-i="${i}">
+      <div class="top"><span class="name">${i === 0 ? 'Today' : d.name.split(' ')[0]}</span><span class="date">${d.name.split(' ').slice(1).join(' ')}</span></div>
+      ${iconFor(d.label)}
+      <div class="label">${d.label}</div>
+      <div class="temp">${nf(d.temp_max, 0)}°<span> / ${nf(d.temp_min, 0)}°</span></div>
+      <div class="kv"><span>Solar</span><b>${nf(d.solar_kwh, 0)} kWh</b></div>
+      <div class="meter"><i style="width:${(d.solar_kwh / maxKwh * 100).toFixed(0)}%"></i></div>
+      <div class="kv"><span>Wind</span><b>${nf(d.wind_kwh, 0)} kWh</b></div>
+      <div class="meter wind"><i style="width:${(d.wind_kwh / maxKwh * 100).toFixed(0)}%"></i></div>
+      <div class="kv"><span>Best solar</span><b>${d.best_solar}</b></div>
+    </button>`).join('');
+  document.querySelectorAll('.day').forEach(b => b.addEventListener('click', () => selectDay(+b.dataset.i === selected ? null : +b.dataset.i)));
+}
+
+// ── Power chart: stacked solar and wind, temperature, nights shaded ────────
+const nights = [];
+{ let s = null; W.gti.forEach((g, i) => { const dark = !(g > 1); if (dark && s === null) s = i; if (!dark && s !== null) { nights.push([ms[s], ms[i]]); s = null; } }); if (s !== null) nights.push([ms[s], ms[ms.length - 1]]); }
+const power = OP.chart(document.getElementById('power'), c => {
+  const B = OP.base(c);
+  const grad = (col, a) => new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: col }, { offset: 1, color: a }]);
+  return {
+    ...B,
+    grid: { left: 48, right: 46, top: 16, bottom: 66 },
+    tooltip: { ...B.tooltip, trigger: 'axis', formatter: ps => {
+      const i = ps[0].dataIndex;
+      return `<b>${fmtTime.format(ms[i])}</b><br><span style="color:${c.accent}">●</span> Solar <b>${nf(W.pv_kw[i])} kW</b><br><span style="color:${c.wind}">●</span> Wind <b>${nf(W.wind_kw[i])} kW</b><br><span style="color:${c.muted}">${nf(W.temp_c[i], 0)}° · ${nf(W.cloud_pct[i], 0)} % clouds${W.precip_mm[i] > 0 ? ` · ${nf(W.precip_mm[i])} mm rain` : ''}</span>`;
+    } },
+    xAxis: { type: 'time', ...B.axis, splitLine: { show: false },
+      axisLabel: { ...B.axis.axisLabel, hideOverlap: true, formatter: { day: '{ee} {d}', hour: '{HH}:{mm}' } } },
+    yAxis: [{ type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} kW' } },
+      { type: 'value', scale: true, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, formatter: '{value}°' } }],
+    dataZoom: [
+      { type: 'inside', filterMode: 'none' },
+      { type: 'slider', height: 26, bottom: 12, borderColor: 'transparent', backgroundColor: c.card2,
+        fillerColor: c.accentSoft, handleStyle: { color: c.accent, borderColor: c.accent }, moveHandleStyle: { color: c.accentMid },
+        dataBackground: { lineStyle: { color: c.grey }, areaStyle: { color: c.accentSoft } },
+        selectedDataBackground: { lineStyle: { color: c.accent }, areaStyle: { color: c.accentMid } },
+        textStyle: { color: c.muted, fontSize: 10 }, labelFormatter: v => fmtTime.format(v) },
+    ],
+    series: [
+      { name: 'Wind', type: 'line', stack: 'own', symbol: 'none', smooth: false, data: ms.map((t, i) => [t, W.wind_kw[i]]),
+        lineStyle: { color: c.wind, width: 1.2 }, areaStyle: { color: grad(c.wind, 'rgba(0,0,0,0)'), opacity: .55 },
+        markArea: { silent: true, itemStyle: { color: c.card2, opacity: .55 }, data: nights.map(([a, b]) => [{ xAxis: a }, { xAxis: b }]) } },
+      { name: 'Solar', type: 'line', stack: 'own', symbol: 'none', smooth: false, data: ms.map((t, i) => [t, W.pv_kw[i]]),
+        lineStyle: { color: c.accent, width: 1.6 }, areaStyle: { color: grad(c.accentMid, 'rgba(0,0,0,0)') },
+        markLine: { silent: true, symbol: 'none', lineStyle: { color: c.ink, type: [4, 3], width: 1 },
+          label: { formatter: 'now', color: c.ink, fontSize: 11 }, data: [{ xAxis: D.meta.now * 1000 }] } },
+      // temperature is hourly (repeated in each 15-minute slot): draw it from the full hours only
+      { name: 'Temperature', type: 'line', yAxisIndex: 1, symbol: 'none', smooth: .4, data: ms.map((t, i) => [t, W.temp_c[i]]).filter(([t]) => t % 3600000 === 0),
+        lineStyle: { color: c.muted, width: 1.2, type: [5, 4] } },
+    ],
+  };
+});
+const resetBtn = document.getElementById('reset');
+resetBtn.innerHTML = `${OP.resetIcon}Reset zoom`;
+resetBtn.addEventListener('click', () => selectDay(null));
+let quiet = false;
+power.onDraw.push(inst => {
+  inst.on('datazoom', () => { if (!quiet) { resetBtn.hidden = false; if (selected !== null) { selected = null; renderDays(); } } });
+  applyZoom();
+});
+function applyZoom() {
+  if (!power.inst) return;
+  quiet = true;
+  if (selected === null) power.inst.dispatchAction({ type: 'dataZoom', start: 0, end: 100 });
+  else power.inst.dispatchAction({ type: 'dataZoom', startValue: DAYS[selected].start * 1000, endValue: DAYS[selected].end * 1000 });
+  quiet = false;
+}
+function selectDay(i) {
+  selected = i;
+  renderDays();
+  applyZoom();
+  resetBtn.hidden = i === null;
+  const d = i === null ? null : DAYS[i];
+  document.getElementById('power-title').textContent = d ? `Expected own power, ${i === 0 ? 'today' : d.name}` : 'Expected own power, next 7 days';
+  document.getElementById('power-sub').textContent = d
+    ? `${d.label} · ${nf(d.temp_min, 0)}° to ${nf(d.temp_max, 0)}° · strongest solar ${d.best_solar}`
+    : `All solar (${D.meta.pv_kwp} kWp) and wind (${D.meta.wind_kw} kW) on the site, stacked. Shaded = night. Click a day above to zoom in.`;
+  const total = (d ? [d] : DAYS).reduce((s, x) => s + x.solar_kwh + x.wind_kwh, 0);
+  document.getElementById('power-text').innerHTML = d
+    ? `This day the site makes about <b>${nf(d.solar_kwh + d.wind_kwh, 0)} kWh</b> of its own power: ${nf(d.solar_kwh, 0)} from the sun, ${nf(d.wind_kwh, 0)} from the wind. Run flexible machines around <b>${d.best_solar}</b> to use it on site.`
+    : `Over the week the site makes about <b>${nf(total, 0)} kWh</b> of its own power. The sunniest day is <b>${best.name}</b>; further out the forecast gets coarser.`;
+}
+
+// ── Forecast accuracy: dumbbell per day ────────────────────────────────────
+let accDay = ACC.days.length - 1;
+const dumb = OP.chart(document.getElementById('dumbbell'), c => {
+  const B = OP.base(c);
+  const names = ACC.days.map(d => d.name);
+  return {
+    ...B,
+    grid: { left: 92, right: 70, top: 10, bottom: 28 },
+    tooltip: { ...B.tooltip, trigger: 'item', formatter: p => { const d = ACC.days[p.dataIndex]; return `<b>${d.name}</b><br>forecast ${nf(d.forecast_kwh, 0)} kWh<br>measured <b>${nf(d.measured_kwh, 0)} kWh</b><br>${d.error_pct >= 0 ? 'too high' : 'too low'} by ${nf(Math.abs(d.error_pct), 0)} %`; } },
+    xAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} kWh' } },
+    yAxis: { type: 'category', data: names, inverse: true, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, fontSize: 12 } },
+    series: [
+      { type: 'custom', silent: true, data: ACC.days.map((d, i) => [d.forecast_kwh, d.measured_kwh, i]),
+        renderItem: (params, api) => {
+          const a = api.coord([api.value(0), api.value(2)]), b = api.coord([api.value(1), api.value(2)]);
+          const on = api.value(2) === accDay;
+          return { type: 'group', children: [
+            { type: 'rect', shape: { x: 0, y: a[1] - 15, width: params.coordSys.x + params.coordSys.width + 70, height: 30, r: 10 }, style: { fill: on ? c.accentSoft : 'transparent' } },
+            { type: 'line', shape: { x1: a[0], y1: a[1], x2: b[0], y2: b[1] }, style: { stroke: c.accentMid, lineWidth: 4, lineCap: 'round' } },
+          ] };
+        }, z: 1 },
+      { type: 'scatter', symbolSize: 13, data: ACC.days.map(d => d.forecast_kwh), itemStyle: { color: c.card, borderColor: c.accent, borderWidth: 2.5 }, z: 3 },
+      { type: 'scatter', symbolSize: 13, data: ACC.days.map(d => d.measured_kwh), itemStyle: { color: c.accent }, z: 4 },
+      // the error, always right of the outer dot
+      { type: 'scatter', symbolSize: 0, silent: true, data: ACC.days.map(d => Math.max(d.forecast_kwh, d.measured_kwh)),
+        label: { show: true, position: 'right', distance: 14, color: c.muted, fontSize: 11, fontWeight: 600,
+          formatter: p => { const e = ACC.days[p.dataIndex].error_pct; return `${e >= 0 ? '+' : '−'}${nf(Math.abs(e), 0)} %`; } } },
+    ],
+  };
+});
+dumb.onDraw.push(inst => inst.on('click', p => { if (p.dataIndex != null) { accDay = p.dataIndex; dumb.update(); hours.update(); renderStats(); } }));
+const hours = OP.chart(document.getElementById('hours'), c => {
+  const B = OP.base(c);
+  const d = ACC.days[accDay];
+  const idx = ACC.hourly.day.map((x, i) => [x, i]).filter(([x]) => x === d.date).map(([, i]) => i);
+  const t = idx.map(i => ACC.hourly.t[i] * 1000);
+  return {
+    ...B,
+    grid: { left: 44, right: 10, top: 12, bottom: 26 },
+    tooltip: { ...B.tooltip, trigger: 'axis', formatter: ps => `<b>${fmtHour.format(t[ps[0].dataIndex])}</b><br>${ps.map(p => `${p.seriesName} <b>${nf(p.value[1], 0)} kW</b>`).join('<br>')}` },
+    xAxis: { type: 'time', ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, formatter: '{HH}:{mm}' } },
+    yAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} kW' } },
+    series: [
+      { name: 'Measured', type: 'line', symbol: 'none', smooth: .3, data: idx.map((i, k) => [t[k], ACC.hourly.measured_kw[i]]),
+        lineStyle: { color: c.accent, width: 2 }, areaStyle: { color: c.accentSoft } },
+      { name: 'Forecast', type: 'line', symbol: 'none', smooth: .3, data: idx.map((i, k) => [t[k], ACC.hourly.forecast_kw[i]]),
+        lineStyle: { color: c.ink, width: 1.4, type: [5, 4] } },
+    ],
+  };
+});
+function renderStats() {
+  const d = ACC.days[accDay], s = ACC.summary;
+  document.getElementById('hours-title').textContent = `${d.name}, hour by hour`;
+  document.getElementById('hours-sub').textContent = `Forecast ${nf(d.forecast_kwh, 0)} kWh, measured ${nf(d.measured_kwh, 0)} kWh (${d.error_pct >= 0 ? '+' : '−'}${nf(Math.abs(d.error_pct), 0)} %)`;
+  document.getElementById('stats').innerHTML = `
+    <div class="row c2" style="gap:0 18px;margin-top:6px">
+      <div class="stat"><p>Average daily error</p><b>${nf(s.mae_pct, 0)}<small>% · ${nf(s.mae_kwh, 0)} kWh</small></b></div>
+      <div class="stat"><p>On balance the forecast was</p><b>${nf(Math.abs(s.bias_pct), 0)}<small>% too ${s.bias_pct > 0 ? 'high' : 'low'}</small></b></div>
+    </div>`;
+}
+
+document.getElementById('foot').textContent = `Weather data by Open-Meteo.com: forecast model ${D.meta.model}, earlier model runs and satellite radiation. Forecast from ${D.meta.fetched}. Solar = irradiance on the panels × kWp × 0.85; wind = a generic small-turbine power curve at hub height.`;
+OP.start();
+renderDays();
+selectDay(null);
+renderStats();
+</script>
+</body>
+</html>
