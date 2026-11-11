@@ -1,0 +1,35 @@
+[project]
+name = "offpeak"
+version = "0.1.0"
+description = "Tells a small business when to use electricity tomorrow and how much that saves."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=3.1.1",
+    "plotly>=7.1.0",
+    "psycopg[binary]>=3.3.8",
+    "python-dotenv>=1.2.4",
+    "requests>=2.34.2",
+    "sqlalchemy>=2.1.8",
+    "streamlit>=1.67.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]

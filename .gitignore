@@ -1,0 +1,24 @@
+# Secrets
+.env
+.streamlit/secrets.toml
+
+# Data: never commit pilot business data, the repo is public
+data/
+*.parquet
+*.xlsx
+*.csv
+!tests/fixtures/**/*.csv
+!seed/**/*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# OS and editors
+.DS_Store
+.vscode/
+.idea/
+.claude/settings.local.json
