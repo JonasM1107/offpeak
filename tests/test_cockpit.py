@@ -37,3 +37,35 @@ def test_plan_shares_surplus_without_counting_it_twice():
     assert result["A"]["cost"] == pytest.approx(10 * 0.08)
     assert result["B"]["cost"] == pytest.approx(8 * 0.30)  # nothing left for B
     assert result["A"]["saving"] == pytest.approx(10 * 0.30 - 10 * 0.08)
+
+
+def test_horizon_joins_published_and_forecast_hours():
+    import pandas as pd
+
+    from offpeak.cockpit import horizon
+    from offpeak.tariffs import germany_2026
+
+    tz = "Europe/Berlin"
+    today = pd.Timestamp("2026-11-11").date()
+    start = pd.Timestamp(today, tz=tz).tz_convert("UTC")
+    pub_idx = pd.date_range(start, periods=48, freq="h")
+    published = pd.Series(10.0, index=pub_idx)  # today and tomorrow
+    fc_idx = pd.date_range(start + pd.Timedelta(hours=48), periods=24 * 5, freq="h")
+    forecast = pd.DataFrame({"ts": fc_idx, "p10": 5.0, "p50": 20.0, "p90": 40.0})
+    gen_idx = pd.date_range(start, periods=24 * 7 * 4, freq="15min")
+    gen = pd.DataFrame({"ts": gen_idx, "pv_kw": 30.0, "wind_kw": 0.0})
+    h = horizon(published, forecast, gen, base_kw=15, tariff=germany_2026(), tz=tz, today=today)
+    assert len(h["t"]) == 24 * 7
+    assert h["kind"][:48] == ["published"] * 48 and set(h["kind"][48:]) == {"forecast"}
+    assert h["buy"][0] > 10  # fees on top of the spot price
+    assert h["buy_lo"][60] < h["buy"][60] < h["buy_hi"][60]
+    assert h["buy_lo"][0] == h["buy"][0] == h["buy_hi"][0]  # published: no range
+    assert h["surplus"][0] == 15  # 30 kW own power minus 15 kW base load
+    assert [d["start"] for d in h["days"]] == [0, 24, 48, 72, 96, 120, 144]
+
+
+def test_no_start_in_the_past():
+    m = Machine("EV", kw=10, hours=2, earliest=0, latest_end=24, usual_start=0)
+    buy = [5.0] * 10 + [30.0] * 38  # cheapest early in the day, but it is already 14:00
+    start, _ = best_start(0, m, buy, [8.0] * 48, [0.0] * 48, not_before=14)
+    assert start >= 14

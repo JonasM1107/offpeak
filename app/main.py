@@ -33,6 +33,7 @@ pages = {
         page("analytics", "Prices", "show_chart"),
         page("weather", "Weather & solar", "partly_cloudy_day"),
         page("outlook", "Price outlook", "online_prediction"),
+        page("cockpit", "Simulation cockpit", "tune"),
     ],
     "Results": [
         page("savings", "Savings", "savings"),

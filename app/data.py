@@ -181,3 +181,24 @@ def remove_component(component_id: str) -> str:
         db.save_components(engine(), DEMO_SITE.id, [_as_row(c) for c in current])
     db.delete_component(engine(), component_id)
     return "database"
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def price_forecast() -> tuple[pd.Series, pd.DataFrame, object] | None:
+    """Hourly spot history (ct/kWh, about 6 months up to the last published hour), the
+    outlook for the following days (ts, p10, p50, p90) and the backtest behind it. None if
+    there is too little history. The backtest takes a few seconds, so this is cached."""
+    from offpeak.analysis import hourly
+    from offpeak.forecast.outlook import backtest, outlook
+
+    today = market_today()
+    loaded, _, _ = prices(today - timedelta(days=180), today + timedelta(days=1))
+    if loaded.empty:
+        return None
+    history = hourly(loaded, MARKET_TZ).set_index("ts")["ct"]
+    try:
+        test = backtest(history, MARKET_TZ)
+    except ValueError:
+        return None
+    out, _ = outlook(history, MARKET_TZ, test)
+    return history, out, test

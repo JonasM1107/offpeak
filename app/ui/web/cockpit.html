@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--KIT-->
+<style>
+  #timeline { height: 360px; }
+  .cockpit { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 14px; align-items: start; }
+  .machines { display: flex; flex-direction: column; gap: 10px; }
+  .m { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; transition: border-color .2s, box-shadow .2s; }
+  .m.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .m .top { display: flex; align-items: center; gap: 10px; }
+  .m .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .m input.name { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-weight: 650; font-size: 14px; color: var(--ink); padding: 2px 0; }
+  .m input.name:focus { outline: none; border-bottom: 1px dashed var(--accent-mid); }
+  .m .x { border: 0; background: none; color: var(--faint); font-size: 16px; padding: 0 2px; }
+  .m .x:hover { color: var(--accent); }
+  .m .res { margin: 8px 0 4px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .m .res b { font-size: 15px; font-weight: 650; }
+  .m .res .save { font-size: 13px; font-weight: 650; color: var(--accent); white-space: nowrap; }
+  .m .res .save.none { color: var(--muted); font-weight: 500; }
+  .m .meta { font-size: 11.5px; color: var(--muted); }
+  .m details { margin-top: 8px; }
+  .m summary { font-size: 12px; color: var(--muted); cursor: pointer; list-style: none; }
+  .m summary::-webkit-details-marker { display: none; }
+  .m summary::before { content: '⚙  '; }
+  .ctl { display: grid; grid-template-columns: 96px 1fr 52px; gap: 8px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .ctl output { text-align: right; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+  .add { display: flex; gap: 8px; }
+  .add select { flex: 1; border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--ink); }
+  .add button { border: 0; background: var(--accent); color: #fff; border-radius: 12px; padding: 8px 14px; font-weight: 600; font-size: 13px; }
+  .matrix { width: 100%; border-collapse: separate; border-spacing: 4px; font-size: 12px; }
+  .matrix th { font-weight: 500; color: var(--muted); font-size: 11.5px; text-align: center; padding: 4px; }
+  .matrix th:first-child { text-align: left; }
+  .matrix td { text-align: center; padding: 8px 4px; border-radius: 10px; background: var(--card2); cursor: pointer; transition: transform .12s; font-variant-numeric: tabular-nums; }
+  .matrix td:first-child { text-align: left; background: none; cursor: default; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .matrix td:not(:first-child):hover { transform: scale(1.04); }
+  .matrix td b { display: block; font-size: 13px; color: var(--ink); }
+  .matrix td span { color: var(--muted); font-size: 11px; }
+  .matrix td.best { background: var(--accent); }
+  .matrix td.best b, .matrix td.best span { color: #fff; }
+  .matrix td.fc span::after { content: ' ~'; }
+  .matrix td.na { cursor: default; color: var(--faint); }
+  .legend-inline { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+  .legend-inline i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legend-inline i.line { height: 2px; width: 14px; vertical-align: 3px; }
+  .legend-inline i.dash { height: 0; width: 14px; border-top: 2px dashed var(--ink); vertical-align: 3px; border-radius: 0; }
+  @media (max-width: 1000px) { .cockpit { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar reveal">
+    <div class="seg" id="daysel"></div>
+    <span class="range" id="certainty"></span>
+  </div>
+  <div class="row k4 reveal" id="kpis"></div>
+
+  <div class="cockpit reveal">
+    <div class="card">
+      <div class="head">
+        <div><h3 id="tl-title">Plan</h3><div class="sub" id="tl-sub"></div></div>
+        <div class="legend-inline"><span><i class="line" style="background:var(--ink)"></i>Price</span><span><i class="dash"></i>Forecast</span><span><i style="background:var(--sun)"></i>Own surplus</span><span><i style="background:var(--accent)"></i>Best run</span></div>
+      </div>
+      <div id="timeline" class="chart"></div>
+      <p class="insight" id="tl-text"></p>
+    </div>
+    <div>
+      <div class="machines" id="machines"></div>
+      <div class="add" style="margin-top:10px">
+        <select id="preset"></select>
+        <button id="add">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card reveal">
+    <div class="head"><div><h3>Best time per day</h3><div class="sub">Cost of each job at its best start on each day, with the own power the larger machines leave over. Orange = cheapest day. ~ = forecast price. Click a day to plan it.</div></div></div>
+    <table class="matrix" id="matrix"></table>
+  </div>
+  <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
+</div>
+
+<script>window.OFFPEAK = __DATA__;</script>
+<script>
+// The hours ahead (prices, forecast range, own surplus) come from Python (offpeak/cockpit.py:
+// horizon). The start-time search below mirrors offpeak/cockpit.py, which tests/test_cockpit.py
+// pins down, so sliders can react at once without a round trip.
+const D = window.OFFPEAK, H = D.horizon, N = H.t.length, DAYS = H.days;
+const { nf, pad } = OP;
+const NOW = D.now_index;
+const COLORS = ['#FF5F00', '#3A3733', '#F2A33A', '#8C6A5A', '#C24700', '#77726A', '#E8A87C', '#4A4640'];
+const STORE = 'offpeak.cockpit.v1';
+
+// ── Machines: from the site, edits remembered in this browser ──────────────
+let machines;
+try { machines = JSON.parse(localStorage.getItem(STORE)); } catch (e) { machines = null; }
+if (!Array.isArray(machines) || !machines.length) machines = D.machines.map(m => ({ ...m }));
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(machines)); } catch (e) { /* private window */ } };
+let focus = 0;
+let dayMode = 'best';  // 'best' = best day this week, or a day index
+
+// ── The search (same rules as offpeak/cockpit.py) ──────────────────────────
+function jobCost(start, m, buy, surplus) {
+  let c = 0;
+  for (let h = start; h < start + m.hours; h++) { const own = Math.min(m.kw, surplus[h]); c += (own * H.sell[h] + (m.kw - own) * buy[h]) / 100; }
+  return c;
+}
+function startsOn(day, m) {
+  const ds = DAYS[day].start, first = Math.max(ds + m.earliest, NOW), last = Math.min(ds + m.latest_end - m.hours, N - m.hours);
+  const out = []; for (let s = first; s <= last; s++) out.push(s); return out;
+}
+function bestOn(day, m, buy, surplus) {
+  let best = null;
+  for (const s of startsOn(day, m)) { const c = jobCost(s, m, buy, surplus); if (!best || c < best.cost) best = { start: s, cost: c, day }; }
+  return best;
+}
+// usual run: the next day whose usual start has not passed yet
+function usualStart(m) {
+  for (let d = 0; d < DAYS.length; d++) { const s = DAYS[d].start + m.usual_start; if (s >= NOW && s + m.hours <= N) return { start: s, day: d }; }
+  return null;
+}
+function planAll() {
+  const left = H.surplus.slice();
+  const order = machines.map((m, i) => i).sort((a, b) => machines[b].kw - machines[a].kw);
+  const res = [];
+  for (const i of order) {
+    const m = machines[i];
+    const days = dayMode === 'best' ? DAYS.map((_, d) => d) : [dayMode];
+    let best = null;
+    for (const d of days) { const b = bestOn(d, m, H.buy, left); if (b && (!best || b.cost < best.cost)) best = b; }
+    const usual = dayMode === 'best' ? usualStart(m) : (DAYS[dayMode].start + m.usual_start >= NOW ? { start: DAYS[dayMode].start + m.usual_start, day: dayMode } : null);
+    // what is left of the surplus for this machine: the day table uses the same
+    let r = { i, best, usual: null, saving: null, lo: null, hi: null, own: 0, left: left.slice() };
+    if (best) {
+      if (usual && usual.start + m.hours <= N) {
+        r.usual = { ...usual, cost: jobCost(usual.start, m, H.buy, left) };
+        r.saving = r.usual.cost - best.cost;
+        // likely range of the saving where prices are forecast
+        const a = jobCost(usual.start, m, H.buy_lo, left) - jobCost(best.start, m, H.buy_lo, left);
+        const b = jobCost(usual.start, m, H.buy_hi, left) - jobCost(best.start, m, H.buy_hi, left);
+        r.lo = Math.min(a, b, r.saving); r.hi = Math.max(a, b, r.saving);
+      }
+      let ownKwh = 0;
+      for (let h = best.start; h < best.start + m.hours; h++) { const own = Math.min(m.kw, left[h]); ownKwh += own; left[h] = Math.max(0, left[h] - m.kw); }
+      r.own = ownKwh / (m.kw * m.hours);
+    }
+    res[i] = r;
+  }
+  return res;
+}
+
+// ── Formatting ─────────────────────────────────────────────────────────────
+const at = s => `${DAYS[dayOf(s)].name.split(' ')[0]} ${pad(H.hour[s])}:00`;
+const span = (s, h) => { const e = H.hour[s] + h; return `${pad(H.hour[s])}:00–${pad(e === 24 ? 24 : e % 24)}:00`; };
+function dayOf(idx) { let d = 0; DAYS.forEach((x, k) => { if (idx >= x.start) d = k; }); return d; }
+const eur = (v, d = 2) => `€${nf(v, d)}`;
+const isForecast = (s, h) => { for (let k = s; k < s + h; k++) if (H.kind[k] === 'forecast') return true; return false; };
+
+// ── Day selector ───────────────────────────────────────────────────────────
+function renderDaySel() {
+  const opts = [['best', 'Best day this week'], ...DAYS.map((d, i) => [i, i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.name.split(' ')[0] + ' ' + d.name.split(' ')[1]])];
+  document.getElementById('daysel').innerHTML = opts.map(([v, l]) => `<button data-v="${v}" class="${String(v) === String(dayMode) ? 'on' : ''}">${l}</button>`).join('');
+  document.querySelectorAll('#daysel button').forEach(b => b.addEventListener('click', () => { dayMode = b.dataset.v === 'best' ? 'best' : +b.dataset.v; update(); }));
+}
+
+// ── Machine cards ──────────────────────────────────────────────────────────
+function ctl(i, key, label, min, max, step, unit) {
+  return `<label class="ctl"><span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${machines[i][key]}" data-i="${i}" data-k="${key}"><output>${machines[i][key]}${unit}</output></label>`;
+}
+function renderMachines(res) {
+  document.getElementById('machines').innerHTML = machines.map((m, i) => {
+    const r = res[i], col = COLORS[i % COLORS.length];
+    let result;
+    if (!r.best) result = `<div class="res"><span class="meta">Does not fit the allowed hours${dayMode === 'best' ? '' : ' on this day'}.</span></div>`;
+    else {
+      const fc = isForecast(r.best.start, m.hours);
+      const save = r.saving == null ? '<span class="save none">no usual run to compare</span>'
+        : r.saving > 0.005 ? `<span class="save">saves ${eur(r.saving)}${fc && r.hi - r.lo > 0.05 ? ` <span style="font-weight:500;color:var(--muted)">(${eur(Math.max(0, r.lo))}–${eur(r.hi)})</span>` : ''}</span>`
+        : '<span class="save none">usual time is already best</span>';
+      result = `<div class="res"><b>${at(r.best.start)} · ${span(r.best.start, m.hours)}</b>${save}</div>
+        <div class="meta">${eur(r.best.cost)} per run${r.usual ? ` instead of ${eur(r.usual.cost)} at ${at(r.usual.start)}` : ''} · ${nf(r.own * 100, 0)} % own power${fc ? ' · forecast price' : ''}</div>`;
+    }
+    return `<div class="m ${i === focus ? 'on' : ''}" data-i="${i}">
+      <div class="top"><span class="dot" style="background:${col}"></span><input class="name" value="${m.name.replace(/"/g, '&quot;')}" data-i="${i}" aria-label="Machine name"><button class="x" data-del="${i}" aria-label="Remove">×</button></div>
+      ${result}
+      <details ${i === focus ? 'open' : ''}><summary>${nf(m.kw, 0)} kW · ${m.hours} h job · allowed ${pad(m.earliest)}–${pad(m.latest_end)} · usually ${pad(m.usual_start)}:00</summary>
+        ${ctl(i, 'kw', 'Power', 1, 100, 1, ' kW')}
+        ${ctl(i, 'hours', 'Job length', 1, 12, 1, ' h')}
+        ${ctl(i, 'earliest', 'Earliest start', 0, 23, 1, ':00')}
+        ${ctl(i, 'latest_end', 'Done by', 1, 24, 1, ':00')}
+        ${ctl(i, 'usual_start', 'Usually starts', 0, 23, 1, ':00')}
+      </details></div>`;
+  }).join('');
+  const box = document.getElementById('machines');
+  box.querySelectorAll('input[type=range]').forEach(el => el.addEventListener('input', () => {
+    const m = machines[+el.dataset.i], k = el.dataset.k; m[k] = +el.value;
+    if (m.earliest + m.hours > m.latest_end) { if (k === 'latest_end') m.earliest = Math.max(0, m.latest_end - m.hours); else m.latest_end = Math.min(24, m.earliest + m.hours); }
+    focus = +el.dataset.i; dragged = true; save(); update(true);
+  }));
+  box.querySelectorAll('input.name').forEach(el => el.addEventListener('change', () => { machines[+el.dataset.i].name = el.value || 'Machine'; save(); update(); }));
+  box.querySelectorAll('[data-del]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); machines.splice(+el.dataset.del, 1); focus = 0; save(); update(); }));
+  box.querySelectorAll('.m').forEach(el => el.addEventListener('click', e => { if (e.target.closest('input,button,details')) return; focus = +el.dataset.i; update(); }));
+  box.querySelectorAll('details').forEach(el => el.addEventListener('toggle', () => { if (el.open) { focus = +el.closest('.m').dataset.i; } }));
+}
+// ── Presets ────────────────────────────────────────────────────────────────
+const PRESETS = [
+  ['EV charging (fleet)', 22, 4, 7, 24, 17], ['Compressed air', 15, 3, 6, 20, 8], ['Industrial dishwasher', 9, 2, 6, 22, 13],
+  ['Laundry (washers + dryers)', 18, 3, 6, 22, 9], ['Water heater', 6, 3, 0, 24, 6], ['Irrigation pump', 7, 2, 0, 24, 18],
+  ['Cold store pre-cooling', 12, 2, 0, 24, 14], ['Kiln / oven batch', 30, 5, 5, 22, 7], ['Forklift charging', 8, 6, 0, 24, 18],
+];
+document.getElementById('preset').innerHTML = PRESETS.map((p, i) => `<option value="${i}">${p[0]} · ${p[1]} kW, ${p[2]} h</option>`).join('');
+document.getElementById('add').addEventListener('click', () => {
+  const [name, kw, hours, earliest, latest_end, usual_start] = PRESETS[+document.getElementById('preset').value];
+  machines.push({ name, kw, hours, earliest, latest_end, usual_start }); focus = machines.length - 1; save(); update();
+});
+
+// ── Timeline: price, forecast range, own surplus, and the runs ─────────────
+const tl = OP.chart(document.getElementById('timeline'), c => {
+  const B = OP.base(c);
+  const res = planAll();
+  const from = dayMode === 'best' ? 0 : DAYS[dayMode].start, to = dayMode === 'best' ? N : (DAYS[dayMode + 1] ? DAYS[dayMode + 1].start : N);
+  const ms = H.t.map(t => t * 1000);
+  const idx = []; for (let h = from; h < to; h++) idx.push(h);
+  const pubData = idx.map(h => [ms[h], H.kind[h] === 'published' ? H.buy[h] : null]);
+  const lastPub = idx.filter(h => H.kind[h] === 'published').pop();
+  const fcData = idx.map(h => [ms[h], H.kind[h] === 'forecast' || h === lastPub ? H.buy[h] : null]);
+  const rows = machines.length;
+  const blocks = [];
+  res.forEach((r, i) => {
+    if (r && r.best) blocks.push([ms[r.best.start], ms[Math.min(r.best.start + machines[i].hours, N - 1)] + (r.best.start + machines[i].hours >= N ? 3600e3 : 0), i, 'best']);
+    if (r && r.usual) blocks.push([ms[r.usual.start], ms[Math.min(r.usual.start + machines[i].hours, N - 1)] + (r.usual.start + machines[i].hours >= N ? 3600e3 : 0), i, 'usual']);
+  });
+  const xMin = ms[from], xMax = ms[to - 1] + 3600e3;
+  return {
+    ...B,
+    grid: [{ left: 112, right: 48, top: 14, height: 170 }, { left: 112, right: 48, top: 206, height: Math.max(40, rows * 28) }],
+    tooltip: { ...B.tooltip, trigger: 'axis', axisPointer: { type: 'line', link: [{ xAxisIndex: 'all' }] },
+      formatter: ps => { const p = ps.find(x => x.seriesIndex <= 3); if (!p) return ''; const h = H.t.indexOf(p.value[0] / 1000); if (h < 0) return '';
+        return `<b>${DAYS[dayOf(h)].name} ${pad(H.hour[h])}:00</b><br>${H.kind[h] === 'forecast' ? 'forecast' : 'price'} <b>${nf(H.buy[h])} ct/kWh</b>${H.kind[h] === 'forecast' ? `<br><span style="color:${c.muted}">likely ${nf(H.buy_lo[h])}–${nf(H.buy_hi[h])} ct</span>` : ''}<br><span style="color:${c.muted}">own surplus ${nf(H.surplus[h], 0)} kW</span>`; } },
+    xAxis: [
+      { type: 'time', gridIndex: 0, min: xMin, max: xMax, ...B.axis, axisLabel: { show: false }, splitLine: { show: false } },
+      { type: 'time', gridIndex: 1, min: xMin, max: xMax, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, hideOverlap: true, formatter: dayMode === 'best' ? { day: '{ee} {d}', hour: '{HH}:{mm}' } : '{HH}:{mm}' } },
+    ],
+    yAxis: [
+      { type: 'value', gridIndex: 0, scale: true, ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} ct' } },
+      { type: 'value', gridIndex: 0, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, formatter: '{value} kW' } },
+      { type: 'category', gridIndex: 1, data: machines.map(m => m.name), inverse: true, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, color: c.ink, fontSize: 11.5, width: 100, overflow: 'truncate' } },
+    ],
+    series: [
+      { type: 'line', xAxisIndex: 0, yAxisIndex: 1, symbol: 'none', smooth: .3, data: idx.map(h => [ms[h], H.surplus[h]]), lineStyle: { width: 0 },
+        areaStyle: { color: c.sun, opacity: .28 }, z: 1 },
+      { type: 'line', xAxisIndex: 0, yAxisIndex: 0, stack: 'band', symbol: 'none', lineStyle: { opacity: 0 }, data: idx.map(h => [ms[h], H.kind[h] === 'forecast' ? H.buy_lo[h] : null]), silent: true },
+      { type: 'line', xAxisIndex: 0, yAxisIndex: 0, stack: 'band', symbol: 'none', lineStyle: { opacity: 0 }, areaStyle: { color: c.accentMid, opacity: .35 },
+        data: idx.map(h => [ms[h], H.kind[h] === 'forecast' ? H.buy_hi[h] - H.buy_lo[h] : null]), silent: true },
+      { type: 'line', xAxisIndex: 0, yAxisIndex: 0, step: 'start', symbol: 'none', data: pubData, lineStyle: { color: c.ink, width: 1.8 }, connectNulls: false,
+        markLine: { silent: true, symbol: 'none', lineStyle: { color: c.accent, type: [4, 3] }, label: { formatter: 'now', color: c.accent, fontSize: 11 },
+          data: NOW >= from && NOW < to ? [{ xAxis: ms[NOW] }] : [] } },
+      { type: 'line', xAxisIndex: 0, yAxisIndex: 0, step: 'start', symbol: 'none', data: fcData, lineStyle: { color: c.ink, width: 1.5, type: [5, 4] }, connectNulls: false },
+      { type: 'custom', xAxisIndex: 1, yAxisIndex: 2, data: blocks, z: 5,
+        renderItem: (params, api) => {
+          const a = api.coord([api.value(0), api.value(2)]), b = api.coord([api.value(1), api.value(2)]), hgt = api.size([0, 1])[1];
+          const best = api.value(3) === 'best', col = COLORS[api.value(2) % COLORS.length];
+          return { type: 'rect', shape: { x: a[0] + 1, y: a[1] - hgt * (best ? 0.32 : 0.4), width: Math.max(2, b[0] - a[0] - 2), height: hgt * (best ? 0.64 : 0.8), r: 6 },
+            style: best ? { fill: col, opacity: api.value(2) === focus ? 1 : 0.75 } : { fill: 'transparent', stroke: c.faint, lineWidth: 1.4, lineDash: [4, 3] } };
+        } },
+    ],
+  };
+});
+
+// ── Matrix: best cost per machine and day ──────────────────────────────────
+function renderMatrix(res) {
+  let html = `<tr><th>Machine</th>${DAYS.map((d, i) => `<th>${i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.name.split(' ').slice(0, 2).join(' ')}</th>`).join('')}</tr>`;
+  machines.forEach((m, i) => {
+    const cells = DAYS.map((_, d) => bestOn(d, m, H.buy, res[i].left));
+    const valid = cells.filter(Boolean), min = valid.length ? Math.min(...valid.map(x => x.cost)) : null;
+    html += `<tr><td>${m.name.replace(/</g, '&lt;')}</td>${cells.map((b, d) => b
+      ? `<td class="${b.cost === min ? 'best' : ''} ${isForecast(b.start, m.hours) ? 'fc' : ''}" data-d="${d}"><b>${eur(b.cost)}</b><span>${pad(H.hour[b.start])}:00</span></td>`
+      : `<td class="na">–</td>`).join('')}</tr>`;
+  });
+  document.getElementById('matrix').innerHTML = html;
+  document.querySelectorAll('#matrix td[data-d]').forEach(td => td.addEventListener('click', () => { dayMode = +td.dataset.d; update(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+}
+
+// ── Everything for the current settings ────────────────────────────────────
+const tile = (label, value, unit, note, cls = '') => `<div class="tile ${cls}"><p>${label}</p><div class="v">${value}${unit ? `<small>${unit}</small>` : ''}</div><div class="n">${note}</div></div>`;
+function update(dragging) {
+  const res = planAll();
+  const placed = res.filter(r => r && r.best);
+  const saving = placed.reduce((s, r) => s + (r.saving || 0), 0);
+  const cost = placed.reduce((s, r) => s + r.best.cost, 0);
+  const ownKwh = placed.reduce((s, r) => s + r.own * machines[r.i].kw * machines[r.i].hours, 0);
+  const kwh = placed.reduce((s, r) => s + machines[r.i].kw * machines[r.i].hours, 0);
+  const lo = placed.reduce((s, r) => s + Math.max(0, r.lo ?? r.saving ?? 0), 0), hi = placed.reduce((s, r) => s + (r.hi ?? r.saving ?? 0), 0);
+  const anyFc = placed.some(r => isForecast(r.best.start, machines[r.i].hours));
+  document.getElementById('kpis').innerHTML = [
+    tile('Saved by the plan', eur(saving), '', anyFc && hi - lo > 0.05 ? `likely ${eur(lo)}–${eur(hi)}, as some prices are forecast` : 'one run of every machine, against its usual time', 'hero'),
+    tile('Cost of these runs', eur(cost), '', `${nf(kwh, 0)} kWh in ${placed.length} jobs`),
+    tile('From own sun and wind', nf(kwh ? ownKwh / kwh * 100 : 0, 0), '%', `${nf(ownKwh, 0)} kWh of the jobs' energy`),
+    tile('Saving per month', eur(saving * 30 / Math.max(1, dayMode === 'best' ? 7 : 1), 0), '', dayMode === 'best' ? 'if every week looks like this one' : 'if every day looked like this one'),
+  ].join('');
+  const pubDays = DAYS.filter((d, i) => H.kind[d.start] === 'published').length;
+  document.getElementById('certainty').innerHTML = `<b>${pubDays} day${pubDays === 1 ? '' : 's'}</b> with published prices · ${DAYS.length - pubDays} days forecast`;
+  const mode = dayMode === 'best' ? 'the best day this week' : DAYS[dayMode].name;
+  document.getElementById('tl-title').textContent = dayMode === 'best' ? 'Plan for the coming week' : `Plan for ${DAYS[dayMode].name}`;
+  document.getElementById('tl-sub').textContent = `Each machine at its cheapest start on ${mode}, own surplus shared largest machine first. Dashed outline = usual time.`;
+  const f = res[focus];
+  document.getElementById('tl-text').innerHTML = f && f.best
+    ? `<b>${machines[focus].name}</b>: start <b>${at(f.best.start)}</b> for ${machines[focus].hours} h${f.saving != null ? `, ${f.saving > 0.005 ? `saving <b>${eur(f.saving)}</b> against ${at(f.usual.start)}` : 'its usual time is already the best'}` : ''}.`
+    : '';
+  renderDaySel();
+  if (!dragging) renderMachines(res);
+  else machines.forEach((m, i) => {  // while a slider is held, update the numbers but keep the slider
+    const card = document.querySelector(`.m[data-i="${i}"]`); if (!card) return;
+    card.querySelectorAll('input[type=range]').forEach(el => { el.nextElementSibling.textContent = el.value + ({ kw: ' kW', hours: ' h' }[el.dataset.k] || ':00'); });
+    const r = res[i], resEl = card.querySelector('.res'), meta = card.querySelector('.meta');
+    if (r.best && resEl) {
+      const s = resEl.querySelector('.save');
+      resEl.querySelector('b') && (resEl.querySelector('b').textContent = `${at(r.best.start)} · ${span(r.best.start, m.hours)}`);
+      if (s && r.saving != null) s.textContent = r.saving > 0.005 ? `saves ${eur(r.saving)}` : 'usual time is already best';
+      if (meta) meta.textContent = `${eur(r.best.cost)} per run${r.usual ? ` instead of ${eur(r.usual.cost)} at ${at(r.usual.start)}` : ''} · ${nf(r.own * 100, 0)} % own power`;
+    }
+    card.querySelector('summary').textContent = `${nf(m.kw, 0)} kW · ${m.hours} h job · allowed ${pad(m.earliest)}–${pad(m.latest_end)} · usually ${pad(m.usual_start)}:00`;
+  });
+  renderMatrix(res);
+  tl.update();
+}
+// after letting go of a slider, redraw the cards completely (while dragging only the numbers change)
+let dragged = false;
+document.addEventListener('pointerup', () => { if (dragged) { dragged = false; setTimeout(() => update(false), 0); } });
+
+document.getElementById('foot').textContent = `Prices are all-in (spot plus grid fees, levies and tax, German 2026 tariff): published for today and tomorrow, then the Price outlook forecast with its likely range. Own surplus = expected solar and wind minus the base load (cold store). A job's cost counts surplus power at the export price it would otherwise earn. Your machines are kept in this browser.`;
+OP.start();
+update();
+</script>
+</body>
+</html>

@@ -42,6 +42,7 @@ def test_app_starts_without_errors():
         "views/analytics.py",
         "views/weather.py",
         "views/outlook.py",
+        "views/cockpit.py",
         "views/savings.py",
         "views/tariff.py",
         "views/components.py",

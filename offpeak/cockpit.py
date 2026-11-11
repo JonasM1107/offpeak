@@ -12,6 +12,8 @@ search in the browser, so sliders react at once; tests/test_cockpit.py pins the 
 
 from dataclasses import dataclass
 
+import pandas as pd
+
 
 @dataclass
 class Machine:
@@ -34,16 +36,21 @@ def job_cost(
     return cost
 
 
-def starts(day_start: int, m: Machine, n_hours: int) -> range:
-    """Allowed start indices on the day that begins at hour index `day_start`."""
-    first = day_start + m.earliest
+def starts(day_start: int, m: Machine, n_hours: int, not_before: int = 0) -> range:
+    """Allowed start indices on the day that begins at hour index `day_start`; never before
+    `not_before` (the current hour), since a job cannot start in the past."""
+    first = max(day_start + m.earliest, not_before)
     last = min(day_start + m.latest_end - m.hours, n_hours - m.hours)
     return range(first, last + 1)
 
 
-def best_start(day_start: int, m: Machine, buy, sell, surplus) -> tuple[int, float] | None:
+def best_start(
+    day_start: int, m: Machine, buy, sell, surplus, not_before: int = 0
+) -> tuple[int, float] | None:
     """Cheapest allowed start on that day and its cost, or None if the job does not fit."""
-    options = [(s, job_cost(s, m, buy, sell, surplus)) for s in starts(day_start, m, len(buy))]
+    options = [
+        (s, job_cost(s, m, buy, sell, surplus)) for s in starts(day_start, m, len(buy), not_before)
+    ]
     return min(options, key=lambda x: x[1]) if options else None
 
 
@@ -72,3 +79,64 @@ def plan(machines: list[Machine], day_start: int, buy, sell, surplus) -> list[di
             }
         )
     return out
+
+
+# ── The hours ahead, for the cockpit view ───────────────────────────────────
+
+
+def horizon(
+    published: pd.Series,
+    forecast: pd.DataFrame,
+    gen: pd.DataFrame,
+    base_kw: float,
+    tariff,
+    tz: str,
+    today,
+    days: int = 7,
+) -> dict:
+    """Hour by hour from today 00:00 (local) for `days` days: all-in buy price and export
+    price (ct/kWh), a likely range on forecast days, the site's surplus own power (kW) and
+    whether the price is published or forecast.
+
+    published: hourly spot ct/kWh by UTC hour; forecast: ts, p10, p50, p90 (spot ct/kWh);
+    gen: ts, pv_kw, wind_kw (any resolution)."""
+
+    from offpeak.forecast.outlook import local_day_hours
+    from offpeak.tariffs import slot_prices
+
+    day_list = [today + pd.Timedelta(days=i) for i in range(days)]
+    hours = pd.DatetimeIndex([]).tz_localize("UTC")
+    day_starts = []
+    for d in day_list:
+        day_starts.append(len(hours))
+        hours = hours.append(local_day_hours(d, tz))
+
+    fc = forecast.set_index("ts")
+    spot = published.reindex(hours)
+    kind = pd.Series("published", index=hours).where(spot.notna(), "forecast")
+    p50 = spot.fillna(fc["p50"].reindex(hours))
+    p10 = spot.fillna(fc["p10"].reindex(hours))
+    p90 = spot.fillna(fc["p90"].reindex(hours))
+    known = p50.notna()
+    hours, p50, p10, p90, kind = hours[known], p50[known], p10[known], p90[known], kind[known]
+
+    priced = slot_prices(pd.DataFrame({"ts": hours, "eur_mwh": p50.values * 10}), tariff)
+    fees = priced["import_ct"].values - p50.values  # grid fees, levies and tax on top of spot
+    g = gen.set_index("ts").resample("h").mean().reindex(hours)
+    own = (g["pv_kw"].fillna(0) + g["wind_kw"].fillna(0)).values
+    local = hours.tz_convert(tz)
+    return {
+        "t": ((hours - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta(seconds=1)).tolist(),
+        "hour": local.hour.tolist(),
+        "buy": (p50.values + fees).round(2).tolist(),
+        "buy_lo": (p10.values + fees).round(2).tolist(),
+        "buy_hi": (p90.values + fees).round(2).tolist(),
+        "sell": priced["export_ct"].round(2).tolist(),
+        "surplus": [round(max(0.0, x - base_kw), 2) for x in own],
+        "kind": kind.tolist(),
+        "days": [
+            {"name": f"{pd.Timestamp(d):%a %-d %b}", "start": s}
+            for d, s in zip(day_list, day_starts, strict=True)
+            if s < len(hours)
+        ],
+    }
