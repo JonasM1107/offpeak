@@ -15,18 +15,20 @@ st.set_page_config(page_title="offpeak", page_icon="⚡", layout="wide")
 st.logo(str(HERE / "assets" / "logo.svg"), size="large")
 inject_css()
 
+# The page files live in views/, not pages/: Streamlit would turn a pages/ folder into its own
+# automatic menu and show that briefly before ours.
 pages = {
     "Overview": [
         st.Page(
-            HERE / "pages" / "dashboard.py",
+            HERE / "views" / "dashboard.py",
             title="Dashboard",
             icon=":material/dashboard:",
             default=True,
         ),
-        st.Page(HERE / "pages" / "analytics.py", title="Analytics", icon=":material/insights:"),
+        st.Page(HERE / "views" / "analytics.py", title="Analytics", icon=":material/insights:"),
     ],
     "Setup": [
-        st.Page(HERE / "pages" / "settings.py", title="Settings", icon=":material/settings:"),
+        st.Page(HERE / "views" / "settings.py", title="Settings", icon=":material/settings:"),
     ],
 }
 st.navigation(pages, position="sidebar").run()
