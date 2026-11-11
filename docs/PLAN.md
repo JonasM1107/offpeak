@@ -413,15 +413,9 @@ One theme in `.streamlit/config.toml`; shared chart and card functions in `app/u
 
 ## 11. Team split
 
-### 11.1 Principles
+The split is loose. Its only job is that everyone builds a real part and can explain it. Swap tasks whenever it makes sense.
 
-1. **Vertical slices.** Each person owns a slice from the API through the logic to their own dashboard page. Nobody is "the front-end person" and nobody waits for one.
-2. **Contracts first.** Section 8 and the seeded demo data are agreed on Day 2. After that everyone works in parallel against them.
-3. **Own folders.** The repo layout follows the roles, so two people rarely touch the same file.
-4. **A buddy per module.** A reviews B, B reviews C, C reviews A. The buddy must be able to explain the module too.
-5. **Integrate at every gate**, not once at the end.
-
-### 11.2 Roles
+### 11.1 Rough roles
 
 | | **A — Site & Sun** | **B — Markets & ML** | **C — Platform & Optimiser** |
 |---|---|---|---|
@@ -434,7 +428,7 @@ One theme in `.streamlit/config.toml`; shared chart and card functions in `app/u
 
 **Suggestion for D2:** Jonas takes C, since he set up the repo and wrote the first plan. Mika and Noa choose A and B by interest.
 
-Shared by all three: tests for your own module before it is merged; review your buddy's pull requests within a day; a 15-minute standup every working day (done, doing, blocked); update `docs/DATA_DICTIONARY.md` when a table or column changes.
+Shared by all three: write tests for what you build, and have someone else look at your pull request before it is merged.
 
 ---
 
@@ -458,16 +452,14 @@ Mika (`mika-weymann`) and Noa (`noafhintz`) already have access to the repo.
 3. Work with Claude in that branch: "implement issue 12, tests first".
 4. Run `uv run pytest` and `uv run ruff check`.
 5. Ask Claude to open a pull request. It closes the issue.
-6. Your buddy reviews. Claude can answer review comments and fix CI.
+6. A teammate reviews. Claude can answer review comments and fix CI.
 7. Squash-merge. Delete the branch.
 
 ### 12.3 Rules
 
-- Pull requests stay under roughly 400 changed lines. No branch lives longer than two days.
-- One issue per task. One pull request per issue.
-- Shared files (`offpeak/models.py`, `db/migrations/`, `pyproject.toml`) change only by pull request with a heads-up in the group chat first.
+- Keep pull requests small and branches short-lived; it avoids merge conflicts.
+- Say in the group chat before changing a shared file (`offpeak/models.py`, `db/migrations/`, `pyproject.toml`).
 - Never commit secrets, `.env`, or any pilot data. The repo is public.
-- Each pull request description ends with three lines: what it does, how it works, how to test it. This doubles as exam preparation.
 
 ### 12.4 Making three Claudes behave like one
 
@@ -614,9 +606,9 @@ Because pages were built alongside the models, this phase is polish, not constru
 | Price model does not beat the baseline | Show the baseline on the Week page and present the comparison as measured | B |
 | Time-zone bugs | UTC only, clock-change tests, one `timeutils.py` | C |
 | Database unreachable from Actions | Use the session pooler address | C |
-| One of us is ill or stuck | Buddy system; small pull requests mean little is ever half-finished | all |
+| One of us is ill or stuck | Small pull requests mean little is ever half-finished; anyone can pick up a task | all |
 | Scope creep | Scope freeze on Day 14, cut list below | all |
-| Code we cannot explain | Three-line explanation on every pull request; buddy reviews; a 20-minute "explain your module" session each week | all |
+| Code we cannot explain | Ask Claude to explain your own code until you can explain it yourself; walk each other through your parts before the presentation | all |
 
 **Cut list — first to go when behind:**
 
@@ -676,7 +668,7 @@ We chose Streamlit (D1). If we ever switch, everything in sections 5–9 stays t
 - Add Supabase Auth, row-level security and Realtime; the browser uses the public key, jobs use the service key.
 - Add `apps/web/` to the repo, and `eslint` plus a type check to CI.
 - Add roughly four to five person-days. To pay for them, drop cut-list items 1–5 from the start and move the Tariff check and Savings pages to "Could".
-- The one-person front-end dependency is the main risk. The buddy for C must be able to read React.
+- The one-person front-end dependency is the main risk.
 
 ### Appendix B — Day 1 checklist
 
