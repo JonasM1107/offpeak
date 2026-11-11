@@ -2,10 +2,10 @@
    Colours follow the dashboard in app/ui/components.py: warm light greys, orange accent. */
 :root {
   --bg: #F6F5F2; --card: #FFFFFF; --card2: #FAF9F7; --line: #ECE9E4; --ink: #1C1B19; --muted: #77726A;
-  --faint: #A39E96; --accent: #E8590C; --accent-soft: #FDEBDF; --accent-mid: #F8C9A8;
-  --accent-ink: #B8430A; --dark: #3A3733; --grey: #D6D2CB; --sun: #F2A33A; --wind: #4A4640;
+  --faint: #A39E96; --accent: #FF5F00; --accent-soft: #FFE9DC; --accent-mid: #FFC4A0;
+  --accent-ink: #C24700; --dark: #3A3733; --grey: #D6D2CB; --sun: #F2A33A; --wind: #4A4640;
   --hero-bg: linear-gradient(155deg, #4A4640 0%, #2E2B28 100%); --hero-ink: #FFFFFF; --hero-muted: #D6D2CB;
-  --glow: rgba(232,89,12,.5); --shadow: 0 1px 2px rgba(28,27,25,.05);
+  --glow: rgba(255,95,0,.5); --shadow: 0 1px 2px rgba(28,27,25,.05);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif;

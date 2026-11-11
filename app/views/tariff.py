@@ -179,7 +179,7 @@ with st.container(border=True, key="card_tariff_check"):
         "text-align:right;white-space:nowrap}.op-table th:first-child,.op-table td:first-child"
         "{text-align:left;color:#6F6A62;white-space:normal}.op-table th{font-weight:600;"
         "font-size:.82rem;color:#1C1B19}.op-table tr.total td{font-weight:700;color:#1C1B19}"
-        ".op-table .win{color:#E8590C}.op-table th .kind{font-weight:500;color:#6F6A62}"
+        ".op-table .win{color:#FF5F00}.op-table th .kind{font-weight:500;color:#6F6A62}"
         ".op-table th{white-space:normal;vertical-align:bottom}.op-wrap{overflow-x:auto}"
         "@media (max-width:640px){.op-table{font-size:.76rem}"
         ".op-table th,.op-table td{padding:7px 3px}}</style>"
