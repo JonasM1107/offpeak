@@ -22,13 +22,15 @@ def check(load_fixture):
 
 
 def test_pv_power_from_irradiance():
-    assert list(pv_kw(pd.Series([1000.0, 0.0, None, -5.0]), 60)) == [51.0, 0.0, 0.0, 0.0]
+    # 60 kWp at 1000 W/m², panels at 25 °C: 8.7 % system losses, then about 96 % inverter
+    out = pv_kw(pd.Series([1000.0, 0.0, None, -5.0]), 60)
+    assert out.round(2).tolist() == [52.66, 0.0, 0.0, 0.0]
 
 
 def test_generation_per_slot(weather):
     gen = generation(weather, pv_kwp=60, wind_kw=30)
     assert len(gen) == len(weather)
-    assert gen["pv_kw"].max() <= 60 * 0.85
+    assert gen["pv_kw"].between(0, 60).all()  # never above the rating
     assert gen["wind_kw"].between(0, 30).all()
     assert (generation(weather, 60, 0)["wind_kw"] == 0).all()
 
@@ -71,3 +73,9 @@ def test_view_payload_has_every_list(weather, check):
     assert p["days"][0]["end"] - p["days"][0]["start"] in (23 * 3600, 24 * 3600, 25 * 3600)
     assert len(p["accuracy"]["hourly"]["t"]) == len(check)
     assert view_payload(weather, gen, days, None, 60, TZ)["accuracy"] is None
+
+
+def test_generation_without_temperature(weather):
+    # a weather frame without temperature still works: panels taken at 25 °C
+    gen = generation(weather.drop(columns=["temp_c"]), pv_kwp=60, wind_kw=0)
+    assert gen["pv_kw"].between(0, 60).all()

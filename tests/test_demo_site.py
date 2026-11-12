@@ -85,7 +85,8 @@ def test_real_weather_drives_solar_and_wind():
     weather = pd.DataFrame({"ts": BERLIN_DAY, "gti_wm2": 1000.0, "wind_ms": 0.0})
     inputs = hourly_inputs(None, weather, TZ)
     assert inputs["weather_real"].all()
-    assert inputs["pv_kw"].round(6).eq(ASSETS.pv_kwp * 0.85).all()
+    # no temperature given: panels at 25 °C, so only system and inverter losses (about 12 %)
+    assert inputs["pv_kw"].round(2).eq(round(ASSETS.pv_kwp * 0.8777, 2)).all()
     assert (inputs["wind_kw"] == 0).all()
 
 
