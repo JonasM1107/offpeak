@@ -262,7 +262,7 @@ function renderStats() {
     </div>`;
 }
 
-document.getElementById('foot').textContent = `Weather data by Open-Meteo.com: forecast model ${D.meta.model}, earlier model runs and satellite radiation. Forecast from ${D.meta.fetched}. Solar = irradiance on the panels × kWp × 0.85; wind = a generic small-turbine power curve at hub height.`;
+document.getElementById('foot').textContent = `Weather data by Open-Meteo.com: forecast model ${D.meta.model}, earlier model runs and satellite radiation. Forecast from ${D.meta.fetched}. Solar = irradiance on the panels through pvlib's PVWatts model (module temperature, system losses, inverter); wind = a generic small-turbine power curve at hub height.`;
 OP.start();
 renderDays();
 selectDay(null);

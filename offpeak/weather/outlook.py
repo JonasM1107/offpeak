@@ -1,8 +1,8 @@
 """From weather to energy: the site's expected solar and wind output, a 7-day outlook, and
 how good yesterday's solar forecast was.
 
-Solar uses the same simple model as offpeak/demo_site.py: power = irradiance on the panel
-(GTI, W/m²) / 1000 × kWp × 0.85, where 0.85 covers inverter, wiring and heat losses. Wind uses
+Solar uses pvlib's PVWatts model (offpeak/generation/pv.py): irradiance on the panel, module
+temperature, system losses and the inverter, the same model as offpeak/demo_site.py. Wind uses
 the generic small-turbine power curve from demo_site, with the 10 m forecast wind scaled up by
 30 % to hub height.
 """
@@ -10,16 +10,11 @@ the generic small-turbine power curve from demo_site, with the 10 m forecast win
 import pandas as pd
 
 from offpeak.demo_site import turbine_kw
+from offpeak.generation.pv import pv_kw
 from offpeak.weather.codes import weather_label
 
-PERFORMANCE_RATIO = 0.85  # same as offpeak/demo_site.py
 HUB_HEIGHT_FACTOR = 1.3
 SUNNY_WM2 = 120  # an hour counts as sunny from this irradiance on the panel
-
-
-def pv_kw(gti_wm2: pd.Series, kwp: float) -> pd.Series:
-    """Solar power in kW from irradiance on the tilted panel."""
-    return gti_wm2.fillna(0).clip(lower=0) / 1000 * kwp * PERFORMANCE_RATIO
 
 
 def generation(weather: pd.DataFrame, pv_kwp: float, wind_kw: float) -> pd.DataFrame:
@@ -29,7 +24,9 @@ def generation(weather: pd.DataFrame, pv_kwp: float, wind_kw: float) -> pd.DataF
     return pd.DataFrame(
         {
             "ts": weather["ts"],
-            "pv_kw": pv_kw(weather["gti_wm2"], pv_kwp),
+            "pv_kw": pv_kw(
+                weather["gti_wm2"], pv_kwp, weather.get("temp_c"), weather.get("wind_ms")
+            ),
             "wind_kw": [turbine_kw(v, wind_kw) for v in wind] if wind_kw else 0.0,
         }
     )
@@ -73,7 +70,11 @@ def solar_accuracy(check: pd.DataFrame, kwp: float, tz: str) -> tuple[pd.DataFra
 
     `check` has ts, forecast_wm2, measured_wm2 per hour. Returns one row per local day
     (date, forecast_kwh, measured_kwh, error_pct) and a summary: mean absolute daily error
-    in kWh and %, and the bias (positive = the forecast promised too much)."""
+    in kWh and %, and the bias (positive = the forecast promised too much).
+
+    Both sides use the panels at 25 °C: we have no temperature for the satellite hours, and
+    this compares the irradiance forecast, not the temperature. So these kWh can differ a
+    few % from the outlook's, which does use the forecast temperature."""
     df = check.assign(
         day=check["ts"].dt.tz_convert(tz).dt.date,
         forecast_kw=pv_kw(check["forecast_wm2"], kwp),

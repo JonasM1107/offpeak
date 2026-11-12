@@ -16,6 +16,7 @@ from datetime import date
 
 import pandas as pd
 
+from offpeak.generation.pv import pv_kw
 from offpeak.tariffs import Tariff, bill, slot_prices
 
 HOURS = range(24)
@@ -90,7 +91,8 @@ def hourly_inputs(
     """One row per local hour: price (ct/kWh), solar and wind output (kW), and which are real.
 
     `prices` needs ts (UTC) and eur_mwh for one market day; `weather` needs ts, gti_wm2 and
-    wind_ms. Hours missing from either fall back to the demo curves.
+    wind_ms, and temp_c if it has it (the solar model then knows how warm the panels get).
+    Hours missing from either fall back to the demo curves.
     """
     out = pd.DataFrame({"hour": list(HOURS)})
     out["pv_kw"] = [demo_pv_kw(h, assets) for h in HOURS]
@@ -101,13 +103,16 @@ def hourly_inputs(
         w = w[
             weather["ts"].dt.tz_convert(tz).dt.date == weather["ts"].dt.tz_convert(tz).dt.date.min()
         ]
-        by_hour = w.groupby("hour").agg(gti=("gti_wm2", "mean"), wind=("wind_ms", "mean"))
+        if "temp_c" not in w:
+            w = w.assign(temp_c=float("nan"))  # pv_kw then takes the panels to be at 25 °C
+        by_hour = w.groupby("hour").agg(
+            gti=("gti_wm2", "mean"), wind=("wind_ms", "mean"), temp=("temp_c", "mean")
+        )
         real = out["hour"].isin(by_hour.index)
         hours = out.loc[real, "hour"]
-        # 0.85 covers inverter, wiring and temperature losses
-        out.loc[real, "pv_kw"] = (
-            by_hour.loc[hours, "gti"].fillna(0) / 1000 * assets.pv_kwp * 0.85
-        ).values
+        sel = by_hour.loc[hours]
+        temp = None if sel["temp"].isna().all() else sel["temp"]
+        out.loc[real, "pv_kw"] = pv_kw(sel["gti"], assets.pv_kwp, temp, sel["wind"]).values
         # forecast wind is at 10 m; the hub sits higher, where it blows roughly 30 % harder
         out.loc[real, "wind_kw"] = [
             assets.turbines * turbine_kw(v * 1.3, assets.turbine_kw)
