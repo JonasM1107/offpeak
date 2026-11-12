@@ -9,6 +9,7 @@ HERE = Path(__file__).parent
 # Streamlit only puts app/ on the import path; add the repo root so pages can import offpeak.
 sys.path.insert(0, str(HERE.parent))
 
+from ui import assistant  # noqa: E402
 from ui.components import inject_css  # noqa: E402
 
 st.set_page_config(page_title="offpeak", page_icon="⚡", layout="wide")
@@ -44,4 +45,6 @@ pages = {
         page("settings", "Settings", "settings"),
     ],
 }
-st.navigation(pages, position="sidebar").run()
+current = st.navigation(pages, position="sidebar")
+assistant.widget()  # before the page, so it shows even when a page stops early
+current.run()

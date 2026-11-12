@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
+import pytest
 
 from offpeak import db
 from offpeak.markets.energy_charts import parse_prices
@@ -80,3 +81,28 @@ def test_cockpit_machines_round_trip(engine):
     db.save_machines(engine, 1, [])  # removing every machine is kept, not reset to the demo
     assert db.read_machines(engine, 1) == []
     assert db.read_machines(engine, 2) is None
+
+
+def test_outlook_is_replaced_as_a_whole(engine):
+    def outlook(start: str, hours: int, p50: float) -> pd.DataFrame:
+        ts = pd.date_range(start, periods=hours, freq="h", tz="UTC")
+        return pd.DataFrame(
+            {
+                "ts": ts,
+                "day": ts.tz_convert("Europe/Berlin").date,
+                "lead": 1,
+                "p10": p50 - 2,
+                "p50": p50,
+                "p90": p50 + 2,
+                "miss_ct": [float("nan")] + [4.2] * (hours - 1),
+            }
+        )
+
+    assert db.read_outlook(engine).empty
+    based_on = datetime(2026, 11, 12, 22, tzinfo=UTC)
+    assert db.save_outlook(engine, outlook("2026-11-12 23:00", 48, 10.0), based_on) == 48
+    db.save_outlook(engine, outlook("2026-11-13 23:00", 24, 20.0), based_on + timedelta(days=1))
+    stored = db.read_outlook(engine)
+    assert len(stored) == 24 and (stored["p50"] == 20.0).all()  # the older run is gone
+    assert stored["based_on"].iloc[0] == based_on + timedelta(days=1)
+    assert pd.isna(stored["miss_ct"].iloc[0]) and stored["miss_ct"].iloc[1] == pytest.approx(4.2)

@@ -40,6 +40,15 @@ CSS = f"""
 [data-testid="stSidebarNavLink"][aria-current="page"] span {{ color: {INK}; font-weight: 600; }}
 [data-testid="stSidebarNavLink"][aria-current="page"] [data-testid="stIconMaterial"] {{ color: {ORANGE}; }}
 
+/* Ask Ollie: a round button at the bottom right, above Streamlit Cloud's own badge */
+.st-key-ollie_fab {{ position: fixed; right: 28px; bottom: 72px; z-index: 999990; width: auto !important; }}
+.st-key-ollie_fab button {{ border-radius: 999px; padding: 0.55rem 1.15rem; font-weight: 600;
+    box-shadow: 0 10px 28px rgba(255, 95, 0, 0.32), 0 2px 6px rgba(28, 27, 25, 0.12); }}
+.st-key-ollie_fab button:hover {{ transform: translateY(-1px); }}
+[data-testid="stDialog"] div[role="dialog"] {{ border-radius: 22px; font-family: 'Inter', sans-serif; }}
+[data-testid="stDialog"] div[role="dialog"] * {{ font-family: inherit; }}
+[data-testid="stDialog"] [data-testid="stIconMaterial"] {{ font-family: 'Material Symbols Rounded'; }}
+
 /* cards */
 [class*="st-key-card"] {{ background: #FFFFFF; border-radius: 20px !important; border-color: {LINE} !important;
     padding: 1.3rem 1.4rem !important; }}

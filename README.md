@@ -19,7 +19,8 @@ What the project must fulfil, including the grading criteria and where we stand,
 ## What it does
 
 - **Dashboard:** tomorrow's prices and this week's plan, i.e. when each machine should run and what that saves.
-- **Analytics:** day-ahead power prices, weather and solar, a 7-day price outlook from a machine learning model (with an honest backtest), and a simulation cockpit to plan machines.
+- **Analytics:** day-ahead power prices, weather and solar, a 7-day price outlook by **Offpeak Intelligence** (our forecast from a year of prices and the wind and solar forecast, trained in the background), and a simulation cockpit to plan machines.
+- **Ask Ollie:** a chat assistant on every page that answers questions like "when should I run the heat pump in 3 days, 3 hours, done by 18:00?" from the app's own data.
 - **Results:** savings replayed on past days, and a tariff calculator.
 - **Setup:** the site's components (solar, wind, battery, machines), shown in a 3D site view.
 
@@ -39,7 +40,7 @@ Run the app (it works without a database, calling the public APIs directly):
 uv run streamlit run app/main.py
 ```
 
-With the shared database: `cp .env.example .env` and fill in `DATABASE_URL` from the team password manager.
+With the shared database: `cp .env.example .env` and fill in `DATABASE_URL` from the team password manager. For Ollie, also `REQUESTY_API_KEY` (without it, Ollie says it can't answer and the rest works).
 
 Run the tests (they never call the real APIs; they use saved responses in `tests/fixtures/`):
 

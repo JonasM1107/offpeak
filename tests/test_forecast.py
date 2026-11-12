@@ -74,17 +74,49 @@ def test_day_summaries_find_the_cheapest_window():
     assert (days["window_ct"] <= days["p50"]).all()
 
 
-def test_view_payload():
-    from offpeak.forecast.outlook import view_payload
+def test_page_payload():
+    from offpeak.forecast.outlook import page_payload, run_outlook
 
     h = weekly_history(noise=1.5)
-    p = view_payload(h, backtest(h, TZ, days=21), TZ)
+    out, _ = run_outlook(h, TZ)
+    p = page_payload(h, out, TZ)
     assert len(p["forecast"]["t"]) == len(p["forecast"]["p50"]) >= 6 * 23
     assert len(p["days"]) == 6 and p["days"][0]["end"] > p["days"][0]["start"]
-    assert {m["key"] for m in p["models"]} == {"last_week", "last_day", "blend", "ml"}
-    assert sorted(sum((m["used_for"] for m in p["models"]), [])) == [2, 3, 4, 5, 6, 7]
+    assert p["typical_miss"] > 0
+    assert all(d["why"] is None for d in p["days"])  # no weather data given
+    assert "models" not in p  # how the outlook is made stays out of the app
 
 
 def test_backtest_says_so_when_history_is_too_short():
     with pytest.raises(ValueError, match="Not enough price history"):
         backtest(weekly_history().iloc[: 3 * 24], TZ)  # three days
+
+
+def test_run_outlook_adds_the_typical_miss_and_uses_weather_when_there():
+    from offpeak.forecast.outlook import run_outlook
+
+    h = weekly_history(noise=1.5)
+    out, test = run_outlook(h, TZ)
+    assert out["miss_ct"].notna().all() and (out["miss_ct"] > 0).all()
+    assert "ml_weather" not in set(test.scores["forecaster"])  # no drivers: no weather model
+    idx = pd.date_range(h.index.min(), h.index.max() + pd.Timedelta(days=9), freq="h")
+    drivers = pd.DataFrame(
+        {f"{v}_{k}": 0.3 for v in ("wind", "sun", "temp") for k in range(1, 8)}, index=idx
+    )
+    _, test = run_outlook(h, TZ, drivers)
+    assert "ml_weather" in set(test.scores["forecaster"])
+    with pytest.raises(ValueError):
+        run_outlook(h.iloc[: 3 * 24], TZ)
+
+
+def test_weather_note_says_why_in_a_few_words():
+    from offpeak.forecast.outlook import weather_note
+
+    day = pd.Timestamp("2026-11-15").date()
+    idx = local_day_hours(day, TZ)
+    windy = pd.DataFrame({"wind_1": 0.6, "sun_1": 200.0, "wind_3": 0.0, "sun_3": 0.0}, index=idx)
+    assert weather_note(windy, day, TZ) == "Strong wind · sunny south"  # the freshest lead wins
+    calm = pd.DataFrame({"wind_4": 0.05, "sun_4": 20.0}, index=idx)
+    assert weather_note(calm, day, TZ) == "Little wind · grey skies"
+    assert weather_note(None, day, TZ) is None
+    assert weather_note(calm, pd.Timestamp("2026-12-01").date(), TZ) is None  # no data that day

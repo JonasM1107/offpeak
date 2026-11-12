@@ -62,7 +62,7 @@
     <div class="card">
       <div class="head">
         <div><h3 id="tl-title">Plan</h3><div class="sub" id="tl-sub"></div></div>
-        <div class="legend-inline"><span><i class="line" style="background:var(--ink)"></i>Price</span><span><i class="dash"></i>Forecast</span><span><i style="background:var(--sun)"></i>Own surplus</span><span><i style="background:var(--accent)"></i>Best run</span></div>
+        <div class="legend-inline"><span><i class="line" style="background:var(--ink)"></i>Price</span><span><i class="dash"></i>Offpeak Intelligence</span><span><i style="background:var(--sun)"></i>Own surplus</span><span><i style="background:var(--accent)"></i>Best run</span></div>
       </div>
       <div id="timeline" class="chart"></div>
       <p class="insight" id="tl-text"></p>
@@ -78,7 +78,7 @@
   </div>
 
   <div class="card reveal">
-    <div class="head"><div><h3>Best time per day</h3><div class="sub">Cost of each job at its best start on each day, with the own power the larger machines leave over. Orange = cheapest day. ~ = forecast price. Click a day to plan it.</div></div></div>
+    <div class="head"><div><h3>Best time per day</h3><div class="sub">Cost of each job at its best start on each day, with the own power the larger machines leave over. Orange = cheapest day. ~ = price by Offpeak Intelligence. Click a day to plan it.</div></div></div>
     <table class="matrix" id="matrix"></table>
   </div>
   <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
@@ -185,7 +185,7 @@ function renderMachines(res) {
         : r.saving > 0.005 ? `<span class="save">saves ${eur(r.saving)}${fc && r.hi - r.lo > 0.05 ? ` <span style="font-weight:500;color:var(--muted)">(${eur(Math.max(0, r.lo))}–${eur(r.hi)})</span>` : ''}</span>`
         : '<span class="save none">usual time is already best</span>';
       result = `<div class="res"><b>${at(r.best.start)} · ${span(r.best.start, m.hours)}</b>${save}</div>
-        <div class="meta">${eur(r.best.cost)} per run${r.usual ? ` instead of ${eur(r.usual.cost)} at ${at(r.usual.start)}` : ''} · ${nf(r.own * 100, 0)} % own power${fc ? ' · forecast price' : ''}</div>`;
+        <div class="meta">${eur(r.best.cost)} per run${r.usual ? ` instead of ${eur(r.usual.cost)} at ${at(r.usual.start)}` : ''} · ${nf(r.own * 100, 0)} % own power${fc ? ' · Offpeak Intelligence price' : ''}</div>`;
     }
     return `<div class="m ${i === focus ? 'on' : ''}" data-i="${i}">
       <div class="top"><span class="dot" style="background:${col}"></span><input class="name" value="${m.name.replace(/"/g, '&quot;')}" data-i="${i}" aria-label="Machine name"><button class="x" data-del="${i}" aria-label="Remove">×</button></div>
@@ -246,7 +246,7 @@ const tl = OP.chart(document.getElementById('timeline'), c => {
     grid: [{ left: 112, right: 48, top: 14, height: 170 }, { left: 112, right: 48, top: 206, height: Math.max(40, rows * 28) }],
     tooltip: { ...B.tooltip, trigger: 'axis', axisPointer: { type: 'line', link: [{ xAxisIndex: 'all' }] },
       formatter: ps => { const p = ps.find(x => x.seriesIndex <= 3); if (!p) return ''; const h = H.t.indexOf(p.value[0] / 1000); if (h < 0) return '';
-        return `<b>${DAYS[dayOf(h)].name} ${pad(H.hour[h])}:00</b><br>${H.kind[h] === 'forecast' ? 'forecast' : 'price'} <b>${nf(H.buy[h])} ct/kWh</b>${H.kind[h] === 'forecast' ? `<br><span style="color:${c.muted}">likely ${nf(H.buy_lo[h])}–${nf(H.buy_hi[h])} ct</span>` : ''}<br><span style="color:${c.muted}">own surplus ${nf(H.surplus[h], 0)} kW</span>`; } },
+        return `<b>${DAYS[dayOf(h)].name} ${pad(H.hour[h])}:00</b><br>${H.kind[h] === 'forecast' ? 'Offpeak Intelligence' : 'price'} <b>${nf(H.buy[h])} ct/kWh</b>${H.kind[h] === 'forecast' ? `<br><span style="color:${c.muted}">likely ${nf(H.buy_lo[h])}–${nf(H.buy_hi[h])} ct</span>` : ''}<br><span style="color:${c.muted}">own surplus ${nf(H.surplus[h], 0)} kW</span>`; } },
     xAxis: [
       { type: 'time', gridIndex: 0, min: xMin, max: xMax, ...B.axis, axisLabel: { show: false }, splitLine: { show: false } },
       { type: 'time', gridIndex: 1, min: xMin, max: xMax, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, hideOverlap: true, formatter: dayMode === 'best' ? { day: '{ee} {d}', hour: '{HH}:{mm}' } : '{HH}:{mm}' } },
@@ -303,13 +303,13 @@ function update(dragging) {
   const lo = placed.reduce((s, r) => s + Math.max(0, r.lo ?? r.saving ?? 0), 0), hi = placed.reduce((s, r) => s + (r.hi ?? r.saving ?? 0), 0);
   const anyFc = placed.some(r => isForecast(r.best.start, machines[r.i].hours));
   document.getElementById('kpis').innerHTML = [
-    tile('Saved by the plan', eur(saving), '', anyFc && hi - lo > 0.05 ? `likely ${eur(lo)}–${eur(hi)}, as some prices are forecast` : 'one run of every machine, against its usual time', 'hero'),
+    tile('Saved by the plan', eur(saving), '', anyFc && hi - lo > 0.05 ? `likely ${eur(lo)}–${eur(hi)}, as some prices come from Offpeak Intelligence` : 'one run of every machine, against its usual time', 'hero'),
     tile('Cost of these runs', eur(cost), '', `${nf(kwh, 0)} kWh in ${placed.length} jobs`),
     tile('From own sun and wind', nf(kwh ? ownKwh / kwh * 100 : 0, 0), '%', `${nf(ownKwh, 0)} kWh of the jobs' energy`),
     tile('Saving per month', eur(saving * 30 / Math.max(1, dayMode === 'best' ? 7 : 1), 0), '', dayMode === 'best' ? 'if every week looks like this one' : 'if every day looked like this one'),
   ].join('');
   const pubDays = DAYS.filter((d, i) => H.kind[d.start] === 'published').length;
-  document.getElementById('certainty').innerHTML = `<b>${pubDays} day${pubDays === 1 ? '' : 's'}</b> with published prices · ${DAYS.length - pubDays} days forecast`;
+  document.getElementById('certainty').innerHTML = `<b>${pubDays} day${pubDays === 1 ? '' : 's'}</b> with published prices · ${DAYS.length - pubDays} days by Offpeak Intelligence`;
   const mode = dayMode === 'best' ? 'the best day this week' : DAYS[dayMode].name;
   document.getElementById('tl-title').textContent = dayMode === 'best' ? 'Plan for the coming week' : `Plan for ${DAYS[dayMode].name}`;
   document.getElementById('tl-sub').textContent = `Each machine at its cheapest start on ${mode}, own surplus shared largest machine first. Dashed outline = usual time.`;
@@ -338,7 +338,7 @@ function update(dragging) {
 let dragged = false;
 document.addEventListener('pointerup', () => { if (dragged) { dragged = false; setTimeout(() => update(false), 0); } });
 
-document.getElementById('foot').textContent = `Prices are all-in (spot plus grid fees, levies and tax, German 2026 tariff): published for today and tomorrow, then the Price outlook forecast with its likely range. Own surplus = expected solar and wind minus the base load (cold store). A job's cost counts surplus power at the export price it would otherwise earn. Your machines are kept in this browser.`;
+document.getElementById('foot').textContent = `Prices are all-in (spot plus grid fees, levies and tax, German 2026 tariff): published for today and tomorrow, then Offpeak Intelligence's outlook with its likely range. Own surplus = expected solar and wind minus the base load (cold store). A job's cost counts surplus power at the export price it would otherwise earn. Your machines are saved for the site.`;
 OP.start();
 update();
 </script>

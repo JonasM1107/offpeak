@@ -1,0 +1,20 @@
+name: Offpeak Intelligence outlook
+
+# After the morning weather update and after tomorrow's prices are usually published
+# (around 13:00 German time). Runs that find nothing new skip after one database query.
+on:
+  schedule:
+    - cron: "10 8,12,13,15 * * *"
+  workflow_dispatch:
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --locked --no-dev
+      - run: uv run python -m offpeak.jobs.forecast_prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

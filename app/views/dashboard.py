@@ -253,7 +253,7 @@ with plan_box.container(border=True, key="card_plan"):
             card_title(
                 f"This week: run your machines at these times and save about {eur(plan['total'])}",
                 f"Compared with their usual start times · {plan['compared']} of {len(fleet)} "
-                "machines have one · later days use the price forecast",
+                "machines have one · later days use Offpeak Intelligence",
             )
         with link:
             st.page_link("views/cockpit.py", label="Adjust in the cockpit", icon=":material/tune:")
@@ -270,7 +270,7 @@ with plan_box.container(border=True, key="card_plan"):
             if r["usual"]:
                 meta += f" · usually {r['usual']}"
             if r["forecast"]:
-                meta += " · forecast price"
+                meta += " · Offpeak Intelligence price"
             chip = (
                 f'<span class="op-chip">saves {eur(r["saving"])}</span>'
                 if r["saving"] is not None and r["saving"] > 0.005

@@ -143,7 +143,9 @@ For offpeak this means:
 |---|---|---|
 | Energy-Charts (day-ahead prices) | Every price on every page | The app reads stored prices from Supabase first. If neither works, the pages show "Prices could not be loaded right now. We try again in a few minutes." Before ~13:00 CET, "tomorrow" shows "Waiting for tomorrow's prices". |
 | Open-Meteo forecast | Weather, solar, cockpit, dashboard | The stored forecast from the database is used (if under 6 hours old). Otherwise: "The weather forecast is not available right now." |
-| Open-Meteo previous runs (weather for the ML model) | Price outlook | Read from Supabase, which the daily job fills. If the source is missing, the outlook runs **without weather** (prices-only model) and says which model it uses. |
+| Open-Meteo previous runs (weather for Offpeak Intelligence) | Price outlook | Read from Supabase, which the daily job fills. If missing, the outlook runs without weather (prices only) and the day cards show no weather reason. |
+| Offpeak Intelligence outlook (computed by our forecast job) | Price outlook, cockpit, dashboard plan, Ollie | Read from Supabase. If no stored outlook fits the latest prices (job late or failed), the app computes one itself (about half a minute, once) and stores it. |
+| Requesty (language model for Ollie) | Ask Ollie chat | Ollie says "can't answer right now" and points to the dashboard plan and the cockpit, which do not need it. If the first model fails, a second one is tried. Each visitor can ask 25 questions per session (free plan: 200 requests a day). |
 | Open-Meteo archive and satellite | Savings replay, solar accuracy | A clear message on that card or page. The rest of the app is unaffected. |
 | Supabase | Stored data, components, cockpit machines | The pages fall back to the APIs. Components and machines are kept for the session only, and the page says so. |
 
@@ -155,11 +157,12 @@ Tests: `tests/test_app.py` runs every page offline with saved responses.
 
 **Where is the data stored?**
 
-- In Supabase (hosted Postgres): day-ahead prices, weather forecast runs, the weather that drives the price model, site components, cockpit machines and the job log.
+- In Supabase (hosted Postgres): day-ahead prices, weather forecast runs, the weather that drives the price outlook, the latest Offpeak Intelligence outlook, site components, cockpit machines and the job log.
 - GitHub Actions jobs fill it on a schedule:
   - prices every 15 minutes around 13:00;
   - weather every 3 hours;
-  - price-model weather daily.
+  - price-model weather daily;
+  - the Offpeak Intelligence outlook after the morning weather and after new prices (its log shows the backtest scores and what the outlook relies on).
 - The app reads the database first and calls the APIs only for what is missing.
 - Only `offpeak/db.py` talks to the database. The schema is in `db/migrations/`.
 
@@ -183,6 +186,8 @@ Tests: `tests/test_app.py` runs every page offline with saved responses.
 
 **What happens if an external API is unavailable?** See section 4.
 
+**How does Ollie (the chat) answer?** The language model does not know our prices and is not allowed to compute them. It gets a short set of instructions (today's date, the known days, the rules) and five tools: plain Python functions in `offpeak/assistant/tools.py` that run the same planning as the cockpit on our data. It asks for what it needs, gets the results, and puts them into words. Everything the model sends to a tool is checked like user input. The tests use a fake model.
+
 **Why these choices, and what are their limits?**
 
 - **UTC everywhere:**
@@ -198,6 +203,9 @@ Tests: `tests/test_app.py` runs every page offline with saved responses.
   - *Limit:* only about a year of such data.
 - **Demo site instead of real meter data:**
   - *Limit:* consumption is modelled, not measured.
+- **Ollie through a free Requesty model:**
+  - *Why:* the course's standard router, no card needed. The numbers come from our tools, so a smaller model is enough.
+  - *Limit:* 200 requests a day for the whole app, and answers can be slower than the rest of the app.
 - **No user accounts:**
   - *Why:* one demo site.
   - *Limit:* changes are shared by everyone with edit access.
@@ -240,12 +248,13 @@ Checked on 11 November 2026. ✅ meets High · ⚠️ partly · ❌ missing.
 | README requirements | ⚠️ | The deployed URL and run/test commands are in. **Student numbers are missing** (placeholders in README.md). |
 | Every member contributes code | ❌ | Git history: commits by JonasM1107 and by "Claude" (work directed by Mika). **No commits under Mika's or Noa's own name.** Mika: commit under your own name from now on. Noa: own a feature and commit it. |
 | It works | ⚠️ | Pages handle unavailable sources (section 4) and tests open every page. Still to do: a systematic invalid-input pass on the deployed app, and tests that open pages with each source failing. |
-| UI and experience | ✅ / ⚠️ | Consistent design, answer-first dashboard, designed error states. Open: the first visit of the day waits about 30 s for the forecast on Price outlook and the cockpit. |
+| UI and experience | ✅ | Consistent design, answer-first dashboard, designed error states. The outlook is computed in the background, so pages no longer wait for it. |
 | Scope and ambition | ✅ | See 2.3. |
 | Verification | ⚠️ | 159 tests, green on `main`. Missing: page tests with failing sources; rejected-action tests for the component form and settings. |
 | Security: no credentials | ✅ | `.env` and secrets git-ignored, `.env.example` placeholders only, RLS on in every migration. |
 | Security: access control | ❌ | **Anyone with the public URL can change the shared site components and cockpit machines.** Needed: an edit passcode (Streamlit secret), checked where the change is saved; visitors without it keep changes in their session only. |
 | Security: input validation | ✅ / ⚠️ | Cockpit machines and new components are validated before saving. To check: every remaining input. |
 | Security: dependencies | ✅ | Pinned in `uv.lock`, installed `--locked`. CI runs `pip-audit` on every push: no known vulnerabilities. |
+| Ollie (chat) | ⚠️ | Built and tested with a fake model. Goes live once `REQUESTY_API_KEY` is in the Streamlit secrets; not yet tried against the real model. |
 | Walkthrough readiness | ⚠️ | Section 5 has the answers. Every member should walk through the repo once, using this file. |
 | Team workflow | ⚠️ | `AGENTS.md` asks for a branch and pull request per task, but recent work was pushed straight to `main`. From now on: a pull request per change, reviewed by a teammate. |

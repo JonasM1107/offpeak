@@ -289,3 +289,47 @@ def read_drivers(engine: Engine, start: datetime, end: datetime) -> pd.DataFrame
     short = {db_col: name for name, db_col in DRIVER_COLUMNS.items()}  # wind_share -> wind
     wide.columns = [f"{short[db_col]}_{lead}" for db_col, lead in wide.columns]
     return wide.astype(float).rename_axis(None)
+
+
+# ── Offpeak Intelligence price outlook ───────────────────────────────────────
+
+
+def save_outlook(engine: Engine, out: pd.DataFrame, based_on: datetime) -> int:
+    """Replace the stored outlook with `out` (ts, day, lead, p10, p50, p90, miss_ct), which
+    starts after the published price hour `based_on`. Returns the number of rows."""
+    rows = [
+        {
+            "ts": r.ts.to_pydatetime(),
+            "day": r.day,
+            "lead": int(r.lead),
+            "p10": float(r.p10),
+            "p50": float(r.p50),
+            "p90": float(r.p90),
+            "miss_ct": _clean(float(r.miss_ct)) if hasattr(r, "miss_ct") else None,
+            "based_on": based_on,
+        }
+        for r in out.itertuples()
+    ]
+    insert = text("""
+        insert into price_outlook (ts, day, lead, p10, p50, p90, miss_ct, based_on, made_at)
+        values (:ts, :day, :lead, :p10, :p50, :p90, :miss_ct, :based_on, now())
+    """)
+    with engine.begin() as conn:  # one transaction: readers never see half an outlook
+        conn.execute(text("delete from price_outlook"))
+        if rows:
+            conn.execute(insert, rows)
+    return len(rows)
+
+
+def read_outlook(engine: Engine) -> pd.DataFrame:
+    """The stored outlook, oldest hour first (empty if none)."""
+    query = text("""
+        select ts, day, lead::int as lead, p10::float as p10, p50::float as p50,
+               p90::float as p90, miss_ct::float as miss_ct, based_on, made_at
+        from price_outlook order by ts
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    for col in ("ts", "based_on", "made_at"):
+        df[col] = pd.to_datetime(df[col], utc=True)
+    return df

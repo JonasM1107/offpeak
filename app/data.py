@@ -247,36 +247,49 @@ def price_drivers(start: date, end: date) -> pd.DataFrame | None:
     return pd.concat([stored[stored.index < fetched.index.min()], fetched])
 
 
-def price_forecast() -> tuple[pd.Series, pd.DataFrame, object, list] | None:
-    """Hourly spot history (ct/kWh, about a year up to the last published hour), the
-    outlook for the following days (ts, p10, p50, p90), the backtest behind it and the
-    forecasters compared. None if there is too little history.
+def price_outlook() -> tuple[pd.Series, pd.DataFrame] | None:
+    """Hourly spot history (ct/kWh, about a year up to the last published hour) and the
+    Offpeak Intelligence outlook for the following days (ts, day, lead, p10, p50, p90,
+    miss_ct). None if there is too little history.
 
-    The backtest trains the ML models a few times and takes about half a minute, so it only
-    runs again when something new is known: a new day, or tomorrow's prices published."""
+    The forecast job computes the outlook in the background and stores it. Only if no
+    stored outlook fits the latest published prices does the app compute one itself (about
+    half a minute) and store it. Checked again when a new day starts, when tomorrow's prices
+    come out, and at least every hour."""
     _, tomorrow, _, _ = today_and_tomorrow()
-    return _price_forecast(market_today(), not tomorrow.empty)
+    return _price_outlook(market_today(), not tomorrow.empty)
 
 
-@st.cache_data(ttl=12 * 3600, show_spinner=False, max_entries=4)
-def _price_forecast(today: date, tomorrow_published: bool):
+@st.cache_data(ttl=3600, show_spinner=False, max_entries=4)
+def _price_outlook(today: date, tomorrow_published: bool):
     from offpeak.analysis import hourly
-    from offpeak.forecast.model import WeatherPriceModel
-    from offpeak.forecast.outlook import FORECASTERS, backtest, outlook
+    from offpeak.forecast.outlook import run_outlook
 
     loaded, _, _ = prices(today - timedelta(days=365), today + timedelta(days=1))
     if loaded.empty:
         return None
     history = hourly(loaded, MARKET_TZ).set_index("ts")["ct"]
-    # the weather from a week before the history up to a week after the last published day
-    drivers = price_drivers(today - timedelta(days=372), today + timedelta(days=9))
-    forecasters = FORECASTERS + ([WeatherPriceModel(drivers)] if drivers is not None else [])
+    eng = engine()
+    if eng is not None:
+        try:
+            stored = db.read_outlook(eng)
+        except Exception as err:  # e.g. migration 005 not applied yet
+            print(f"offpeak: cannot read price_outlook: {err}")
+        else:
+            if not stored.empty and stored["based_on"].iloc[0] == history.index.max():
+                return history, stored
     try:
-        test = backtest(history, MARKET_TZ, forecasters=forecasters)
-    except ValueError:
+        out, _ = run_outlook(history, MARKET_TZ, outlook_drivers(today))
+    except ValueError:  # too little history
         return None
-    out, _ = outlook(history, MARKET_TZ, test, forecasters)
-    return history, out, test, forecasters
+    if eng is not None:
+        _store_quietly(lambda: db.save_outlook(eng, out, history.index.max().to_pydatetime()))
+    return history, out
+
+
+def outlook_drivers(today: date) -> pd.DataFrame | None:
+    """The weather drivers from a week before the price history to a week after today."""
+    return price_drivers(today - timedelta(days=372), today + timedelta(days=9))
 
 
 # ── The coming days, for the cockpit and the dashboard's plan ────────────────
@@ -291,13 +304,13 @@ def hours_ahead() -> tuple[dict, int] | None:
     from offpeak.weather.outlook import generation
 
     try:
-        found = price_forecast()
+        found = price_outlook()
     except PriceSourceError:
         return None
     week, _, _, _ = weather(days=7)
     if not found or week is None or week.empty:
         return None
-    history, forecast, _, _ = found
+    history, forecast = found
     assets, _ = components.site_model(site_components()[0])
     hours = horizon(
         history,
@@ -321,22 +334,3 @@ def machines_to_plan() -> tuple[list[dict], bool, str]:
     if saved is not None:
         return clean_machines(saved), True, storage
     return site_machines(site_components()[0]), False, storage
-
-
-@st.cache_data(ttl=12 * 3600, show_spinner=False, max_entries=4)
-def _model_insight(today: date, tomorrow_published: bool) -> dict | None:
-    from offpeak.forecast.insight import what_matters
-    from offpeak.forecast.model import PriceModel
-
-    found = _price_forecast(today, tomorrow_published)
-    if found is None:
-        return None
-    history, _, _, forecasters = found
-    models = [f for f in forecasters if isinstance(f, PriceModel)]
-    return what_matters(history, models[-1]) if models else None  # the weather one if there
-
-
-def model_insight() -> dict | None:
-    """What the ML model relies on (offpeak/forecast/insight.py), once per new price day."""
-    _, tomorrow, _, _ = today_and_tomorrow()
-    return _model_insight(market_today(), not tomorrow.empty)

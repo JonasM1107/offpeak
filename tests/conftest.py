@@ -31,7 +31,8 @@ def engine():
     migrations = sorted((Path(__file__).parent.parent / "db" / "migrations").glob("*.sql"))
     with eng.begin() as conn:
         tables = (
-            "prices_da, weather_fc, job_runs, site_components, cockpit_machines, weather_drivers"
+            "prices_da, weather_fc, job_runs, site_components, cockpit_machines, weather_drivers, "
+            "price_outlook"
         )
         conn.execute(text(f"drop table if exists {tables}"))
         for migration in migrations:

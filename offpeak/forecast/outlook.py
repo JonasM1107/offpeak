@@ -160,15 +160,57 @@ def _unix(ts) -> list[int]:
     ).tolist()
 
 
-def view_payload(history: pd.Series, test: Backtest, tz: str, forecasters=None) -> dict:
-    """Everything the Price outlook view draws: the last two weeks of published prices, the
-    forecast with its band, a summary per forecast day and the backtest scores."""
-    forecasters = forecasters or FORECASTERS
-    labels = {f.key: f.label for f in forecasters}
-    out, used = outlook(history, tz, test, forecasters)
+def run_outlook(
+    history: pd.Series, tz: str, drivers: pd.DataFrame | None = None
+) -> tuple[pd.DataFrame, Backtest]:
+    """Offpeak Intelligence: backtest every forecaster (the weather model too when the weather
+    drivers are there), then forecast the days after the last published one with the best
+    forecaster per day ahead. Returns the outlook (ts, day, lead, forecaster, p10, p50, p90,
+    miss_ct = that forecaster's average miss at that lead in the backtest) and the backtest.
+    Raises ValueError with too little history."""
+    from offpeak.forecast.model import WeatherPriceModel
+
+    forecasters = list(FORECASTERS)
+    if drivers is not None and not drivers.empty:
+        forecasters.append(WeatherPriceModel(drivers))
+    test = backtest(history, tz, forecasters=forecasters)
+    out, _ = outlook(history, tz, test, forecasters)
+    scores = test.scores.set_index("forecaster")
+    out["miss_ct"] = [
+        float(scores.loc[key, f"mae_{lead}"])
+        for key, lead in zip(out["forecaster"], out["lead"], strict=True)
+    ]
+    return out, test
+
+
+def weather_note(drivers: pd.DataFrame | None, day, tz: str) -> str | None:
+    """Why a day looks cheap or dear, in a few words: the wind in the north and the sun in
+    the south, from the freshest forecast for that day. None without weather data."""
+    if drivers is None or drivers.empty:
+        return None
+    hours = local_day_hours(day, tz)
+    rows = drivers.reindex(hours)
+
+    def freshest(name: str) -> pd.Series:  # forecast made 1 day before, else 2, ...
+        cols = [f"{name}_{k}" for k in range(1, 8) if f"{name}_{k}" in rows]
+        return rows[cols].bfill(axis=1).iloc[:, 0] if cols else pd.Series(dtype=float)
+
+    wind, sun = freshest("wind").mean(), freshest("sun").mean()
+    if pd.isna(wind) or pd.isna(sun):
+        return None
+    wind_text = "Strong wind" if wind >= 0.4 else "Some wind" if wind >= 0.2 else "Little wind"
+    sun_text = "sunny south" if sun >= 120 else "some sun" if sun >= 50 else "grey skies"
+    return f"{wind_text} · {sun_text}"
+
+
+def page_payload(
+    history: pd.Series, out: pd.DataFrame, tz: str, drivers: pd.DataFrame | None = None
+) -> dict:
+    """Everything the Price outlook page draws: the last two weeks of published prices, the
+    outlook with its likely range, a summary per day with a short weather reason, and how
+    close the outlook usually is (average miss in the backtest, ct/kWh)."""
     days = day_summaries(out, tz)
     recent = history[history.index > history.index.max() - pd.Timedelta(days=14)]
-    scores = test.scores.set_index("forecaster")
     return {
         "published": {"t": _unix(recent.index), "ct": recent.round(2).tolist()},
         "forecast": {
@@ -188,21 +230,10 @@ def view_payload(history: pd.Series, test: Backtest, tz: str, forecasters=None) 
                 "p90": round(d["p90"], 1),
                 "window": f"{d['window_start']:02d}–{(d['window_start'] + 3) % 24:02d}",
                 "window_ct": round(d["window_ct"], 1),
-                "model": labels[d["forecaster"]],
+                "why": weather_note(drivers, d["day"], tz),
             }
             for _, d in days.iterrows()
         ],
-        "models": [
-            {
-                "key": key,
-                "label": labels[key],
-                "mae": round(float(row["mae"]), 2),
-                "decision": round(float(row["decision"]) * 100),
-                "by_lead": [round(float(row[f"mae_{lead}"]), 2) for lead in LEAD_DAYS],
-                "used_for": [lead + 1 for lead, k in used.items() if k == key],
-            }
-            for key, row in scores.iterrows()
-        ],
-        "backtest_days": int(test.errors["day"].nunique()),
+        "typical_miss": round(float(out["miss_ct"].mean()), 1) if "miss_ct" in out else None,
         "last_published": f"{history.index.max().tz_convert(tz):%a %-d %b}",
     }

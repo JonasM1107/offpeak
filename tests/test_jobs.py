@@ -54,3 +54,31 @@ def test_missing_secret_on_github_fails_the_run(monkeypatch):
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setattr(db, "database_url", lambda: None)
     assert runner.run("ingest_prices", lambda engine: 1 / 0) == 1
+
+
+def test_forecast_job_stores_the_outlook_once_per_day(engine, monkeypatch):
+    import numpy as np
+    import pandas as pd
+
+    from offpeak.jobs import forecast_prices
+
+    monkeypatch.setattr(db, "database_url", lambda: "unused")
+    monkeypatch.setattr(db, "get_engine", lambda url: engine)
+    assert runner.run("forecast_prices", forecast_prices.forecast) == 0  # nothing stored yet
+    assert db.recent_job_runs(engine)["message"].iloc[0] == "no prices stored yet"
+
+    # ten weeks of hourly prices that repeat every week, ending last night
+    end = pd.Timestamp.now(tz="Europe/Berlin").normalize().tz_convert("UTC")
+    ts = pd.date_range(end=end - pd.Timedelta(hours=1), periods=70 * 24, freq="h")
+    eur = 100 + 50 * np.sin(ts.hour / 24 * 2 * np.pi) - 30 * (ts.day_of_week >= 5)
+    db.upsert_prices(
+        engine,
+        pd.DataFrame({"ts": ts, "eur_mwh": eur, "resolution_min": 60, "source": "test"}),
+        "DE-LU",
+    )
+    assert runner.run("forecast_prices", forecast_prices.forecast) == 0
+    stored = db.read_outlook(engine)
+    assert stored["day"].nunique() == 6 and stored["based_on"].iloc[0] == ts[-1]
+    assert runner.run("forecast_prices", forecast_prices.forecast) == 0  # again: skipped
+    runs = db.recent_job_runs(engine)
+    assert runs["status"].tolist()[:2] == ["skipped", "ok"]

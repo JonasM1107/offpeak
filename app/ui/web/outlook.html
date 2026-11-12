@@ -6,7 +6,6 @@
 <!--KIT-->
 <style>
   #fan { height: 360px; }
-  #leads { height: 250px; }
   .days { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
   .day { text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px;
     display: flex; flex-direction: column; gap: 6px; transition: transform .18s, border-color .18s, box-shadow .18s; min-width: 0; }
@@ -23,29 +22,16 @@
   .day .band b { position: absolute; top: -3px; width: 3px; height: 12px; border-radius: 2px; background: var(--accent); }
   .day .kv { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
   .day .kv b { color: var(--ink); font-weight: 600; }
-  table.models { width: 100%; border-collapse: collapse; font-size: 13px; }
-  table.models th { text-align: left; font-size: 11px; font-weight: 500; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
-  table.models td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-  table.models td.n { text-align: right; font-variant-numeric: tabular-nums; }
-  table.models tr.best td:first-child b::after { content: 'in use'; margin-left: 8px; font-size: 10.5px; font-weight: 600; padding: 2px 7px;
-    border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); }
-  table.models tr.slot td { color: var(--muted); }
-  .bar-mini { display: inline-block; width: 70px; height: 6px; border-radius: 6px; background: var(--card2); vertical-align: middle; margin-left: 8px; overflow: hidden; }
-  .bar-mini i { display: block; height: 100%; background: var(--accent); border-radius: 6px; }
+  .day .why { font-size: 11.5px; color: var(--ink); background: var(--card2); border-radius: 8px; padding: 5px 8px; margin-top: 2px; }
+  .brand { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--accent-ink);
+    background: var(--accent-soft); border-radius: 999px; padding: 3px 10px 3px 8px; margin-bottom: 6px; }
+  .brand::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-mid); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px transparent; } }
   .legend-inline { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); align-items: center; flex-wrap: wrap; }
   .legend-inline i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
   .legend-inline i.line { height: 2px; width: 14px; vertical-align: 3px; }
   .legend-inline i.dash { height: 0; width: 14px; border-top: 2px dashed var(--accent); vertical-align: 3px; border-radius: 0; }
   .note { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 12px 0 0; }
-  .learned { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 28px; align-items: start; }
-  .imp { display: grid; grid-template-columns: 150px minmax(0, 1fr) 64px; gap: 10px 12px; align-items: center; font-size: 13px; }
-  .imp .bar { height: 10px; border-radius: 10px; background: var(--card2); overflow: hidden; }
-  .imp .bar i { display: block; height: 100%; border-radius: 10px; background: var(--grey); transition: width .6s ease; }
-  .imp .bar i.top { background: var(--accent); }
-  .imp .v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-  .imp .lab.top { font-weight: 650; }
-  .learned .big { font-size: 15px; line-height: 1.5; margin: 0 0 10px; }
-  @media (max-width: 1000px) { .learned { grid-template-columns: 1fr; } }
   .note code { font-size: 11.5px; background: var(--card2); padding: 1px 6px; border-radius: 6px; }
   @media (max-width: 1000px) { .days { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 </style>
@@ -56,9 +42,9 @@
 
   <div class="card reveal">
     <div class="head">
-      <div><h3 id="fan-title">Published prices and the outlook</h3><div class="sub" id="fan-sub"></div></div>
+      <div><span class="brand">Offpeak Intelligence</span><h3 id="fan-title">Published prices and the outlook</h3><div class="sub" id="fan-sub"></div></div>
       <div style="display:flex;gap:12px;align-items:center">
-        <div class="legend-inline"><span><i class="line" style="background:var(--ink)"></i>Published</span><span><i class="dash"></i>Forecast</span><span><i style="background:var(--accent-mid)"></i>10–90 % range</span></div>
+        <div class="legend-inline"><span><i class="line" style="background:var(--ink)"></i>Published</span><span><i class="dash"></i>Offpeak Intelligence</span><span><i style="background:var(--accent-mid)"></i>10–90 % range</span></div>
         <button class="ghost" id="reset" hidden></button>
       </div>
     </div>
@@ -67,45 +53,28 @@
 
   <div class="days reveal" id="days"></div>
 
-  <div class="row c21 reveal">
-    <div class="card">
-      <div class="head"><div><h3>How good is each forecast?</h3><div class="sub" id="models-sub"></div></div></div>
-      <table class="models" id="models"></table>
-      <p class="note">The machine learning models (scikit-learn, <code>offpeak/forecast/model.py</code>) learn from the past year how each hour differs from the week's average. The weather version also knows the forecast for wind in the north and sun in the south, as it was forecast at the time. Every forecast goes through the same backtest, and each day ahead uses the one that misses least.</p>
-    </div>
-    <div class="card">
-      <div class="head"><div><h3>Error by days ahead</h3><div class="sub">Average miss in ct/kWh: the further ahead, the harder</div></div></div>
-      <div id="leads" class="chart"></div>
-    </div>
-  </div>
-  <div class="card reveal" id="learned-card" hidden>
-    <div class="head"><div><h3>What the model learned</h3><div class="sub" id="learned-sub"></div></div></div>
-    <div class="learned">
-      <div class="imp" id="imp"></div>
-      <div><p class="big" id="learned-text"></p>
-        <p class="note">How this is measured: the model is trained without the last weeks, then forecasts them twice, once as usual and once with one kind of information shuffled between the hours, so it no longer fits. The bar is how much worse the forecast gets. Wind, sun and temperature are forecasts as they were known at the time (<code>offpeak/forecast/insight.py</code>).</p></div>
-    </div>
-  </div>
+  <p class="note" style="margin:0">Offpeak Intelligence reads a year of market prices together with the weather forecast for wind in the north and sun in the south, the two things that move German power prices most, and updates its outlook every day once new prices are out.</p>
   <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
 </div>
 
 <script>window.OFFPEAK = __DATA__;</script>
 <script>
-// Forecasts, bands and scores are computed in Python (offpeak/forecast/); this page draws them.
-const D = window.OFFPEAK, PUB = D.published, FC = D.forecast, DAYS = D.days, MODELS = D.models;
+// The outlook and its range are computed in Python (offpeak/forecast/); this page draws them.
+const D = window.OFFPEAK, PUB = D.published, FC = D.forecast, DAYS = D.days;
 const { nf } = OP;
 const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const best = DAYS.reduce((m, d) => (d.p50 < m.p50 ? d : m), DAYS[0]);
-const inUse = MODELS.filter(m => m.used_for.length);
-const bestModel = MODELS.reduce((m, x) => (x.mae < m.mae ? x : m), MODELS[0]);
+let cheapest = 0;  // the cheapest expected hour of the coming days
+FC.p50.forEach((v, i) => { if (v < FC.p50[cheapest]) cheapest = i; });
+const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: '2-digit', minute: '2-digit' });
 
 // ── KPIs ───────────────────────────────────────────────────────────────────
 const tile = (label, value, unit, note, cls = '') => `<div class="tile ${cls}"><p>${label}</p><div class="v">${value}${unit ? `<small>${unit}</small>` : ''}</div><div class="n">${note}</div></div>`;
 document.getElementById('kpis').innerHTML = [
   tile('Best day for big jobs', best.name, '', `expected ${nf(best.p50)} ct/kWh · cheapest ${best.window}`, 'hero'),
   tile('Expected average', nf(DAYS.reduce((s, d) => s + d.p50, 0) / DAYS.length), 'ct/kWh', `over the next ${DAYS.length} days, spot price`),
-  tile('Typical miss', nf(bestModel.mae), 'ct/kWh', `best model in the ${D.backtest_days}-day backtest`),
-  tile('Cheapest hours found', bestModel.decision, '%', 'of its 4 cheapest hours were truly cheap'),
+  tile('Cheapest hour ahead', hourFmt.format(FC.t[cheapest] * 1000), '', `expected ${nf(FC.p50[cheapest])} ct/kWh`),
+  tile('Usually within', D.typical_miss == null ? '–' : `±${nf(D.typical_miss)}`, 'ct/kWh', 'of the real price, checked against past weeks'),
 ].join('');
 
 // ── Fan chart ──────────────────────────────────────────────────────────────
@@ -119,7 +88,7 @@ const fan = OP.chart(document.getElementById('fan'), c => {
     tooltip: { ...B.tooltip, trigger: 'axis', formatter: ps => {
       const t = ps[0].value[0];
       const i = fcT.indexOf(t);
-      if (i >= 0) return `<b>${fmt.format(t)}</b><br>forecast <b>${nf(FC.p50[i])} ct</b><br><span style="color:${c.muted}">likely ${nf(FC.p10[i])} – ${nf(FC.p90[i])} ct</span>`;
+      if (i >= 0) return `<b>${fmt.format(t)}</b><br>Offpeak Intelligence <b>${nf(FC.p50[i])} ct</b><br><span style="color:${c.muted}">likely ${nf(FC.p10[i])} – ${nf(FC.p90[i])} ct</span>`;
       const j = pubT.indexOf(t);
       return j >= 0 ? `<b>${fmt.format(t)}</b><br>published <b>${nf(PUB.ct[j])} ct/kWh</b>` : '';
     } },
@@ -173,6 +142,7 @@ function renderDays() {
       <div class="band" title="likely between ${nf(d.p10)} and ${nf(d.p90)} ct"><i style="left:${pos(d.p10)}%;right:${100 - pos(d.p90)}%"></i><b style="left:calc(${pos(d.p50)}% - 1.5px)"></b></div>
       <div class="kv"><span>likely</span><b>${nf(d.p10, 0)}–${nf(d.p90, 0)} ct</b></div>
       <div class="kv"><span>cheapest 3 h</span><b>${d.window}</b></div>
+      ${d.why ? `<div class="why">${d.why}</div>` : ''}
     </button>`).join('');
   document.querySelectorAll('.day').forEach(b => b.addEventListener('click', () => selectDay(+b.dataset.i === selected ? null : +b.dataset.i)));
 }
@@ -181,42 +151,11 @@ function selectDay(i) {
   const d = i === null ? null : DAYS[i];
   document.getElementById('fan-title').textContent = d ? `Outlook for ${d.name}` : 'Published prices and the outlook';
   document.getElementById('fan-sub').textContent = d
-    ? `Expected ${nf(d.p50)} ct/kWh on average, likely ${nf(d.p10)} to ${nf(d.p90)}. Cheapest 3 hours ${d.window} (${nf(d.window_ct)} ct). Forecast: ${d.model.toLowerCase()}.`
-    : `Published prices up to ${D.last_published} (solid), then the forecast with its likely range. The range widens with every day ahead. Click a day to zoom in.`;
+    ? `Expected ${nf(d.p50)} ct/kWh on average, likely ${nf(d.p10)} to ${nf(d.p90)}. Cheapest 3 hours ${d.window} (${nf(d.window_ct)} ct).${d.why ? ` ${d.why}.` : ''}`
+    : `Published prices up to ${D.last_published} (solid), then Offpeak Intelligence with its likely range. The range widens with every day ahead. Click a day to zoom in.`;
 }
 
-// ── Models ─────────────────────────────────────────────────────────────────
-const maxMae = Math.max(...MODELS.map(m => m.mae));
-document.getElementById('models-sub').textContent = `Backtest over the last ${D.backtest_days} days: every day pretends to be today and forecasts the days after the published ones.`;
-document.getElementById('models').innerHTML = `<thead><tr><th>Forecast</th><th class="n">Average miss</th><th class="n">Cheapest hours found</th><th>Used for</th></tr></thead><tbody>
-  ${MODELS.map(m => `<tr class="${m.used_for.length ? 'best' : ''}"><td><b>${m.label}</b></td><td class="n">${nf(m.mae)} ct<span class="bar-mini"><i style="width:${(m.mae / maxMae * 100).toFixed(0)}%"></i></span></td><td class="n">${m.decision} %</td><td>${m.used_for.length ? m.used_for.map(l => `D+${l}`).join(', ') : '–'}</td></tr>`).join('')}</tbody>`;
-// ── What the model learned ─────────────────────────────────────────────────
-if (D.insight) {
-  const I = D.insight, G = I.groups, maxCt = Math.max(...G.map(g => g.ct), 0.01);
-  document.getElementById('learned-card').hidden = false;
-  document.getElementById('learned-sub').textContent = `Extra miss in ct/kWh when the model cannot use this information · tested on the last ${I.days} days, which it never saw in training`;
-  document.getElementById('imp').innerHTML = G.map((g, i) => `<span class="lab ${i < 2 ? 'top' : ''}">${g.label}</span><span class="bar"><i class="${i < 2 ? 'top' : ''}" style="width:${(g.ct / maxCt * 100).toFixed(0)}%"></i></span><span class="v">+${nf(g.ct)} ct</span>`).join('');
-  const [a, b] = G;
-  document.getElementById('learned-text').innerHTML = `<b>${a.label}</b> and <b>${b.label.toLowerCase()}</b> matter most. Without the ${a.label.toLowerCase()}, the forecast would miss ${nf(a.ct)} ct/kWh more on average (it misses ${nf(I.mae)} ct now).`;
-}
-const leads = OP.chart(document.getElementById('leads'), c => {
-  const B = OP.base(c);
-  // the forecasts in use stand out; the others stay quiet
-  const best = MODELS.reduce((x, m) => (m.mae < x.mae ? m : x), MODELS[0]).key;
-  const colors = MODELS.map(m => (m.key === best ? c.accent : m.used_for.length ? c.dark : c.grey));
-  return {
-    ...B,
-    grid: { left: 44, right: 14, top: 64, bottom: 28 },
-    legend: { top: 0, right: 0, textStyle: { color: c.muted, fontSize: 11 }, itemWidth: 14, itemHeight: 3 },
-    tooltip: { ...B.tooltip, trigger: 'axis', valueFormatter: v => `${nf(v)} ct/kWh` },
-    xAxis: { type: 'category', data: MODELS[0].by_lead.map((_, i) => `D+${i + 2}`), ...B.axis, splitLine: { show: false } },
-    yAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} ct' } },
-    series: MODELS.map((m, k) => ({ name: m.label, type: 'line', data: m.by_lead, symbol: 'circle', symbolSize: 7, smooth: .3,
-      lineStyle: { color: colors[k], width: 2.2 }, itemStyle: { color: colors[k] } })),
-  };
-});
-
-document.getElementById('foot').textContent = `Spot prices DE-LU without fees or taxes. Published prices: Energy-Charts / Bundesnetzagentur | SMARD.de, CC BY 4.0. The outlook is a forecast, not a price anyone has agreed to.`;
+document.getElementById('foot').textContent = `Spot prices DE-LU without fees or taxes. Published prices: Energy-Charts / Bundesnetzagentur | SMARD.de, CC BY 4.0. The outlook is an estimate by Offpeak Intelligence, not a price anyone has agreed to.`;
 OP.start();
 renderDays();
 selectDay(null);
