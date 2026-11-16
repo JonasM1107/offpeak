@@ -22,7 +22,7 @@ import base64
 import hashlib
 import hmac
 import secrets
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 ROUNDS = 200_000
 SESSION_HOURS = 24
@@ -34,9 +34,31 @@ def normal_email(email) -> str:
     return str(email or "").strip().lower()
 
 
+def _entries(setting: str | None) -> list[tuple[str, str]]:
+    """(email, name) from a comma-separated setting; each entry is "Name <email>" or just
+    an email (then the name is made from the email: mika.weymann -> Mika Weymann)."""
+    out = []
+    for part in (setting or "").split(","):
+        part = part.strip()
+        if "<" in part and part.endswith(">"):
+            name, email = part[:-1].split("<", 1)
+            name, email = name.strip(), normal_email(email)
+        else:
+            email, name = normal_email(part), ""
+        if email:
+            local = email.split("@")[0].replace("_", ".").replace("-", ".")
+            out.append((email, name or " ".join(w.capitalize() for w in local.split(".") if w)))
+    return out
+
+
 def editors(setting: str | None) -> set[str]:
-    """The editor emails from a comma-separated setting."""
-    return {normal_email(e) for e in (setting or "").split(",") if normal_email(e)}
+    """The editor emails from the setting."""
+    return {email for email, _ in _entries(setting)}
+
+
+def editor_names(setting: str | None) -> dict[str, str]:
+    """Each editor's name, by email, for showing who is signed in."""
+    return dict(_entries(setting))
 
 
 def hash_password(password: str, salt: str | None = None) -> str:
@@ -97,3 +119,12 @@ def read_token(token, now: datetime, secret: str | None, allowed: set[str]) -> s
 def may_try(failures: list[datetime], now: datetime) -> bool:
     """False after MAX_ATTEMPTS wrong logins within the last PAUSE."""
     return len([t for t in failures if now - t < PAUSE]) < MAX_ATTEMPTS
+
+
+def expires_at(token) -> datetime | None:
+    """When a (genuine) token stops working; for showing "signed in until"."""
+    try:
+        _, expires, _ = base64.urlsafe_b64decode(str(token)).decode().split("|")
+        return datetime.fromtimestamp(int(expires), UTC)
+    except (ValueError, UnicodeDecodeError):
+        return None

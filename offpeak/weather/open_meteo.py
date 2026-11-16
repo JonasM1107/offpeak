@@ -30,6 +30,8 @@ from offpeak.config import (
 )
 from offpeak.models import Site
 
+HISTORY_TIMEOUT_S = 30  # history and satellite answers are large; the app caches them
+
 # Open-Meteo name -> our column name
 MINUTELY_15 = {
     "global_tilted_irradiance": "gti_wm2",
@@ -140,7 +142,7 @@ def solar_check_params(site: Site, past_days: int) -> dict:
 def fetch_solar_check(site: Site, past_days: int = 7) -> pd.DataFrame:
     """Day-ahead solar forecast against satellite measurements for the last days."""
     params = solar_check_params(site, past_days)
-    runs = http.get(
+    runs = http.get(  # large: weeks of hourly data, cached for hours in the app
         OPEN_METEO_PREVIOUS_RUNS_URL,
         params=params
         | {
@@ -148,10 +150,12 @@ def fetch_solar_check(site: Site, past_days: int = 7) -> pd.DataFrame:
             "hourly": "global_tilted_irradiance_previous_day1",
             "forecast_days": 1,
         },
+        timeout=HISTORY_TIMEOUT_S,
     )
-    sat = http.get(
+    sat = http.get(  # large: weeks of hourly data, cached for hours in the app
         OPEN_METEO_SATELLITE_URL,
         params=params | {"hourly": "global_tilted_irradiance", "forecast_days": 0},
+        timeout=HISTORY_TIMEOUT_S,
     )
     for response in (runs, sat):
         if response.status_code != 200:
@@ -186,7 +190,7 @@ def parse_archive(payload: dict) -> pd.DataFrame:
 
 def fetch_archive(site: Site, start, end) -> pd.DataFrame:
     """Measured weather for the days start..end (both inclusive)."""
-    response = http.get(
+    response = http.get(  # large: weeks of hourly data, cached for hours in the app
         OPEN_METEO_ARCHIVE_URL,
         params={
             "latitude": site.lat,
@@ -199,6 +203,7 @@ def fetch_archive(site: Site, start, end) -> pd.DataFrame:
             "wind_speed_unit": "ms",
             "timeformat": "unixtime",
         },
+        timeout=HISTORY_TIMEOUT_S,
     )
     if response.status_code != 200:
         raise WeatherSourceError(f"Open-Meteo archive HTTP {response.status_code}")

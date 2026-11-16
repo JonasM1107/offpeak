@@ -48,3 +48,13 @@ def test_no_retry_after_success_and_errors_surface_after_the_last_try(monkeypatc
     monkeypatch.setattr(http.requests, "get", down)
     with pytest.raises(requests.ConnectionError):
         http.get("u", sleep=lambda s: None)
+
+
+def test_large_requests_may_wait_longer(monkeypatch):
+    seen = []
+    monkeypatch.setattr(http, "timeout_s", 8)
+    monkeypatch.setattr(
+        http.requests, "get", lambda url, params, timeout: seen.append(timeout) or Reply(200)
+    )
+    http.get("u", timeout=30)
+    assert seen == [30]

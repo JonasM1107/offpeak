@@ -55,3 +55,13 @@ def test_too_many_wrong_logins_pause_the_form():
     assert not auth.may_try(failures, NOW)
     assert auth.may_try(failures, NOW + auth.PAUSE)  # after the pause
     assert auth.may_try(failures[:-1], NOW)
+
+
+def test_editor_names_come_from_the_setting_or_the_email():
+    setting = "Mika Weymann <Mika.Weymann@web.de>, jonas.matner@gmail.com, Noa <noa@x.de>"
+    assert auth.editors(setting) == {"mika.weymann@web.de", "jonas.matner@gmail.com", "noa@x.de"}
+    assert auth.editor_names(setting) == {
+        "mika.weymann@web.de": "Mika Weymann",
+        "jonas.matner@gmail.com": "Jonas Matner",  # made from the email
+        "noa@x.de": "Noa",
+    }

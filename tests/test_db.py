@@ -106,3 +106,13 @@ def test_outlook_is_replaced_as_a_whole(engine):
     assert len(stored) == 24 and (stored["p50"] == 20.0).all()  # the older run is gone
     assert stored["based_on"].iloc[0] == based_on + timedelta(days=1)
     assert pd.isna(stored["miss_ct"].iloc[0]) and stored["miss_ct"].iloc[1] == pytest.approx(4.2)
+
+
+def test_table_status_names_missing_tables(engine):
+    status = db.table_status(engine)
+    assert set(status) == set(db.TABLES) and all(v["ok"] for v in status.values())
+    assert status["prices_da"]["rows"] == 0  # a fresh test database is empty
+    with engine.begin() as conn:
+        conn.exec_driver_sql("drop table price_outlook")
+    missing = db.table_status(engine)["price_outlook"]
+    assert not missing["ok"] and "price_outlook" in missing["error"]

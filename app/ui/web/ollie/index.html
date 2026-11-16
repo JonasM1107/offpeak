@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Ask Ollie: the robot at the bottom right and its chat window (app/ui/assistant.py).
+     Python sends the conversation as args; a new question goes back as the component value.
+     Python makes every answer (offpeak/assistant/); this page only shows the chat. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --accent: #FF5F00; --accent-soft: #FFE9DC; --ink: #1C1B19; --muted: #77726A; --line: #ECE9E4; --card: #fff; --bg: #F6F5F2; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; font-family: Inter, system-ui, sans-serif; color: var(--ink); overflow: hidden; }
+  .dock { position: fixed; right: 4px; bottom: 4px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+
+  /* the chat window */
+  .panel { width: 372px; height: var(--panel-h, 540px); background: var(--card); border-radius: 24px; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(28,27,25,.22), 0 4px 14px rgba(28,27,25,.08); border: 1px solid var(--line);
+    transform-origin: bottom right; animation: pop .22s cubic-bezier(.2,.9,.3,1.2); }
+  .panel[hidden] { display: none; }
+  @keyframes pop { from { opacity: 0; transform: scale(.85) translateY(12px); } }
+  .head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: linear-gradient(135deg, #FF5F00, #FF8A3D); color: #fff; }
+  .head .who { flex: 1; } .head b { display: block; font-size: 15px; }
+  .head small { font-size: 11.5px; opacity: .9; display: flex; align-items: center; gap: 6px; }
+  .head small::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #B9F6CA; box-shadow: 0 0 0 3px rgba(185,246,202,.35); }
+  .head .ava { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,.18); display: grid; place-items: center; }
+  .x { border: 0; background: rgba(255,255,255,.18); color: #fff; width: 30px; height: 30px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .x:hover { background: rgba(255,255,255,.3); }
+  .msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); }
+  .m { max-width: 86%; padding: 10px 13px; border-radius: 16px; font-size: 13.5px; line-height: 1.5; word-wrap: break-word; animation: in .2s ease; }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } }
+  .m.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 5px; }
+  .m.bot { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+  .m.bot ul { margin: 6px 0 2px; padding-left: 18px; } .m.bot p { margin: 0 0 6px; } .m.bot p:last-child { margin: 0; }
+  .hello { font-size: 13.5px; line-height: 1.5; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+  .chips { display: flex; flex-direction: column; gap: 8px; }
+  .chip { text-align: left; border: 1px solid var(--accent-soft); background: #fff; color: var(--ink); border-radius: 12px; padding: 9px 12px; font: inherit; font-size: 12.5px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .typing { align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: dot 1s infinite ease-in-out; }
+  .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes dot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+  form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: var(--card); }
+  input { flex: 1; border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px; font: inherit; font-size: 13.5px; outline: none; background: var(--bg); }
+  input:focus { border-color: var(--accent); background: #fff; }
+  .send { width: 42px; border: 0; border-radius: 14px; background: var(--accent); color: #fff; cursor: pointer; display: grid; place-items: center; }
+  .send:disabled { opacity: .45; cursor: default; }
+
+  /* Ollie, standing at the bottom right */
+  .bot-btn { display: flex; align-items: flex-end; gap: 6px; border: 0; background: none; cursor: pointer; padding: 0; }
+  .bubble { margin-bottom: 30px; background: var(--card); color: var(--ink); font-weight: 600; font-size: 13px; padding: 9px 14px; border-radius: 16px 16px 4px 16px;
+    box-shadow: 0 8px 24px rgba(28,27,25,.14); border: 1px solid var(--line); white-space: nowrap; transition: transform .2s; }
+  .bot-btn:hover .bubble { transform: translateY(-2px); }
+  .open .bubble { display: none; }
+  .robot { display: block; animation: bob 3s ease-in-out infinite; filter: drop-shadow(0 10px 14px rgba(255,95,0,.28)); }
+  .ava .robot { animation: none; filter: none; }
+  .bot-btn:hover .robot { animation-duration: 1.2s; }
+  @keyframes bob { 50% { transform: translateY(-5px); } }
+  .robot .eye { animation: blink 4.5s infinite; transform-origin: center; transform-box: fill-box; }
+  @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+  .robot .wave { animation: wave 2.6s ease-in-out infinite; transform-origin: 66px 58px; }
+  @keyframes wave { 0%, 60%, 100% { transform: rotate(0); } 70% { transform: rotate(-22deg); } 80% { transform: rotate(8deg); } 90% { transform: rotate(-16deg); } }
+  .shadow { animation: shadow 3s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+  @keyframes shadow { 50% { transform: scaleX(.8); opacity: .5; } }
+</style>
+</head>
+<body>
+<div class="dock" id="dock">
+  <div class="panel" id="panel" hidden>
+    <div class="head">
+      <div class="ava" id="ava"></div>
+      <div class="who"><b>Ollie</b><small>Your energy assistant</small></div>
+      <button class="x" id="close" aria-label="Close">✕</button>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <form id="form">
+      <input id="q" maxlength="500" placeholder="Ask about prices, machines, savings…" autocomplete="off">
+      <button class="send" id="send" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </form>
+  </div>
+  <button class="bot-btn" id="toggle" aria-label="Ask Ollie">
+    <span class="bubble">Ask Ollie 👋</span>
+    <span id="robot"></span>
+  </button>
+</div>
+<script>
+// Ollie as a small SVG robot: antenna, visor with blinking eyes, a waving arm.
+const ROBOT = (w, h, wave = true) => `<svg class="robot" width="${w}" height="${h}" viewBox="0 0 80 94" xmlns="http://www.w3.org/2000/svg">
+  <ellipse class="shadow" cx="40" cy="90" rx="20" ry="3.5" fill="rgba(28,27,25,.18)"/>
+  <line x1="40" y1="6" x2="40" y2="17" stroke="#1C1B19" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="40" cy="6" r="5" fill="#FF5F00"/>
+  <rect x="14" y="16" width="52" height="38" rx="14" fill="#FF5F00"/>
+  <rect x="21" y="24" width="38" height="20" rx="9" fill="#1C1B19"/>
+  <ellipse class="eye" cx="32" cy="34" rx="4" ry="5" fill="#7CFFB2"/>
+  <ellipse class="eye" cx="48" cy="34" rx="4" ry="5" fill="#7CFFB2"/>
+  <rect x="9" y="29" width="6" height="12" rx="3" fill="#E55500"/><rect x="65" y="29" width="6" height="12" rx="3" fill="#E55500"/>
+  <rect x="24" y="56" width="32" height="24" rx="9" fill="#FF8A3D"/>
+  <circle cx="40" cy="67" r="4.5" fill="#fff" opacity=".9"/><path d="M38.5 64.5l-1.5 3h3l-1.5 3" stroke="#FF5F00" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+  <rect x="15" y="58" width="9" height="16" rx="4.5" fill="#E55500"/>
+  <g class="${wave ? 'wave' : ''}"><rect x="56" y="${wave ? 46 : 58}" width="9" height="16" rx="4.5" fill="#E55500"/></g>
+  <rect x="29" y="80" width="8" height="8" rx="3" fill="#1C1B19"/><rect x="43" y="80" width="8" height="8" rx="3" fill="#1C1B19"/>
+</svg>`;
+document.getElementById('robot').innerHTML = ROBOT(78, 92);
+document.getElementById('ava').innerHTML = ROBOT(30, 36, false);
+
+const send = (type, extra) => window.parent.postMessage({ isStreamlitMessage: true, type, ...extra }, '*');
+const $ = id => document.getElementById(id);
+let open = false, history = [], examples = [], waiting = null;  // waiting = the question sent, until its answer comes
+
+const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function md(text) {  // the bit of markdown Ollie uses: **bold**, bullet lists, paragraphs
+  const lines = esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').split('\n');
+  let html = '', list = false;
+  for (const l of lines) {
+    const item = l.match(/^\s*[-*•]\s+(.*)/);
+    if (item) { if (!list) { html += '<ul>'; list = true; } html += `<li>${item[1]}</li>`; continue; }
+    if (list) { html += '</ul>'; list = false; }
+    if (l.trim()) html += `<p>${l}</p>`;
+  }
+  return html + (list ? '</ul>' : '');
+}
+
+function render() {
+  const box = $('msgs');
+  let html = '';
+  if (!history.length && !waiting) {
+    html += `<div class="hello">Hi, I'm <b>Ollie</b> 👋 Ask me when to run a machine, which day is cheapest, or what your plan saves. I use today's prices and Offpeak Intelligence.</div>
+      <div class="chips">${examples.map((e, i) => `<button class="chip" data-i="${i}">${esc(e)}</button>`).join('')}</div>`;
+  }
+  html += history.map(m => `<div class="m ${m.role === 'user' ? 'user' : 'bot'}">${m.role === 'user' ? esc(m.content) : md(m.content)}</div>`).join('');
+  if (waiting) html += `<div class="m user">${esc(waiting)}</div><div class="typing"><i></i><i></i><i></i></div>`;
+  box.innerHTML = html;
+  box.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => ask(examples[+c.dataset.i])));
+  box.scrollTop = box.scrollHeight;
+  $('send').disabled = !!waiting; $('q').disabled = !!waiting;
+}
+
+function ask(question) {
+  question = (question || '').trim();
+  if (!question || waiting) return;
+  waiting = question; $('q').value = ''; render();
+  send('streamlit:setComponentValue', { value: { question, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` }, dataType: 'json' });
+}
+
+// The frame is only as tall as what is shown (its width is fixed by the app's CSS), so the
+// page under it stays usable when the chat is closed.
+function fit() {
+  let screenH = 800;
+  try { screenH = window.top.innerHeight || screenH; } catch (err) { screenH = screen.availHeight || screenH; }
+  const panelH = Math.max(340, Math.min(560, screenH - 170));
+  document.documentElement.style.setProperty('--panel-h', panelH + 'px');
+  send('streamlit:setFrameHeight', { height: open ? panelH + 112 : 104 });
+}
+function setOpen(v) {
+  open = v; $('panel').hidden = !v; $('dock').classList.toggle('open', v); fit();
+  if (v) { render(); setTimeout(() => $('q').focus(), 50); }
+}
+$('toggle').addEventListener('click', () => setOpen(!open));
+$('close').addEventListener('click', () => setOpen(false));
+$('form').addEventListener('submit', e => { e.preventDefault(); ask($('q').value); });
+try { window.top.addEventListener('resize', fit); } catch (err) { /* not reachable */ }
+
+window.addEventListener('message', e => {
+  if (e.source !== window.parent || !e.data || e.data.type !== 'streamlit:render') return;
+  const a = e.data.args;
+  examples = a.examples || [];
+  const grew = (a.history || []).length > history.length;
+  history = a.history || [];
+  if (grew) waiting = null;  // the answer to the question we sent has arrived
+  if (open) render();
+});
+send('streamlit:componentReady', { apiVersion: 1 });
+fit();
+</script>
+</body>
+</html>

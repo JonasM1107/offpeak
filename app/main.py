@@ -43,9 +43,16 @@ pages = {
     "Setup": [
         page("components", "Site & components", "precision_manufacturing"),
         page("settings", "Settings", "settings"),
-        page("account", "Account", "account_circle"),
     ],
 }
+# not in the menu: reached through the name at the bottom of the sidebar
+account_page = st.Page(
+    HERE / "views" / "account.py",
+    title="Account",
+    icon=":material/account_circle:",
+    visibility="hidden",
+)
+pages["Setup"].append(account_page)
 # Sign in first: the app is only for the team. The page asked for in the address stays
 # selected, so after signing in it opens where the link pointed.
 account.sync_browser()  # stored sign-in from this browser; saves a new one after a sign-in
@@ -54,7 +61,7 @@ current = st.navigation(pages, position="sidebar" if who else "hidden")
 if not who:
     account.login_screen()
     st.stop()
-with st.sidebar:
-    st.caption(f"Signed in as {who}")
+with st.sidebar, st.container(key="account_link"):  # the editor's name, at the very bottom
+    st.page_link(account_page, label=account.editor_name(who), icon=":material/account_circle:")
 assistant.widget()  # before the page, so it shows even when a page stops early
 current.run()

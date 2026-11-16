@@ -64,6 +64,11 @@ def editor() -> str | None:
     return auth.read_token(token, datetime.now(UTC), secret, allowed)
 
 
+def editor_name(email: str) -> str:
+    """The name shown for a signed-in editor (from OFFPEAK_EDITORS, "Name <email>")."""
+    return auth.editor_names(_setting("OFFPEAK_EDITORS")).get(email, email)
+
+
 def sign_in(email: str, password: str) -> str | None:
     """None if signed in, else what went wrong, in words for the person."""
     if not configured():

@@ -57,7 +57,10 @@
     <p class="insight" id="power-text"></p>
   </div>
 
-  <div class="row c21 reveal">
+  <div class="card reveal" id="acc-missing" hidden>
+    <div class="head"><div><h3>How good is the solar forecast?</h3><div class="sub">The satellite measurements for the last days could not be loaded right now, so this comparison is not shown. Everything above uses the current forecast and is not affected.</div></div></div>
+  </div>
+  <div class="row c21 reveal" id="acc-row">
     <div class="card">
       <div class="head">
         <div><h3>How good is the solar forecast?</h3><div class="sub">For each of the last days: what the forecast said one day ahead, and what the satellite measured. Click a day for its hours.</div></div>
@@ -201,6 +204,11 @@ function selectDay(i) {
     : `Over the week the site makes about <b>${nf(total, 0)} kWh</b> of its own power. The sunniest day is <b>${best.name}</b>; further out the forecast gets coarser.`;
 }
 
+// ── Forecast accuracy (only when the satellite data could be loaded) ─────────
+if (!ACC || !ACC.days || !ACC.days.length) {
+  document.getElementById('acc-row').hidden = true;
+  document.getElementById('acc-missing').hidden = false;
+} else {
 // ── Forecast accuracy: dumbbell per day ────────────────────────────────────
 let accDay = ACC.days.length - 1;
 const dumb = OP.chart(document.getElementById('dumbbell'), c => {
@@ -263,10 +271,11 @@ function renderStats() {
 }
 
 document.getElementById('foot').textContent = `Weather data by Open-Meteo.com: forecast model ${D.meta.model}, earlier model runs and satellite radiation. Forecast from ${D.meta.fetched}. Solar = irradiance on the panels through pvlib's PVWatts model (module temperature, system losses, inverter); wind = a generic small-turbine power curve at hub height.`;
+renderStats();
+}
 OP.start();
 renderDays();
 selectDay(null);
-renderStats();
 </script>
 </body>
 </html>

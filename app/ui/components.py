@@ -40,14 +40,43 @@ CSS = f"""
 [data-testid="stSidebarNavLink"][aria-current="page"] span {{ color: {INK}; font-weight: 600; }}
 [data-testid="stSidebarNavLink"][aria-current="page"] [data-testid="stIconMaterial"] {{ color: {ORANGE}; }}
 
-/* Ask Ollie: a round button at the bottom right, above Streamlit Cloud's own badge */
-.st-key-ollie_fab {{ position: fixed; right: 28px; bottom: 72px; z-index: 999990; width: auto !important; }}
-.st-key-ollie_fab button {{ border-radius: 999px; padding: 0.55rem 1.15rem; font-weight: 600;
-    box-shadow: 0 10px 28px rgba(255, 95, 0, 0.32), 0 2px 6px rgba(28, 27, 25, 0.12); }}
-.st-key-ollie_fab button:hover {{ transform: translateY(-1px); }}
-[data-testid="stDialog"] div[role="dialog"] {{ border-radius: 22px; font-family: 'Inter', sans-serif; }}
-[data-testid="stDialog"] div[role="dialog"] * {{ font-family: inherit; }}
-[data-testid="stDialog"] [data-testid="stIconMaterial"] {{ font-family: 'Material Symbols Rounded'; }}
+/* Ask Ollie: the robot and its chat window float at the bottom right, above Streamlit
+   Cloud's own badge; the frame sizes itself (app/ui/web/ollie/index.html) */
+.st-key-ollie {{ position: fixed; right: 14px; bottom: 54px; z-index: 999990; width: 392px !important; }}
+.st-key-ollie iframe {{ background: transparent; color-scheme: normal; }}
+
+/* the signed-in name at the very bottom of the sidebar */
+[data-testid="stSidebarContent"] {{ display: flex; flex-direction: column; }}
+[data-testid="stSidebarUserContent"] {{ margin-top: auto; padding-bottom: 1.2rem; }}
+.st-key-account_link {{ border-top: 1px solid {LINE}; padding-top: 0.8rem; }}
+
+/* account page */
+.op-profile {{ display: flex; gap: 16px; align-items: center; margin-bottom: 10px; }}
+.op-avatar {{ width: 56px; height: 56px; border-radius: 18px; background: linear-gradient(135deg, {ORANGE}, #FF8A3D);
+    color: #fff; font-weight: 700; font-size: 1.2rem; display: grid; place-items: center; }}
+.op-name {{ font-weight: 650; font-size: 1.1rem; color: {INK}; }}
+.op-mail {{ color: {MUTED}; font-size: 0.84rem; margin: 2px 0 6px; }}
+.op-plan {{ display: flex; justify-content: space-between; align-items: center; background: {ORANGE_SOFT};
+    border-radius: 16px; padding: 14px 16px; margin: 4px 0 12px; }}
+.op-plan-name {{ font-weight: 700; font-size: 1.15rem; color: {INK}; }}
+.op-plan-price {{ font-weight: 700; font-size: 1.6rem; color: {ORANGE}; }}
+.op-plan-price small {{ font-size: 0.8rem; color: {MUTED}; font-weight: 500; }}
+.op-incl {{ padding: 7px 0 7px 26px; position: relative; font-size: 0.9rem; color: {INK}; }}
+.op-incl::before {{ content: '✓'; position: absolute; left: 4px; color: {ORANGE}; font-weight: 700; }}
+.op-conn-head {{ display: flex; gap: 14px; align-items: center; margin-bottom: 16px; }}
+.op-conn-icon {{ width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-weight: 700; font-size: 1.2rem; }}
+.op-conn-head.good .op-conn-icon {{ background: #E3F6E8; color: #1E8E3E; }}
+.op-conn-head.bad .op-conn-icon {{ background: #FDE7E7; color: #C62828; }}
+.op-tiles2 {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }}
+.op-tile2 {{ border: 1px solid {LINE}; border-radius: 16px; padding: 14px 16px; background: #FCFBF9; }}
+.op-tile2 .t {{ font-weight: 600; font-size: 0.92rem; color: {INK}; }}
+.op-tile2 .d {{ color: {MUTED}; font-size: 0.78rem; margin: 3px 0 10px; min-height: 2.2em; }}
+.op-tile2 .s {{ display: flex; justify-content: space-between; align-items: center; gap: 8px; }}
+.op-tile2 .pill {{ font-size: 0.74rem; font-weight: 600; border-radius: 999px; padding: 3px 9px; }}
+.op-tile2.ok .pill {{ background: #E3F6E8; color: #1E8E3E; }}
+.op-tile2.bad {{ border-color: #F5C2C2; background: #FFF8F8; }}
+.op-tile2.bad .pill {{ background: #FDE7E7; color: #C62828; }}
+.op-tile2 .n {{ color: {MUTED}; font-size: 0.76rem; }}
 
 /* login screen */
 .op-login-head {{ text-align: center; margin: 6px 0 10px; }}

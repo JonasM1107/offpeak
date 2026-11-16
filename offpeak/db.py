@@ -333,3 +333,29 @@ def read_outlook(engine: Engine) -> pd.DataFrame:
     for col in ("ts", "based_on", "made_at"):
         df[col] = pd.to_datetime(df[col], utc=True)
     return df
+
+
+TABLES = (
+    "prices_da",
+    "weather_fc",
+    "job_runs",
+    "site_components",
+    "cockpit_machines",
+    "weather_drivers",
+    "price_outlook",
+)
+
+
+def table_status(engine: Engine) -> dict[str, dict]:
+    """For each table of db/migrations: {"ok": bool, "rows": count or None, "error": text or
+    None}. Shown on the Account page, to see at a glance whether every part of the data is
+    connected and filled (a missing table usually means a migration was not run)."""
+    out = {}
+    for table in TABLES:
+        try:
+            with engine.connect() as conn:  # table names come from TABLES only, never input
+                rows = conn.execute(text(f"select count(*) from {table}")).scalar()
+            out[table] = {"ok": True, "rows": int(rows), "error": None}
+        except Exception as err:
+            out[table] = {"ok": False, "rows": None, "error": str(err).splitlines()[0][:160]}
+    return out

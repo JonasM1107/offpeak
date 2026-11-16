@@ -35,7 +35,8 @@ def visitor(page: str = "views/components.py", stored: str = "") -> AppTest:
 
 
 def shows_the_app(at: AppTest) -> bool:
-    return any(b.label == "Ask Ollie" for b in at.button) or bool(at.dataframe)
+    """Page links (the menu's account link, links on pages) exist only inside the app."""
+    return bool(at.get("page_link")) or bool(at.dataframe)
 
 
 def test_without_signing_in_only_the_login_is_shown(fake_db):
@@ -56,7 +57,7 @@ def test_a_stored_sign_in_opens_the_app_directly(fake_db):
     token = auth.make_token("ann@example.com", datetime.now(UTC), SECRET)
     at = visitor(stored=token)
     assert shows_the_app(at)
-    assert any(c.value == "Signed in as ann@example.com" for c in at.caption)
+    assert any(link.proto.label == "Ann" for link in at.get("page_link"))  # name in the menu
 
 
 def test_signing_in_wrong_then_right_opens_the_page_asked_for(fake_db):

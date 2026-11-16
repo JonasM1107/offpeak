@@ -96,7 +96,9 @@ def parse_points(payload, variable: str, name: str, shift_hours: int = 0) -> pd.
 
 def _get(points, variable: str, start: date, end: date):
     response = http.get(
-        OPEN_METEO_PREVIOUS_RUNS_URL, params=build_params(points, variable, start, end)
+        OPEN_METEO_PREVIOUS_RUNS_URL,
+        params=build_params(points, variable, start, end),
+        timeout=30,  # up to a year of hourly data
     )
     payload = response.json() if response.content else {}
     if response.status_code != 200 or (isinstance(payload, dict) and payload.get("error")):

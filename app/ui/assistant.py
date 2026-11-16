@@ -11,10 +11,12 @@ failing.
 
 import os
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import data
 import streamlit as st
+import streamlit.components.v1 as components
 
 from offpeak.assistant import agent, llm
 from offpeak.assistant.tools import Context
@@ -32,7 +34,7 @@ BUSY = (
 )
 
 
-def _api_key() -> str | None:
+def api_key() -> str | None:
     try:
         key = st.secrets.get("REQUESTY_API_KEY")
     except Exception:  # no secrets file
@@ -64,7 +66,7 @@ def _reply(question: str, history: list[dict]) -> str:
     if ctx is None:
         return "I can't see the prices right now, so I can't plan. Please try again soon."
     st.session_state["ollie_asked"] = asked + 1
-    key = _api_key()
+    key = api_key()
     try:
         return agent.answer(
             question,
@@ -78,42 +80,21 @@ def _reply(question: str, history: list[dict]) -> str:
         return BUSY
 
 
-@st.dialog("Ask Ollie", width="medium")
-def _chat() -> None:
-    history: list[dict] = st.session_state.setdefault("ollie", [])
-    if not history:
-        st.markdown(
-            "Hi, I'm **Ollie**. Ask me when to run a machine, which day is cheapest, or what "
-            "your plan saves. I use today's prices and Offpeak Intelligence."
-        )
-        for i, example in enumerate(EXAMPLES):
-            if st.button(example, key=f"ollie_example_{i}", width="stretch"):
-                st.session_state["ollie_pending"] = example
-    for m in history:
-        icon = ":material/bolt:" if m["role"] == "assistant" else ":material/person:"
-        with st.chat_message(m["role"], avatar=icon):
-            st.markdown(m["content"])
-
-    with st.form("ollie_form", clear_on_submit=True, border=False):
-        ask, send = st.columns([5, 1], vertical_alignment="bottom")
-        question = ask.text_input(
-            "Your question",
-            placeholder="e.g. When should I charge the EVs on Saturday?",
-            max_chars=agent.MAX_QUESTION_CHARS,
-            label_visibility="collapsed",
-        )
-        sent = send.form_submit_button("Send", type="primary", width="stretch")
-    pending = st.session_state.pop("ollie_pending", None)
-    if pending or (sent and question.strip()):
-        question = pending or question
-        with st.spinner("Ollie is checking the prices…"):
-            text = _reply(question, history)
-        history += [{"role": "user", "content": question}, {"role": "assistant", "content": text}]
-        st.rerun(scope="fragment")
+_window = components.declare_component(
+    "offpeak_ollie", path=str(Path(__file__).with_name("web") / "ollie")
+)
 
 
 def widget() -> None:
-    """The round "Ask Ollie" button, fixed at the bottom right (styled in components.py)."""
-    with st.container(key="ollie_fab"):
-        if st.button("Ask Ollie", icon=":material/forum:", key="ollie_open", type="primary"):
-            _chat()
+    """Ollie at the bottom right of every page (web/ollie/index.html draws the robot and the
+    chat window). A question typed there comes back as the component's value; it is answered
+    here, before the window is drawn again with the answer."""
+    history: list[dict] = st.session_state.setdefault("ollie", [])
+    sent = st.session_state.get("ollie_chat")
+    if isinstance(sent, dict) and sent.get("id") != st.session_state.get("ollie_seen"):
+        st.session_state["ollie_seen"] = sent.get("id")
+        question = str(sent.get("question") or "")[: agent.MAX_QUESTION_CHARS]
+        answer = _reply(question, history)
+        history += [{"role": "user", "content": question}, {"role": "assistant", "content": answer}]
+    with st.container(key="ollie"):
+        _window(history=history[-20:], examples=EXAMPLES, key="ollie_chat", default=None)
