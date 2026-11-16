@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import streamlit.components.v1 as components
+import streamlit as st
 
 from offpeak import components as site_components
 from offpeak.tariffs import Tariff
@@ -59,4 +59,6 @@ def height_for(data: dict) -> int:
 
 
 def show(data: dict) -> None:
-    components.html(render_html(data), height=height_for(data), scrolling=False)
+    # st.iframe replaces st.components.v1.html, which Streamlit removes. Our own template and
+    # JSON only, so the frame may run its script (three.js).
+    st.iframe(render_html(data), height=height_for(data))
