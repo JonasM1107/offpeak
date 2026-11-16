@@ -11,10 +11,30 @@
   .legend-inline { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); align-items: center; }
   .legend-inline i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
   .legend-inline i.line { height: 2px; border-radius: 2px; vertical-align: 3px; width: 14px; }
+  .win { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; padding: 12px 2px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .win:last-child { border-bottom: 0; }
+  .win b { background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px; padding: 3px 10px; font-size: 13px; }
+  .win.avoid b { background: var(--card2); color: var(--ink); }
+  .win small { color: var(--muted); font-size: 12px; min-width: 52px; text-align: right; }
+  .seg button[disabled] { opacity: .45; cursor: default; }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="row c21 reveal" id="today-row">
+    <div class="card">
+      <div class="head">
+        <div><h3 id="day-title">Today</h3><div class="sub" id="day-sub"></div></div>
+        <div class="seg" id="daysel"></div>
+      </div>
+      <div id="slots" class="chart" style="height:260px"></div>
+    </div>
+    <div class="card">
+      <div class="head"><div><h3>Best time for a job</h3><div class="sub">Cheapest block by job length, spot price</div></div></div>
+      <div id="windows"></div>
+    </div>
+  </div>
+
   <div class="bar reveal">
     <div class="seg" id="period"></div>
     <span class="range" id="range"></span>
@@ -63,6 +83,40 @@
 </div>
 
 <script>window.OFFPEAK = __DATA__;</script>
+<script>
+// ── Today & tomorrow: every published slot, the best blocks for a job ──────
+(() => {
+  const DT = window.OFFPEAK.days.filter(Boolean);
+  if (!DT.length) { document.getElementById('today-row').hidden = true; return; }
+  let pick = 0;
+  const hhmm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+  const names = ['Today', 'Tomorrow'];
+  const sel = document.getElementById('daysel');
+  sel.innerHTML = window.OFFPEAK.days.map((d, i) => `<button data-i="${i}" ${d ? '' : 'disabled title="Published around 13:00"'}>${names[i]}</button>`).join('');
+  sel.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { if (!b.disabled) { pick = +b.dataset.i; draw(); } }));
+  const chart = OP.chart(document.getElementById('slots'), c => {
+    const B = OP.base(c), d = window.OFFPEAK.days[pick], w = d.windows[2], pk = d.peak;
+    const inW = t => w && t >= w.start_t && t < w.end_t, inP = t => pk && t >= pk.start_t && t < pk.end_t;
+    return { ...B, grid: { left: 44, right: 12, top: 14, bottom: 28 },
+      tooltip: { ...B.tooltip, trigger: 'axis', formatter: ps => `<b>${hhmm.format(d.t[ps[0].dataIndex] * 1000)}</b><br>${OP.nf(d.ct[ps[0].dataIndex])} ct/kWh` },
+      xAxis: { type: 'category', data: d.t.map(t => hhmm.format(t * 1000)), ...B.axis, axisLabel: { ...B.axis.axisLabel, interval: d.minutes === 15 ? 11 : 2 } },
+      yAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} ct' } },
+      series: [{ type: 'bar', barWidth: '72%', data: d.ct.map((v, i) => ({ value: v, itemStyle: { color: inW(d.t[i]) ? c.accent : inP(d.t[i]) ? c.dark : c.grey, borderRadius: [3, 3, 0, 0] } })),
+        markLine: { silent: true, symbol: 'none', lineStyle: { color: c.muted, type: [4, 3] }, label: { formatter: 'avg', color: c.muted, fontSize: 10 }, data: [{ yAxis: d.avg_ct }] } }] };
+  });
+  function draw() {
+    const d = window.OFFPEAK.days[pick];
+    sel.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.i === pick));
+    document.getElementById('day-title').textContent = `${names[pick]}, ${d.name}`;
+    document.getElementById('day-sub').textContent = `${d.minutes}-minute spot prices, average ${OP.nf(d.avg_ct)} ct/kWh. Orange = cheapest 3 hours, dark = dearest 3 hours.`;
+    const row = (label, w, cls = '') => w ? `<div class="win ${cls}"><span>${label}</span><b>${w.start}–${w.end}</b><small>${OP.nf(w.ct)} ct</small></div>` : '';
+    document.getElementById('windows').innerHTML = d.windows.map(w => row(`${w.hours}-hour job`, w)).join('') + row('Avoid', d.peak, 'avoid');
+    chart.update();
+  }
+  if (window.OFFPEAK.days[1]) pick = 1;  // tomorrow, once published, is what can still be planned
+  draw();
+})();
+</script>
 <script>
 // Hourly spot prices come from Python (offpeak/analysis.py: hourly_payload). This page only
 // summarises the hours inside the chosen window and draws them.

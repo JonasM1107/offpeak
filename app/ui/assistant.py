@@ -91,10 +91,12 @@ _window = components.declare_component(
 )
 
 
+@st.fragment
 def widget() -> None:
     """Ollie at the bottom right of every page (web/ollie/index.html draws the robot and the
     chat window). A question typed there comes back as the component's value; it is answered
-    here, before the window is drawn again with the answer."""
+    here, before the window is drawn again with the answer. A fragment: a question reruns
+    only this, not the page behind it."""
     history: list[dict] = st.session_state.setdefault("ollie", [])
     sent = st.session_state.get("ollie_chat")
     if isinstance(sent, dict) and sent.get("id") != st.session_state.get("ollie_seen"):

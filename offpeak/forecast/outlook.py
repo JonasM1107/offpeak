@@ -234,11 +234,12 @@ def weather_note(drivers: pd.DataFrame | None, day, tz: str) -> str | None:
 def page_payload(
     history: pd.Series, out: pd.DataFrame, tz: str, drivers: pd.DataFrame | None = None
 ) -> dict:
-    """Everything the Price outlook page draws: the last two weeks of published prices, the
+    """Everything the Price outlook page draws: the last two published days, the
     outlook with its likely range, a summary per day with a short weather reason, and how
     close the outlook usually is (average miss in the backtest, ct/kWh)."""
     days = day_summaries(out, tz)
-    recent = history[history.index > history.index.max() - pd.Timedelta(days=14)]
+    # two published days as context; the past itself is the Power page's job
+    recent = history[history.index > history.index.max() - pd.Timedelta(days=2)]
     return {
         "published": {"t": _unix(recent.index), "ct": recent.round(2).tolist()},
         "forecast": {

@@ -6,6 +6,7 @@ after publication, the page fetches it from the API itself and stores it ("fetch
 Without a database the pages call the APIs directly, as before.
 """
 
+import threading
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
@@ -53,7 +54,19 @@ def _store_quietly(write) -> None:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def prices(start: date, end: date) -> tuple[pd.DataFrame, datetime, str]:
-    """Prices for market days start..end: (table, when loaded, 'database' or 'API')."""
+    """Prices for market days start..end: (table, when loaded, 'database' or 'API').
+    Kept 5 minutes, because today's and tomorrow's prices can still arrive."""
+    return _load_prices(start, end)
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def past_prices(start: date, end: date) -> tuple[pd.DataFrame, datetime, str]:
+    """Like prices(), for days that are over: they do not change, so they are kept 6 hours
+    instead of being read again every 5 minutes (two years for the Power page)."""
+    return _load_prices(start, end)
+
+
+def _load_prices(start: date, end: date) -> tuple[pd.DataFrame, datetime, str]:
     eng = engine()
     first = day_slots(start, MARKET_TZ)[0]
     after = day_slots(end, MARKET_TZ)[-1] + timedelta(minutes=15)
@@ -376,3 +389,58 @@ def machines_to_plan() -> tuple[list[dict], bool, str]:
     if saved is not None:
         return clean_machines(saved), True, storage
     return site_machines(site_components()[0]), False, storage
+
+
+# ── Savings replay (shared by the Savings page and the dashboard) ────────────
+
+_REPLAYED: dict[tuple, dict] = {}  # summaries already computed, by (end, days, setup)
+_RUNNING: set[tuple] = set()
+_LOCK = threading.Lock()
+
+
+def setup_key(comps) -> tuple:
+    """The components as a hashable key: a new machine means a fresh replay."""
+    return tuple((c.id, c.kind, c.name, tuple(sorted(c.params.items()))) for c in comps)
+
+
+@st.cache_data(ttl=12 * 3600, show_spinner=False)
+def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
+    """Replay the last `n_days` days up to `end` with the real prices and measured weather:
+    what the usual times cost and what the plan would have cost. About 0.3 s a day."""
+    from offpeak import savings
+    from offpeak.tariffs import germany_2026
+
+    comps = [components.Component(i, k, n, dict(p)) for i, k, n, p in setup]
+    start = end - timedelta(days=n_days - 1)
+    loaded, _, _ = past_prices(start, end)
+    past = archive_weather(start, end)
+    assets, _ = components.site_model(comps)
+    days = [start + timedelta(days=i) for i in range(n_days)]
+    out = savings.replay(loaded, past, comps, germany_2026(pv_kwp=assets.pv_kwp), MARKET_TZ, days)
+    _REPLAYED[(end, n_days, setup)] = savings.summary(out)
+    return out
+
+
+def saved_recently(n_days: int = 30) -> dict | None:
+    """The savings summary of the last `n_days` days if it is ready; otherwise None, and the
+    replay starts in the background so the dashboard never waits for it."""
+    end = market_today() - timedelta(days=1)
+    key = (end, n_days, setup_key(site_components()[0]))
+    if key in _REPLAYED:
+        return _REPLAYED[key]
+    with _LOCK:
+        if key in _RUNNING:
+            return None
+        _RUNNING.add(key)
+
+    def work():
+        try:
+            savings_replay(*key)
+        except Exception as err:  # shown as "not available yet" on the dashboard
+            print(f"offpeak: background savings replay failed: {err}")
+        finally:
+            with _LOCK:
+                _RUNNING.discard(key)
+
+    threading.Thread(target=work, daemon=True).start()
+    return None

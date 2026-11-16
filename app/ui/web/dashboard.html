@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--KIT-->
+<style>
+  /* right now */
+  .now { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 28px; align-items: center; padding: 26px 28px;
+    border-radius: 24px; border: 1px solid var(--line); background: var(--card); position: relative; overflow: hidden; }
+  .now.cheap { background: linear-gradient(135deg, #FF5F00, #FF8A3D); color: #fff; border: 0; }
+  .now.expensive { background: linear-gradient(135deg, #2A2825, #46423D); color: #fff; border: 0; }
+  .now .eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .8; display: flex; align-items: center; gap: 8px; }
+  .now .eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: live 1.6s ease-in-out infinite; }
+  @keyframes live { 50% { opacity: .25; } }
+  .now h2 { font-size: 30px; line-height: 1.15; letter-spacing: -.02em; margin: 10px 0 8px; font-weight: 700; }
+  .now p { margin: 0; font-size: 14.5px; opacity: .92; line-height: 1.55; }
+  .now p b { font-weight: 650; }
+  .gauge .big { font-size: 40px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .gauge .big small { font-size: 14px; font-weight: 500; opacity: .8; margin-left: 4px; }
+  .gauge .track { position: relative; height: 10px; border-radius: 10px; margin: 14px 0 8px;
+    background: linear-gradient(90deg, #FFB98A, #E9E4DD 50%, #3A3733); }
+  .now.cheap .gauge .track, .now.expensive .gauge .track { background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(255,255,255,.45) 50%, rgba(255,255,255,.15)); }
+  .gauge .pin { position: absolute; top: -6px; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 4px solid var(--accent);
+    transform: translateX(-50%); box-shadow: 0 4px 12px rgba(0,0,0,.18); transition: left 1s cubic-bezier(.2,.9,.3,1.1); }
+  .now.expensive .gauge .pin { border-color: #1C1B19; }
+  .gauge .ends { display: flex; justify-content: space-between; font-size: 11.5px; opacity: .8; }
+  .gauge .est { font-size: 11px; opacity: .75; margin-top: 6px; }
+
+  /* tiles: count-up and the countdown */
+  .tile .v.count { font-variant-numeric: tabular-nums; }
+  .tile.wait .v { color: var(--muted); font-size: 16px; font-weight: 500; }
+  .shimmer { display: inline-block; height: 26px; width: 110px; border-radius: 8px; background: linear-gradient(90deg, var(--card2), var(--line), var(--card2));
+    background-size: 200% 100%; animation: sh 1.4s linear infinite; }
+  @keyframes sh { to { background-position: -200% 0; } }
+
+  /* next steps */
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 16px; border: 1px solid var(--line);
+    border-radius: 16px; background: var(--card); transition: border-color .2s, opacity .3s, transform .2s; }
+  .step:hover { transform: translateY(-1px); border-color: var(--accent-mid); }
+  .step.next { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .step.done { opacity: .5; } .step.done .name { text-decoration: line-through; }
+  .step input { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; }
+  .step .name { font-weight: 650; font-size: 14.5px; }
+  .step .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .step .right { text-align: right; }
+  .step .cd { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .step .cd.live { color: var(--accent-ink); font-weight: 650; }
+  .badge { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-ink); background: var(--accent-soft);
+    border-radius: 999px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; }
+  a.more { display: inline-block; margin-top: 12px; font-size: 13px; color: var(--accent-ink); font-weight: 600; text-decoration: none; }
+  a.more:hover { text-decoration: underline; }
+
+  /* shift & save */
+  .shift .big { font-size: 34px; font-weight: 700; letter-spacing: -.02em; color: var(--accent); font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
+  .shift .big small { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .shift input[type=range] { width: 100%; accent-color: var(--accent); margin: 16px 0 6px; }
+  .shift .val { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+  .shift .val b { color: var(--ink); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .presets button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 11px; font: inherit; font-size: 12px; cursor: pointer; color: var(--ink); }
+  .presets button:hover, .presets button.on { border-color: var(--accent); background: var(--accent-soft); }
+
+  #ribbon { height: 250px; }
+  .legend-inline { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); align-items: center; flex-wrap: wrap; }
+  .legend-inline i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  @media (max-width: 900px) { .now { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="now reveal" id="now">
+    <div>
+      <div class="eyebrow"><i></i>Right now</div>
+      <h2 id="headline"></h2>
+      <p id="advice"></p>
+    </div>
+    <div class="gauge">
+      <div class="big" id="price"></div>
+      <div class="track"><div class="pin" id="pin" style="left:50%"></div></div>
+      <div class="ends"><span id="lo"></span><span>next 36 hours</span><span id="hi"></span></div>
+      <div class="est" id="est"></div>
+    </div>
+  </section>
+
+  <div class="row k4 reveal" id="tiles"></div>
+
+  <div class="row c21 reveal">
+    <div class="card">
+      <div class="head"><div><h3>Your next steps</h3><div class="sub">Each machine at its best time in the coming days. Tick a step off when it is done.</div></div></div>
+      <div class="steps" id="steps"></div>
+      <a class="more" href="/cockpit" target="_top">Change machines and times in the cockpit →</a>
+    </div>
+    <div class="card shift">
+      <div class="head"><div><h3>Shift &amp; save</h3><div class="sub">How much energy could you move each day to the cheapest hours?</div></div></div>
+      <div class="big" id="shift-eur"></div>
+      <div class="sub" id="shift-note"></div>
+      <input type="range" id="shift" min="0" max="500" step="10" value="100" aria-label="kWh moved per day">
+      <div class="val"><span>0 kWh</span><span><b id="shift-kwh">100 kWh</b> a day</span><span>500 kWh</span></div>
+      <div class="presets" id="presets"></div>
+    </div>
+  </div>
+
+  <div class="card reveal">
+    <div class="head">
+      <div><h3>The next 36 hours</h3><div class="sub" id="ribbon-sub">All-in price per hour. Your planned runs sit on top. Click an hour to compare it with now.</div></div>
+      <div class="legend-inline"><span><i style="background:var(--accent)"></i>Cheap</span><span><i style="background:var(--grey)"></i>Normal</span><span><i style="background:var(--dark)"></i>Expensive</span></div>
+    </div>
+    <div id="ribbon" class="chart"></div>
+    <p class="insight" id="pick">Click an hour to see what a 10 kW job would cost there.</p>
+  </div>
+  <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
+</div>
+
+<script>window.OFFPEAK = __DATA__;</script>
+<script>
+// Everything is computed in Python (offpeak/dashboard.py); this page draws it and adds the
+// interactions: live countdowns, ticking steps off, the shift slider and the clickable hours.
+const D = window.OFFPEAK, N = D.now, R = D.ribbon, A = D.actions;
+const { nf } = OP;
+const eur = (v, d = 2) => '€' + nf(v, d);
+const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+const hm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+function until(t) {  // "in 2 h 14 min"
+  let s = Math.max(0, Math.round(t - Date.now() / 1000));
+  const d = Math.floor(s / 86400); s -= d * 86400; const h = Math.floor(s / 3600); const m = Math.floor((s - h * 3600) / 60);
+  return d ? `in ${d} d ${h} h` : h ? `in ${h} h ${m} min` : `in ${m} min`;
+}
+
+// ── Right now ──────────────────────────────────────────────────────────────
+const box = document.getElementById('now');
+box.classList.add(N.level);
+document.getElementById('headline').textContent = {
+  cheap: 'Power is cheap right now. Run flexible machines.',
+  normal: 'Prices are average right now.',
+  expensive: 'Power is expensive right now. Wait if you can.',
+}[N.level];
+document.getElementById('advice').innerHTML = N.level === 'cheap'
+  ? `Cheap until <b>${N.until}</b>. Good moment for EV charging, heating water or any job that can run now.`
+  : `Next cheap window: <b>${N.next_cheap}</b> at about <b>${nf(N.next_cheap_ct)} ct/kWh</b> (${until(N.next_cheap_t)}).`;
+document.getElementById('price').innerHTML = `${nf(N.price_ct)}<small>ct/kWh</small>`;
+document.getElementById('lo').textContent = `${nf(N.low_ct)} ct`;
+document.getElementById('hi').textContent = `${nf(N.high_ct)} ct`;
+document.getElementById('est').textContent = N.estimate ? 'This hour is an estimate by Offpeak Intelligence.' : 'All-in price: market price plus grid fees, levies and tax.';
+const span = N.high_ct - N.low_ct || 1;
+setTimeout(() => { document.getElementById('pin').style.left = `${Math.min(100, Math.max(0, (N.price_ct - N.low_ct) / span * 100))}%`; }, 150);
+
+// ── Tiles, counting up ─────────────────────────────────────────────────────
+const tile = (label, value, note, cls = '', id = '') => `<div class="tile ${cls}"><p>${label}</p><div class="v ${id ? 'count' : ''}" ${id ? `id="${id}"` : ''}>${value}</div><div class="n">${note}</div></div>`;
+const next = A.find(a => a.end_t > Date.now() / 1000);
+const S = D.saved;
+document.getElementById('tiles').innerHTML = [
+  tile('Your plan saves this week', eur(0), `${A.length} machine runs at their best time`, 'hero', 'c-week'),
+  tile('That is per month', eur(0), 'if every week looks like this one', '', 'c-month'),
+  S ? tile('Saved in the last 30 days', eur(0), `${nf(S.share_pct, 0)} % of the bill, replayed with real prices`, '', 'c-saved')
+    : tile('Saved in the last 30 days', '<span class="shimmer"></span>', 'being calculated, shown on your next visit', 'wait'),
+  next ? tile('Next step', `<span id="c-next">${until(next.start_t)}</span>`, `${next.name} · ${next.when}`)
+       : tile('Next step', '–', 'no machine runs planned'),
+].join('');
+function countUp(id, target) {
+  const el = document.getElementById(id); if (!el) return;
+  const t0 = performance.now(), dur = 900;
+  const step = now => { const k = Math.min(1, (now - t0) / dur); el.textContent = eur(target * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+countUp('c-week', D.week_saving_eur); countUp('c-month', D.month_saving_eur); if (S) countUp('c-saved', S.saving_eur);
+
+// ── Next steps, with live countdowns and ticking off ───────────────────────
+const doneKey = a => `offpeak.done.${a.name}.${a.start_t}`;
+const isDone = a => { try { return localStorage.getItem(doneKey(a)) === '1'; } catch (e) { return false; } };
+function renderSteps() {
+  const nowS = Date.now() / 1000;
+  const open = A.filter(a => a.end_t > nowS);
+  const firstOpen = open.find(a => !isDone(a));
+  document.getElementById('steps').innerHTML = open.length ? open.map((a, i) => {
+    const running = a.start_t <= nowS;
+    return `<label class="step ${a === firstOpen ? 'next' : ''} ${isDone(a) ? 'done' : ''}">
+      <input type="checkbox" data-i="${A.indexOf(a)}" ${isDone(a) ? 'checked' : ''}>
+      <div><div class="name">${a.name}${a === firstOpen ? '<span class="badge">Up next</span>' : ''}</div>
+        <div class="meta">${a.when} · ${nf(a.kw, 0)} kW · ${eur(a.cost_eur)} per run${a.usual ? ` · usually ${a.usual.split(' · ')[1]}` : ''}${a.estimate ? ' · estimated price' : ''}</div></div>
+      <div class="right">${a.saving_eur > 0.005 ? `<span class="chip">saves ${eur(a.saving_eur)}</span>` : '<span class="chip grey">best as usual</span>'}
+        <div class="cd ${running ? 'live' : ''}" data-t="${a.start_t}" data-e="${a.end_t}">${running ? 'running now' : until(a.start_t)}</div></div>
+    </label>`;
+  }).join('') : '<p class="insight">No machine runs planned. Add machines in the cockpit.</p>';
+  document.querySelectorAll('.step input').forEach(el => el.addEventListener('change', () => {
+    try { localStorage.setItem(doneKey(A[+el.dataset.i]), el.checked ? '1' : '0'); } catch (e) { /* private mode */ }
+    renderSteps();
+  }));
+}
+renderSteps();
+setInterval(() => {  // the countdowns tick every half minute
+  const nowS = Date.now() / 1000;
+  document.querySelectorAll('.cd').forEach(el => { const t = +el.dataset.t; el.textContent = t <= nowS ? 'running now' : until(t); el.classList.toggle('live', t <= nowS); });
+  const c = document.getElementById('c-next'); if (c && next) c.textContent = next.start_t <= nowS ? 'running now' : until(next.start_t);
+}, 30000);
+
+// ── Shift & save ───────────────────────────────────────────────────────────
+const PRESETS = [['EV fleet', 120], ['Heat pump', 60], ['Hot water', 25], ['Cold store pre-cooling', 80]];
+document.getElementById('presets').innerHTML = PRESETS.map(([n, k]) => `<button data-k="${k}">${n} · ${k} kWh</button>`).join('');
+const slider = document.getElementById('shift');
+function renderShift() {
+  const kwh = +slider.value, month = kwh * 30 * D.shift_ct_per_kwh / 100;
+  document.getElementById('shift-eur').innerHTML = `${eur(month, 0)}<small> a month</small>`;
+  document.getElementById('shift-kwh').textContent = `${kwh} kWh`;
+  document.getElementById('shift-note').textContent = `Moving ${kwh} kWh a day from an average hour to the cheapest window saves about ${nf(D.shift_ct_per_kwh)} ct per kWh, ${eur(kwh * D.shift_ct_per_kwh / 100)} a day.`;
+  document.querySelectorAll('.presets button').forEach(b => b.classList.toggle('on', +b.dataset.k === kwh));
+}
+slider.addEventListener('input', renderShift);
+document.querySelectorAll('.presets button').forEach(b => b.addEventListener('click', () => { slider.value = b.dataset.k; renderShift(); }));
+renderShift();
+
+// ── The next 36 hours ──────────────────────────────────────────────────────
+const ms = R.t.map(t => t * 1000);
+const ribbon = OP.chart(document.getElementById('ribbon'), c => {
+  const B = OP.base(c);
+  const color = { cheap: c.accent, normal: c.grey, expensive: c.dark };
+  const runs = A.filter(a => a.end_t * 1000 > ms[0]).map(a => [{ name: a.name, xAxis: Math.max(a.start_t * 1000, ms[0]) }, { xAxis: Math.min(a.end_t * 1000, ms[ms.length - 1] + 3600e3) }]);
+  return {
+    ...B,
+    grid: { left: 46, right: 16, top: 30, bottom: 30 },
+    tooltip: { ...B.tooltip, trigger: 'axis', formatter: ps => { const i = ps[0].dataIndex; return `<b>${fmt.format(ms[i])}</b><br>${nf(R.ct[i])} ct/kWh · ${R.level[i]}${R.estimate[i] ? '<br><span style="opacity:.7">estimate</span>' : ''}${R.surplus[i] > 0 ? `<br>own surplus ${nf(R.surplus[i], 0)} kW` : ''}`; } },
+    xAxis: { type: 'time', ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, hideOverlap: true, formatter: { day: '{ee} {d}', hour: '{HH}:{mm}' } } },
+    yAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} ct' } },
+    series: [{
+      type: 'bar', barWidth: '78%', data: R.ct.map((v, i) => ({ value: [ms[i] + 1800e3, v], itemStyle: { color: color[R.level[i]], opacity: R.estimate[i] ? .65 : 1, borderRadius: [5, 5, 0, 0] } })),
+      markArea: { silent: true, itemStyle: { color: c.accentSoft, opacity: .55 }, label: { color: c.accentInk || c.accent, fontSize: 11, fontWeight: 600, position: 'insideTop' }, data: runs },
+      markLine: { silent: true, symbol: 'none', lineStyle: { color: c.accent, type: [4, 3] }, label: { formatter: 'now', color: c.accent, fontSize: 11 }, data: [{ xAxis: Date.now() }] },
+    }],
+  };
+});
+ribbon.onDraw.push(inst => inst.on('click', p => {
+  const i = p.dataIndex; if (i == null) return;
+  const there = 10 * R.ct[i] / 100, here = 10 * N.price_ct / 100, diff = here - there;
+  document.getElementById('pick').innerHTML = `A 10 kW job for one hour at <b>${fmt.format(ms[i])}</b> costs <b>${eur(there)}</b>, `
+    + (Math.abs(diff) < 0.005 ? 'the same as right now.' : diff > 0 ? `<b>${eur(diff)} less</b> than right now.` : `${eur(-diff)} more than right now.`);
+}));
+if (D.weather_missing) document.getElementById('ribbon-sub').textContent += ' The weather forecast is unavailable, so own solar and wind power is not counted.';
+document.getElementById('foot').textContent = D.credits;
+OP.start();
+</script>
+</body>
+</html>

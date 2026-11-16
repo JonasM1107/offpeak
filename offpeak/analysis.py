@@ -148,3 +148,34 @@ def hourly_payload(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> dict:
             h["local"].dt.year * 10000 + h["local"].dt.month * 100 + h["local"].dt.day
         ).tolist(),
     }
+
+
+def day_detail(prices: pd.DataFrame, tz: str = "Europe/Berlin") -> dict | None:
+    """One published day for the Power page: every slot (UTC start in unix seconds and
+    spot ct/kWh), the cheapest block for 1- to 4-hour jobs and the dearest 3 hours to avoid.
+    None if the day has no prices yet (tomorrow's come out around 13:00)."""
+    if prices is None or prices.empty:
+        return None
+    df = prices.sort_values("ts")
+
+    def block(w: Window | None, hours: int) -> dict | None:
+        if w is None:
+            return None
+        return {
+            "hours": hours,
+            "start": f"{w.start.tz_convert(tz):%H:%M}",
+            "end": f"{w.end.tz_convert(tz):%H:%M}".replace("00:00", "24:00"),
+            "start_t": int(w.start.timestamp()),
+            "end_t": int(w.end.timestamp()),
+            "ct": round(ct_kwh(w.avg_eur_mwh), 1),
+        }
+
+    return {
+        "name": f"{df['ts'].iloc[0].tz_convert(tz):%A %-d %B}",
+        "t": [int(t.timestamp()) for t in df["ts"]],
+        "ct": [round(ct_kwh(v), 2) for v in df["eur_mwh"]],
+        "minutes": int(df["resolution_min"].iloc[0]) if "resolution_min" in df else 60,
+        "windows": [block(best_window(df, h), h) for h in (1, 2, 3, 4)],
+        "peak": block(best_window(df, 3, cheapest=False), 3),
+        "avg_ct": round(ct_kwh(df["eur_mwh"].mean()), 1),
+    }

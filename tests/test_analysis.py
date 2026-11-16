@@ -124,3 +124,20 @@ def test_hourly_payload_lists_line_up(load_fixture):
     assert set(p["day"]) == {20261025} and set(p["wd"]) == {6}  # a Sunday
     assert p["hour"].count(2) == 2  # the repeated hour when clocks go back
     assert p["t"][0] == 1792879200  # 25 Oct 2026 00:00 in Berlin = 24 Oct 22:00 UTC
+
+
+def test_day_detail_finds_the_cheapest_blocks_and_the_peak():
+    import pandas as pd
+
+    from offpeak.analysis import day_detail
+
+    ts = pd.date_range("2026-11-16 23:00", periods=24, freq="h", tz="UTC")  # 17 Nov local
+    eur = [100.0] * 24
+    eur[3:5] = [20.0, 20.0]  # 03:00-05:00 local cheap
+    eur[18:21] = [300.0, 300.0, 300.0]  # 18:00-21:00 local dear
+    d = day_detail(pd.DataFrame({"ts": ts, "eur_mwh": eur, "resolution_min": 60}))
+    assert d["name"] == "Tuesday 17 November" and len(d["t"]) == 24 and d["minutes"] == 60
+    two = d["windows"][1]
+    assert (two["start"], two["end"], two["ct"]) == ("03:00", "05:00", 2.0)
+    assert (d["peak"]["start"], d["peak"]["end"], d["peak"]["ct"]) == ("18:00", "21:00", 30.0)
+    assert day_detail(pd.DataFrame(columns=["ts", "eur_mwh"])) is None

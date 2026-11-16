@@ -18,11 +18,20 @@ What the project must fulfil, including the grading criteria and where we stand,
 
 ## What it does
 
-- **Dashboard:** tomorrow's prices and this week's plan, i.e. when each machine should run and what that saves.
-- **Analytics:** day-ahead power prices, weather and solar, a 7-day price outlook by **Offpeak Intelligence** (our forecast from a year of prices and the wind and solar forecast, trained in the background), and a simulation cockpit to plan machines.
-- **Ask Ollie:** a chat assistant on every page that answers questions like "when should I run the heat pump in 3 days, 3 hours, done by 18:00?" from the app's own data.
-- **Results:** savings replayed on past days, and a tariff calculator.
-- **Setup:** the site's components (solar, wind, battery, machines), shown in a 3D site view. The app is behind a login for the team (emails and a password set in the Streamlit secrets, see `.env.example`); a browser stays signed in for 24 hours.
+Each page answers one question:
+
+| Page | The question it answers |
+|---|---|
+| **Dashboard** | What should I do now, what is next, and what does it bring? (price right now, next steps with countdowns, savings, the next 36 hours) |
+| **Power** | What does power cost today and tomorrow, and how does the market behave? (15-minute prices, best block for a job, two years of patterns) |
+| **Weather & solar** | How much of my own power will I have? (solar and wind for 7 days, how good the forecast is) |
+| **Price outlook** | What will power cost in the days after tomorrow? (Offpeak Intelligence, our forecast trained in the background) |
+| **Simulation cockpit** | When should each machine run? (try machines, job lengths and time windows) |
+| **Savings** | What did it bring? (past days replayed with real prices and weather) |
+| **Tariff calculator** | What does a kWh really cost us, dynamic or fixed? |
+| **Site view, Site & components** | What is on the site? (3D view, components and machines) |
+
+**Ask Ollie**, the robot at the bottom right, answers questions like "when should I run the heat pump in 3 days, 3 hours, done by 18:00?" from the app's own data. The app is behind a login for the team (emails and a password set in the Streamlit secrets, see `.env.example`); a browser stays signed in for 24 hours.
 
 ## Get started
 
