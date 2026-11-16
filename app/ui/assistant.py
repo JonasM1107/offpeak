@@ -34,6 +34,13 @@ BUSY = (
 )
 
 
+def _secret(name: str) -> str | None:
+    try:
+        return st.secrets.get(name)
+    except Exception:  # no secrets file
+        return None
+
+
 def api_key() -> str | None:
     try:
         key = st.secrets.get("REQUESTY_API_KEY")
@@ -67,12 +74,13 @@ def _reply(question: str, history: list[dict]) -> str:
         return "I can't see the prices right now, so I can't plan. Please try again soon."
     st.session_state["ollie_asked"] = asked + 1
     key = api_key()
+    model = os.environ.get("OLLIE_MODEL") or _secret("OLLIE_MODEL")
     try:
         return agent.answer(
             question,
             history,
             ctx,
-            lambda messages, tools: llm.complete(messages, tools, key),
+            lambda messages, tools: llm.complete(messages, tools, key, llm.models_for(model)),
             datetime.now(ZoneInfo("Europe/Berlin")),
         )
     except llm.AssistantUnavailable as err:

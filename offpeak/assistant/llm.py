@@ -13,6 +13,13 @@ MODELS = ("nvidia/nemotron-3-ultra-550b-a55b", "google/gemma-4-31b-it")
 TIMEOUT_S = 45
 
 
+def models_for(preferred: str | None) -> tuple[str, ...]:
+    """The models to try in turn: the one chosen in the setting OLLIE_MODEL first (for example
+    a Claude model, which needs credit on the Requesty account), then the free ones."""
+    first = (preferred or "").strip()
+    return ((first,) if first else ()) + tuple(m for m in MODELS if m != first)
+
+
 class AssistantUnavailable(RuntimeError):
     """The model could not answer (no key, network, limit reached, or every model failed)."""
 

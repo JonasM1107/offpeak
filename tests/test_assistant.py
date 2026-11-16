@@ -258,3 +258,12 @@ def test_complete_fails_clearly():
 
     with pytest.raises(llm.AssistantUnavailable, match="ConnectionError"):
         llm.complete([], [], "key", post=offline)
+
+
+def test_a_chosen_model_is_tried_first_then_the_free_ones():
+    assert llm.models_for("anthropic/claude-haiku-5-5") == (
+        "anthropic/claude-haiku-5-5",
+        *llm.MODELS,
+    )
+    assert llm.models_for(None) == llm.MODELS and llm.models_for("  ") == llm.MODELS
+    assert llm.models_for(llm.MODELS[1]) == (llm.MODELS[1], llm.MODELS[0])  # no duplicates
