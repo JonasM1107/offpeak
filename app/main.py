@@ -9,6 +9,10 @@ HERE = Path(__file__).parent
 # Streamlit only puts app/ on the import path; add the repo root so pages can import offpeak.
 sys.path.insert(0, str(HERE.parent))
 
+import freshness  # noqa: E402
+
+freshness.refresh()  # after a deploy: load the new versions of our modules (see freshness.py)
+
 from ui import account, assistant  # noqa: E402
 from ui.components import inject_css  # noqa: E402
 

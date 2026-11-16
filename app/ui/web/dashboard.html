@@ -154,7 +154,9 @@ document.getElementById('tiles').innerHTML = [
   tile('Your plan saves this week', eur(0), `${A.length} machine runs at their best time`, 'hero', 'c-week'),
   tile('That is per month', eur(0), 'if every week looks like this one', '', 'c-month'),
   S ? tile('Saved in the last 30 days', eur(0), `${nf(S.share_pct, 0)} % of the bill, replayed with real prices`, '', 'c-saved')
-    : tile('Saved in the last 30 days', '<span class="shimmer"></span>', 'being calculated, shown on your next visit', 'wait'),
+    : D.saved_state === 'failed'
+      ? tile('Saved in the last 30 days', '–', 'past prices or weather are not available right now', 'wait')
+      : tile('Saved in the last 30 days', '<span class="shimmer"></span>', 'being calculated, reload in a minute', 'wait'),
   next ? tile('Next step', `<span id="c-next">${until(next.start_t)}</span>`, `${next.name} · ${next.when}`)
        : tile('Next step', '–', 'no machine runs planned'),
 ].join('');

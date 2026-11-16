@@ -395,6 +395,8 @@ def machines_to_plan() -> tuple[list[dict], bool, str]:
 
 _REPLAYED: dict[tuple, dict] = {}  # summaries already computed, by (end, days, setup)
 _RUNNING: set[tuple] = set()
+_FAILED: dict[tuple, datetime] = {}  # when a background replay last failed
+RETRY_AFTER = timedelta(minutes=30)
 _LOCK = threading.Lock()
 
 
@@ -421,26 +423,31 @@ def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     return out
 
 
-def saved_recently(n_days: int = 30) -> dict | None:
-    """The savings summary of the last `n_days` days if it is ready; otherwise None, and the
-    replay starts in the background so the dashboard never waits for it."""
+def saved_recently(n_days: int = 30) -> tuple[dict | None, str]:
+    """The savings summary of the last `n_days` days and its state: "ready", "running" (the
+    replay runs in the background, so the dashboard never waits for it) or "failed" (past
+    prices or weather could not be loaded; tried again after RETRY_AFTER)."""
     end = market_today() - timedelta(days=1)
     key = (end, n_days, setup_key(site_components()[0]))
     if key in _REPLAYED:
-        return _REPLAYED[key]
+        return _REPLAYED[key], "ready"
+    failed = _FAILED.get(key)
+    if failed and datetime.now(UTC) - failed < RETRY_AFTER:
+        return None, "failed"
     with _LOCK:
         if key in _RUNNING:
-            return None
+            return None, "running"
         _RUNNING.add(key)
 
     def work():
         try:
             savings_replay(*key)
-        except Exception as err:  # shown as "not available yet" on the dashboard
+        except Exception as err:  # shown as "not available right now" on the dashboard
             print(f"offpeak: background savings replay failed: {err}")
+            _FAILED[key] = datetime.now(UTC)
         finally:
             with _LOCK:
                 _RUNNING.discard(key)
 
     threading.Thread(target=work, daemon=True).start()
-    return None
+    return None, "running"

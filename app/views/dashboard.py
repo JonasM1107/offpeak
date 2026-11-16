@@ -31,6 +31,8 @@ if ahead is None:
     st.stop()
 hours, now_index = ahead
 machines, _, _ = data.machines_to_plan()
-payload = dashboard.payload(hours, now_index, machines, data.saved_recently(30))
+saved, saved_state = data.saved_recently(30)
+payload = dashboard.payload(hours, now_index, machines, saved)
+payload["saved_state"] = saved_state
 payload["credits"] = f"{ENERGY_CHARTS_ATTRIBUTION} · {OPEN_METEO_ATTRIBUTION}"
 web.show("dashboard", payload, height=1300)
