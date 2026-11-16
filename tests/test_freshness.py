@@ -8,7 +8,7 @@ import freshness  # noqa: E402
 
 
 def test_changed_files_drop_our_modules_but_nothing_else(tmp_path, monkeypatch):
-    monkeypatch.setattr(freshness, "_STARTED", None)
+    monkeypatch.setattr(freshness, "_since", None)
     monkeypatch.setattr(sys, "modules", dict(sys.modules))  # a copy: the real ones stay loaded
     monkeypatch.setattr(freshness, "_seen", {})
     monkeypatch.setattr(freshness.st.cache_data, "clear", lambda: None)
@@ -35,9 +35,13 @@ def test_a_file_changed_after_the_process_started_counts_as_a_deploy(tmp_path, m
     monkeypatch.setattr(freshness.st.cache_data, "clear", lambda: None)
     source = tmp_path / "fake.py"
     source.write_text("x = 1")
-    monkeypatch.setattr(freshness, "_STARTED", source.stat().st_mtime - 60)  # started before
+    monkeypatch.setattr(freshness, "_since", source.stat().st_mtime - 60)  # started before
     monkeypatch.setattr(sys, "modules", dict(sys.modules))  # a copy: the real ones stay loaded
     mod = types.ModuleType("offpeak.deployed_mod")
     mod.__file__ = str(source)
     monkeypatch.setitem(sys.modules, "offpeak.deployed_mod", mod)
     assert freshness.refresh() is True and "offpeak.deployed_mod" not in sys.modules
+    # imported again from the same (new) file: one deploy reloads once, not on every run
+    sys.modules["offpeak.deployed_mod"] = mod
+    assert freshness.refresh() is False
+    assert freshness.refresh() is False

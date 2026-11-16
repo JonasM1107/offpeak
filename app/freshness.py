@@ -9,6 +9,7 @@ imports the new versions. Checking takes about a millisecond.
 
 import os
 import sys
+import time
 
 import streamlit as st
 
@@ -23,7 +24,9 @@ def _process_started() -> float | None:
         return None
 
 
-_STARTED = _process_started()
+# Files changed after this moment were imported in an older version. It starts as the
+# process start and moves to the moment of each reload, so one deploy reloads once.
+_since = _process_started()
 
 
 def _ours(name: str) -> bool:
@@ -34,6 +37,7 @@ def refresh() -> bool:
     """Drop our modules if any of their files changed since we last looked, or, the first
     time we look at a file, since this process started (a deploy while it ran). True if
     something was dropped."""
+    global _since
     changed = False
     for name, module in list(sys.modules.items()):
         path = getattr(module, "__file__", None)
@@ -46,10 +50,11 @@ def refresh() -> bool:
         before = _seen.get(path)
         if before is not None and before != modified:
             changed = True
-        elif before is None and _STARTED is not None and modified > _STARTED + 1:
-            changed = True  # changed after this process started: imported before the deploy
+        elif before is None and _since is not None and modified > _since + 1:
+            changed = True  # changed after the process started: imported before the deploy
         _seen[path] = modified
     if changed:
+        _since = time.time()  # what is imported from now on is the new version
         for name in [n for n in sys.modules if _ours(n)]:
             del sys.modules[name]
         _seen.clear()  # filled again from the fresh imports on the next run
