@@ -58,18 +58,26 @@ try:
 except PriceSourceError:
     today_prices = None
 weather, _, _, _ = data.weather()
-base = demo_site.hourly_inputs(today_prices, weather, dynamic.tz)
-live = bool(base["price_real"].all())
 
-inputs = demo_site.apply_tariff(base, dynamic, today)
-plan = demo_site.plan_day(inputs, dynamic)
-bills = {
-    "Usual times · dynamic": demo_site.day_bill(inputs, demo_site.USUAL, dynamic),
-    "Offpeak plan · dynamic": demo_site.day_bill(inputs, plan, dynamic),
-    "Usual times · fixed price": demo_site.day_bill(
-        demo_site.apply_tariff(base, fixed, today), demo_site.USUAL, fixed
-    ),
-}
+
+@st.cache_data(ttl=600, show_spinner=False, max_entries=32)
+def day_bills(today_prices, weather, dynamic, fixed, today):
+    """The day plan and the three bills. Computing them takes a few seconds on the hosted
+    server, so the result is kept for each combination of settings and data."""
+    base = demo_site.hourly_inputs(today_prices, weather, dynamic.tz)
+    inputs = demo_site.apply_tariff(base, dynamic, today)
+    plan = demo_site.plan_day(inputs, dynamic)
+    bills = {
+        "Usual times · dynamic": demo_site.day_bill(inputs, demo_site.USUAL, dynamic),
+        "Offpeak plan · dynamic": demo_site.day_bill(inputs, plan, dynamic),
+        "Usual times · fixed price": demo_site.day_bill(
+            demo_site.apply_tariff(base, fixed, today), demo_site.USUAL, fixed
+        ),
+    }
+    return bool(base["price_real"].all()), inputs, plan, bills
+
+
+live, inputs, plan, bills = day_bills(today_prices, weather, dynamic, fixed, today)
 
 if today_prices is not None and not today_prices.empty:
     slots = slot_prices(today_prices, dynamic)  # 15-minute detail for the chart
