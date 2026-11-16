@@ -22,6 +22,7 @@ const OP = (() => {
     // measure the content, not the document: the document is never smaller than the frame
     const root = document.querySelector('.wrap') || document.body;
     const h = Math.ceil(root.getBoundingClientRect().bottom + window.scrollY + 4);
+    if (f.style.height === h + 'px') return;  // unchanged: nothing to do
     f.style.height = h + 'px';
     f.setAttribute('height', h);
     const box = f.closest('[data-testid=stElementContainer]');
@@ -82,6 +83,9 @@ const OP = (() => {
     setInterval(syncTheme, 500);
     new ResizeObserver(fit).observe(document.querySelector('.wrap') || document.body);
     window.addEventListener('load', fit);
+    // safety net: late fonts or a missed resize event must never leave a page cut off
+    if (document.fonts) document.fonts.ready.then(fit);
+    setInterval(fit, 1000);
     fit();
   }
 

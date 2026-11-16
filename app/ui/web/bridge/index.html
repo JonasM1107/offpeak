@@ -22,6 +22,13 @@ function setHeight(h) {
   if (h > 0 && h !== lastHeight) { lastHeight = h; send('streamlit:setFrameHeight', { height: h }); }
 }
 new ResizeObserver(() => setHeight(Math.ceil(frame.getBoundingClientRect().height))).observe(frame);
+// safety net: report the view's height again every second if it changed (a missed resize
+// event, or Streamlit mounting the frame again, must never leave the view cut off)
+setInterval(() => {
+  const h = Math.ceil(frame.getBoundingClientRect().height);
+  if (h > 0 && Math.abs(window.innerHeight - h) > 2) { lastHeight = h; send('streamlit:setFrameHeight', { height: h }); }
+  else setHeight(h);
+}, 1000);
 
 // Called by the view. Many quick changes (a slider being dragged) become one message;
 // the id lets Python tell a new message from the same one seen again on a rerun.

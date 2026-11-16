@@ -14,24 +14,31 @@ from offpeak.sites import DEMO_CITY, DEMO_SITE
 
 header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Simulation cockpit", live=True)
 
-# First keep what the view sent since the last run (each message has a new id).
-sent = st.session_state.get("cockpit")
-if isinstance(sent, dict) and sent.get("id") != st.session_state.get("cockpit_saved_id"):
-    st.session_state["cockpit_saved_id"] = sent.get("id")
-    data.save_cockpit_machines(clean_machines(sent.get("machines")))
 
-with st.spinner("Preparing the coming days…"):
-    ahead = data.hours_ahead()
-if ahead is None:
-    st.info("Prices or the weather forecast could not be loaded right now. We try again soon.")
-    st.stop()
-hours, now_index = ahead
-machines, saved, storage = data.machines_to_plan()
-payload = {
-    "horizon": hours,
-    "machines": machines,
-    "saved": saved,
-    "storage": storage,
-    "now_index": now_index,
-}
-web.live("cockpit", payload, key="cockpit", height=1400, keep=("machines", "saved"))
+@st.fragment
+def cockpit() -> None:
+    """The cockpit as a fragment: a saved change reruns only this part, not the whole page."""
+    # First keep what the view sent since the last run (each message has a new id).
+    sent = st.session_state.get("cockpit")
+    if isinstance(sent, dict) and sent.get("id") != st.session_state.get("cockpit_saved_id"):
+        st.session_state["cockpit_saved_id"] = sent.get("id")
+        data.save_cockpit_machines(clean_machines(sent.get("machines")))
+
+    with st.spinner("Preparing the coming days…"):
+        ahead = data.hours_ahead()
+    if ahead is None:
+        st.info("Prices or the weather forecast could not be loaded right now. We try again soon.")
+        return
+    hours, now_index = ahead
+    machines, saved, storage = data.machines_to_plan()
+    payload = {
+        "horizon": hours,
+        "machines": machines,
+        "saved": saved,
+        "storage": storage,
+        "now_index": now_index,
+    }
+    web.live("cockpit", payload, key="cockpit", height=1400, keep=("machines", "saved"))
+
+
+cockpit()
