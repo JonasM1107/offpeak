@@ -48,6 +48,8 @@ SAVED = {
     "database": "Changes are saved for everyone using this site.",
     "demo": "Showing the demo components. Your first change saves them together with it.",
     "session": "No database connected: changes last until you reload the page.",
+    "local": "You're not signed in: changes stay in this browser tab. Sign in under "
+    "Account to save them for everyone.",
 }
 add, remove = st.columns([2, 1], gap="medium")
 with add, st.container(border=True, key="card_add"):

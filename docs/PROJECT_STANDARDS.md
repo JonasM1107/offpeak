@@ -206,9 +206,9 @@ Tests: `tests/test_app.py` runs every page offline with saved responses.
 - **Ollie through a free Requesty model:**
   - *Why:* the course's standard router, no card needed. The numbers come from our tools, so a smaller model is enough.
   - *Limit:* 200 requests a day for the whole app, and answers can be slower than the rest of the app.
-- **No user accounts:**
-  - *Why:* one demo site.
-  - *Limit:* changes are shared by everyone with edit access.
+- **Editor sign-in instead of user accounts:**
+  - *Why:* one demo site and a team of three; a shared password plus an email list is simple to explain and enough here.
+  - *Limit:* everyone shares one password, so a leaked password means changing it for all (new fingerprint in the secrets). The cookie is readable by the page's own scripts (Streamlit cannot set server-only cookies), so it is signed and expires after 24 hours.
 
 ---
 
@@ -252,7 +252,7 @@ Checked on 11 November 2026. ✅ meets High · ⚠️ partly · ❌ missing.
 | Scope and ambition | ✅ | See 2.3. |
 | Verification | ⚠️ | 159 tests, green on `main`. Missing: page tests with failing sources; rejected-action tests for the component form and settings. |
 | Security: no credentials | ✅ | `.env` and secrets git-ignored, `.env.example` placeholders only, RLS on in every migration. |
-| Security: access control | ❌ | **Anyone with the public URL can change the shared site components and cockpit machines.** Needed: an edit passcode (Streamlit secret), checked where the change is saved; visitors without it keep changes in their session only. |
+| Security: access control | ✅ | Editors sign in (Account page): email on a list plus a password stored only as a PBKDF2 fingerprint, a signed 24-hour cookie, five wrong tries then a pause. Checked where shared data is saved (`app/data.py`); visitors' changes stay in their tab. Settings in Streamlit secrets, not in the repo. Tests: `tests/test_auth.py`, `tests/test_editing.py`. |
 | Security: input validation | ✅ / ⚠️ | Cockpit machines and new components are validated before saving. To check: every remaining input. |
 | Security: dependencies | ✅ | Pinned in `uv.lock`, installed `--locked`. CI runs `pip-audit` on every push: no known vulnerabilities. |
 | Ollie (chat) | ⚠️ | Built and tested with a fake model. Goes live once `REQUESTY_API_KEY` is in the Streamlit secrets; not yet tried against the real model. |

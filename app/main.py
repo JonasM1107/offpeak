@@ -9,7 +9,7 @@ HERE = Path(__file__).parent
 # Streamlit only puts app/ on the import path; add the repo root so pages can import offpeak.
 sys.path.insert(0, str(HERE.parent))
 
-from ui import assistant  # noqa: E402
+from ui import account, assistant  # noqa: E402
 from ui.components import inject_css  # noqa: E402
 
 st.set_page_config(page_title="offpeak", page_icon="⚡", layout="wide")
@@ -43,8 +43,13 @@ pages = {
     "Setup": [
         page("components", "Site & components", "precision_manufacturing"),
         page("settings", "Settings", "settings"),
+        page("account", "Account", "account_circle"),
     ],
 }
 current = st.navigation(pages, position="sidebar")
+account.apply_cookie()  # after a sign-in or sign-out: write or delete the 24-hour cookie
+with st.sidebar:  # who can change shared data, at the bottom of the menu
+    who = account.editor()
+    st.caption(f"Signed in as {who}" if who else "View only · sign in under Account to edit")
 assistant.widget()  # before the page, so it shows even when a page stops early
 current.run()

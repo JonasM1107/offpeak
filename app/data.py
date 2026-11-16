@@ -153,15 +153,30 @@ def job_runs() -> pd.DataFrame | None:
 # ── Site components ──────────────────────────────────────────────────────────
 
 
-def _session_components() -> list[components.Component]:
-    if "components" not in st.session_state:
-        st.session_state["components"] = [replace(c) for c in components.DEFAULT_COMPONENTS]
-    return st.session_state["components"]
+# ── Who may change shared data ───────────────────────────────────────────────
+# Site components and cockpit machines are shared by everyone who opens the app. Only a
+# signed-in editor (ui/account.py, offpeak/auth.py) changes them in the database. Everyone
+# else can still try things: their changes stay in their own browser tab ("local"). This is
+# checked here, where the data is saved, not only by hiding buttons on the pages.
+
+LOCAL_COMPONENTS = "components_local"
+
+
+def can_share() -> bool:
+    from ui.account import editor
+
+    return engine() is not None and editor() is not None
+
+
+# ── Site components ──────────────────────────────────────────────────────────
 
 
 def site_components() -> tuple[list[components.Component], str]:
-    """The demo site's components and where they come from: 'database', 'demo' (database
-    connected but no components saved yet) or 'session' (no database: kept until reload)."""
+    """The demo site's components and where they come from: 'local' (changed in this tab
+    by someone not signed in), 'database', 'demo' (database connected but no components
+    saved yet) or 'session' (no database: kept until reload)."""
+    if LOCAL_COMPONENTS in st.session_state:
+        return st.session_state[LOCAL_COMPONENTS], "local" if engine() else "session"
     eng = engine()
     if eng is not None:
         try:
@@ -172,7 +187,8 @@ def site_components() -> tuple[list[components.Component], str]:
             if rows:
                 return [components.Component(**r) for r in rows], "database"
             return [replace(c) for c in components.DEFAULT_COMPONENTS], "demo"
-    return _session_components(), "session"
+    st.session_state[LOCAL_COMPONENTS] = [replace(c) for c in components.DEFAULT_COMPONENTS]
+    return st.session_state[LOCAL_COMPONENTS], "session"
 
 
 def _as_row(c: components.Component) -> dict:
@@ -180,11 +196,13 @@ def _as_row(c: components.Component) -> dict:
 
 
 def add_component(new: components.Component) -> str:
-    """Store a new component. The first change saves the demo components too, so they stay."""
+    """Add a component; returns where it went. For an editor it is stored for everyone (the
+    first change saves the demo components too, so they stay); for anyone else it is kept
+    in this tab only."""
     current, source = site_components()
-    if source == "session":
-        _session_components().append(new)
-        return source
+    if not can_share():
+        st.session_state[LOCAL_COMPONENTS] = [*current, new]
+        return "local" if engine() else "session"
     rows = [_as_row(c) for c in current] if source == "demo" else []
     db.save_components(engine(), DEMO_SITE.id, rows + [_as_row(new)])
     return "database"
@@ -192,9 +210,9 @@ def add_component(new: components.Component) -> str:
 
 def remove_component(component_id: str) -> str:
     current, source = site_components()
-    if source == "session":
-        st.session_state["components"] = [c for c in current if c.id != component_id]
-        return source
+    if not can_share():
+        st.session_state[LOCAL_COMPONENTS] = [c for c in current if c.id != component_id]
+        return "local" if engine() else "session"
     if source == "demo":
         db.save_components(engine(), DEMO_SITE.id, [_as_row(c) for c in current])
     db.delete_component(engine(), component_id)
@@ -205,28 +223,32 @@ def remove_component(component_id: str) -> str:
 
 
 def cockpit_machines() -> tuple[list[dict] | None, str]:
-    """The saved cockpit machines (None if never saved) and where they are kept: 'database',
-    or 'session' (no database or table missing: kept until the browser tab is closed)."""
+    """The cockpit machines (None if never saved) and where changes go: 'database' (signed
+    in), 'local' (not signed in: this tab only) or 'session' (no database)."""
     eng = engine()
-    if eng is not None:
-        try:
-            return db.read_machines(eng, DEMO_SITE.id), "database"
-        except Exception as err:  # e.g. migration 003 not applied yet
-            print(f"offpeak: cannot read cockpit_machines, keeping them in the session: {err}")
-    return st.session_state.get("cockpit_machines"), "session"
+    local = st.session_state.get("cockpit_machines")
+    if eng is None:
+        return local, "session"
+    where = "database" if can_share() else "local"
+    if local is not None and where == "local":
+        return local, where
+    try:
+        return db.read_machines(eng, DEMO_SITE.id), where
+    except Exception as err:  # e.g. migration 003 not applied yet
+        print(f"offpeak: cannot read cockpit_machines, keeping them in the session: {err}")
+        return local, "session"
 
 
 def save_cockpit_machines(machines: list[dict]) -> str:
-    """Keep the cockpit machines; returns where they went."""
-    eng = engine()
-    if eng is not None:
+    """Keep the cockpit machines: for everyone if signed in, else in this tab only."""
+    if can_share():
         try:
-            db.save_machines(eng, DEMO_SITE.id, machines)
+            db.save_machines(engine(), DEMO_SITE.id, machines)
             return "database"
         except Exception as err:
             print(f"offpeak: cannot save cockpit_machines, keeping them in the session: {err}")
     st.session_state["cockpit_machines"] = machines
-    return "session"
+    return "local" if engine() else "session"
 
 
 @st.cache_data(ttl=3 * 3600, show_spinner=False)

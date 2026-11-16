@@ -215,9 +215,11 @@ const PRESETS = [
   ['Laundry (washers + dryers)', 18, 3, 6, 22, 9], ['Water heater', 6, 3, 0, 24, 6], ['Irrigation pump', 7, 2, 0, 24, 18],
   ['Cold store pre-cooling', 12, 2, 0, 24, 14], ['Kiln / oven batch', 30, 5, 5, 22, 7], ['Forklift charging', 8, 6, 0, 24, 18],
 ];
-document.getElementById('kept').textContent = D.storage === 'database'
-  ? 'Changes are saved automatically and stay for everyone who opens this site.'
-  : 'No database connected: changes stay until you close this tab.';
+document.getElementById('kept').textContent = {
+  database: 'Changes are saved automatically and stay for everyone who opens this site.',
+  local: "You're not signed in: changes stay in this browser tab. Sign in under Account to save them for everyone.",
+  session: 'No database connected: changes stay until you close this tab.',
+}[D.storage] || '';
 document.getElementById('preset').innerHTML = PRESETS.map((p, i) => `<option value="${i}">${p[0]} · ${p[1]} kW, ${p[2]} h</option>`).join('');
 document.getElementById('add').addEventListener('click', () => {
   const [name, kw, hours, earliest, latest_end, usual_start] = PRESETS[+document.getElementById('preset').value];

@@ -52,6 +52,7 @@ def test_app_starts_without_errors():
         "views/tariff.py",
         "views/components.py",
         "views/settings.py",
+        "views/account.py",
     ],
 )
 def test_other_pages_load(page):

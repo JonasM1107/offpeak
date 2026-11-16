@@ -22,7 +22,7 @@ What the project must fulfil, including the grading criteria and where we stand,
 - **Analytics:** day-ahead power prices, weather and solar, a 7-day price outlook by **Offpeak Intelligence** (our forecast from a year of prices and the wind and solar forecast, trained in the background), and a simulation cockpit to plan machines.
 - **Ask Ollie:** a chat assistant on every page that answers questions like "when should I run the heat pump in 3 days, 3 hours, done by 18:00?" from the app's own data.
 - **Results:** savings replayed on past days, and a tariff calculator.
-- **Setup:** the site's components (solar, wind, battery, machines), shown in a 3D site view.
+- **Setup:** the site's components (solar, wind, battery, machines), shown in a 3D site view. Team members sign in under **Account** to save changes for everyone; visitors can try changes, which stay in their browser tab.
 
 ## Get started
 
