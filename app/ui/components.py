@@ -49,6 +49,17 @@ CSS = f"""
 [data-testid="stDialog"] div[role="dialog"] * {{ font-family: inherit; }}
 [data-testid="stDialog"] [data-testid="stIconMaterial"] {{ font-family: 'Material Symbols Rounded'; }}
 
+/* login screen */
+.op-login-head {{ text-align: center; margin: 6px 0 10px; }}
+.op-login-logo {{ font-size: 1.9rem; font-weight: 700; letter-spacing: -0.03em; color: {ORANGE}; }}
+.op-login-logo b {{ color: {INK}; font-weight: 700; }}
+.op-login-head h2 {{ font-size: 1.35rem; font-weight: 650; margin: 14px 0 4px; color: {INK}; }}
+.op-login-head p {{ color: {MUTED}; font-size: 0.88rem; margin: 0; }}
+.st-key-card_login {{ margin-top: 12vh; }}
+.op-login-wait {{ text-align: center; margin-top: 30vh; font-size: 1.6rem; font-weight: 700;
+    color: {ORANGE}; opacity: 0.5; animation: op-pulse 1.2s ease-in-out infinite alternate; }}
+@keyframes op-pulse {{ to {{ opacity: 1; }} }}
+
 /* cards */
 [class*="st-key-card"] {{ background: #FFFFFF; border-radius: 20px !important; border-color: {LINE} !important;
     padding: 1.3rem 1.4rem !important; }}

@@ -46,10 +46,15 @@ pages = {
         page("account", "Account", "account_circle"),
     ],
 }
-current = st.navigation(pages, position="sidebar")
-account.apply_cookie()  # after a sign-in or sign-out: write or delete the 24-hour cookie
-with st.sidebar:  # who can change shared data, at the bottom of the menu
-    who = account.editor()
-    st.caption(f"Signed in as {who}" if who else "View only · sign in under Account to edit")
+# Sign in first: the app is only for the team. The page asked for in the address stays
+# selected, so after signing in it opens where the link pointed.
+account.sync_browser()  # stored sign-in from this browser; saves a new one after a sign-in
+who = account.editor()
+current = st.navigation(pages, position="sidebar" if who else "hidden")
+if not who:
+    account.login_screen()
+    st.stop()
+with st.sidebar:
+    st.caption(f"Signed in as {who}")
 assistant.widget()  # before the page, so it shows even when a page stops early
 current.run()

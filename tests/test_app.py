@@ -1,10 +1,11 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from offpeak import db
+from offpeak import auth, db
 from offpeak.markets import energy_charts
 from offpeak.weather import open_meteo, price_drivers
 
@@ -33,10 +34,23 @@ def offline(monkeypatch):
         raise price_drivers.DriverSourceError("offline in tests")
 
     monkeypatch.setattr(price_drivers, "fetch_drivers", no_drivers)
+    # the app is behind a login: tests sign in as a test editor (see signed_in_app)
+    monkeypatch.setenv("OFFPEAK_EDITORS", "test@example.com")
+    monkeypatch.setenv("OFFPEAK_PASSWORD_HASH", auth.hash_password("pw", salt="s"))
+    monkeypatch.setenv("OFFPEAK_AUTH_SECRET", "test-secret")
+
+
+def signed_in_app() -> AppTest:
+    """The app as a signed-in team member sees it."""
+    at = AppTest.from_file(str(APP), default_timeout=30)
+    at.session_state["editor_token"] = auth.make_token(
+        "test@example.com", datetime.now(UTC), "test-secret"
+    )
+    return at
 
 
 def test_app_starts_without_errors():
-    at = AppTest.from_file(str(APP), default_timeout=30).run()
+    at = signed_in_app().run()
     assert not at.exception
 
 
@@ -56,7 +70,7 @@ def test_app_starts_without_errors():
     ],
 )
 def test_other_pages_load(page):
-    at = AppTest.from_file(str(APP), default_timeout=30).run()
+    at = signed_in_app().run()
     at.switch_page(page).run()
     assert not at.exception
 

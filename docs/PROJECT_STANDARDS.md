@@ -208,7 +208,7 @@ Tests: `tests/test_app.py` runs every page offline with saved responses.
   - *Limit:* 200 requests a day for the whole app, and answers can be slower than the rest of the app.
 - **Editor sign-in instead of user accounts:**
   - *Why:* one demo site and a team of three; a shared password plus an email list is simple to explain and enough here.
-  - *Limit:* everyone shares one password, so a leaked password means changing it for all (new fingerprint in the secrets). The cookie is readable by the page's own scripts (Streamlit cannot set server-only cookies), so it is signed and expires after 24 hours.
+  - *Limit:* everyone shares one password, so a leaked password means changing it for all (new fingerprint in the secrets). The sign-in is kept in the browser's storage (Streamlit Cloud does not pass cookies to the app), where the page's own scripts can read it, so it is signed and expires after 24 hours. Staff need a login for the demo and the review: add their email to OFFPEAK_EDITORS.
 
 ---
 
@@ -252,7 +252,7 @@ Checked on 11 November 2026. ✅ meets High · ⚠️ partly · ❌ missing.
 | Scope and ambition | ✅ | See 2.3. |
 | Verification | ⚠️ | 159 tests, green on `main`. Missing: page tests with failing sources; rejected-action tests for the component form and settings. |
 | Security: no credentials | ✅ | `.env` and secrets git-ignored, `.env.example` placeholders only, RLS on in every migration. |
-| Security: access control | ✅ | Editors sign in (Account page): email on a list plus a password stored only as a PBKDF2 fingerprint, a signed 24-hour cookie, five wrong tries then a pause. Checked where shared data is saved (`app/data.py`); visitors' changes stay in their tab. Settings in Streamlit secrets, not in the repo. Tests: `tests/test_auth.py`, `tests/test_editing.py`. |
+| Security: access control | ✅ | The app is only for the team: a login screen comes before every page (email on a list plus a password stored only as a PBKDF2 fingerprint, five wrong tries then a pause). A signed token keeps the browser signed in for 24 hours. Shared data is also checked where it is saved (`app/data.py`). Settings in Streamlit secrets, not in the repo. Tests: `tests/test_auth.py`, `tests/test_editing.py`. |
 | Security: input validation | ✅ / ⚠️ | Cockpit machines and new components are validated before saving. To check: every remaining input. |
 | Security: dependencies | ✅ | Pinned in `uv.lock`, installed `--locked`. CI runs `pip-audit` on every push: no known vulnerabilities. |
 | Ollie (chat) | ⚠️ | Built and tested with a fake model. Goes live once `REQUESTY_API_KEY` is in the Streamlit secrets; not yet tried against the real model. |

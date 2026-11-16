@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<!-- Keeps the sign-in token in this browser (localStorage) for app/ui/account.py.
+     On the first render it sends back what is stored ("" if nothing); the args "set" and
+     "clear" write or delete it. Uses Streamlit's custom component messages. Invisible. -->
+</head>
+<body>
+<script>
+const KEY = 'offpeak_editor';
+const send = (type, extra) => window.parent.postMessage({ isStreamlitMessage: true, type, ...extra }, '*');
+let answered = false;
+window.addEventListener('message', e => {
+  if (e.source !== window.parent || !e.data || e.data.type !== 'streamlit:render') return;
+  const { action, token } = e.data.args;
+  try {
+    if (action === 'set' && token) localStorage.setItem(KEY, token);
+    if (action === 'clear') localStorage.removeItem(KEY);
+  } catch (err) { /* storage blocked: the person signs in each visit */ }
+  if (!answered) {
+    answered = true;
+    let stored = '';
+    try { stored = localStorage.getItem(KEY) || ''; } catch (err) { /* blocked */ }
+    send('streamlit:setComponentValue', { value: stored, dataType: 'json' });
+  }
+});
+send('streamlit:componentReady', { apiVersion: 1 });
+send('streamlit:setFrameHeight', { height: 0 });
+</script>
+</body>
+</html>
