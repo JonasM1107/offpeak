@@ -21,9 +21,11 @@ from offpeak.timeutils import day_slots, market_today
 from offpeak.weather import open_meteo
 
 MARKET_TZ = "Europe/Berlin"
-# A visitor is waiting: one quick retry instead of up to 30 s of backoff (offpeak/http.py).
-# When a source keeps failing, the pages fall back to stored data or a clear message.
+# A visitor is waiting: one quick retry and at most 8 s per answer, instead of the jobs'
+# four retries and 30 s (offpeak/http.py). When a source keeps failing, the pages fall back
+# to stored data or a clear message.
 http.retries = 1
+http.timeout_s = 8
 WEATHER_MAX_AGE = timedelta(hours=6)  # older stored forecasts are refreshed from the API
 
 
@@ -81,10 +83,19 @@ def today_and_tomorrow() -> tuple[pd.DataFrame, pd.DataFrame, datetime, str]:
     return both[local_day == today], both[local_day > today], loaded_at, source
 
 
-@st.cache_data(ttl=600, show_spinner=False)
 def weather(days: int = 3) -> tuple[pd.DataFrame | None, datetime, str | None, str]:
-    """Forecast for the demo site from today 00:00 (German time) for `days` days:
-    (table or None, forecast time, error, 'database' or 'API')."""
+    """Forecast for the demo site from today 00:00 (German time) for `days` days (at most
+    7): (table or None, forecast time, error, 'database' or 'API'). One cached 7-day load
+    serves every page, so the weather is fetched once, not once per length."""
+    table, run_at, error, source = _weather_week()
+    if table is not None:
+        end = day_slots(market_today(), MARKET_TZ)[0] + timedelta(days=days)
+        table = table[table["ts"] < end].reset_index(drop=True)
+    return table, run_at, error, source
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _weather_week(days: int = 7) -> tuple[pd.DataFrame | None, datetime, str | None, str]:
     eng = engine()
     now = datetime.now(UTC)
     start = day_slots(market_today(), MARKET_TZ)[0]

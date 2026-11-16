@@ -7,16 +7,18 @@ import requests
 from offpeak.config import MAX_RETRIES, REQUEST_TIMEOUT_S
 
 RETRY_STATUS = {429, 500, 502, 503, 504}
-# How often to retry. Jobs keep MAX_RETRIES (waits 2, 4, 8, 16 s): nobody waits for them.
-# The app sets this to 1 (app/data.py), because a visitor is waiting for the page.
+# How often to retry, and how long to wait for an answer. Jobs keep the defaults (four
+# retries with waits of 2, 4, 8, 16 s; 30 s per answer): nobody waits for them. The app sets
+# both lower (app/data.py), because a visitor is waiting for the page.
 retries = MAX_RETRIES
+timeout_s = REQUEST_TIMEOUT_S
 
 
 def get(url: str, params: dict | None = None, *, sleep=time.sleep) -> requests.Response:
     """GET with retries. Returns the last response; the caller decides what a status means."""
     for attempt in range(retries + 1):
         try:
-            response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_S)
+            response = requests.get(url, params=params, timeout=timeout_s)
         except (requests.ConnectionError, requests.Timeout):
             if attempt == retries:
                 raise

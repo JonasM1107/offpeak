@@ -24,6 +24,16 @@ def test_retries_follow_the_setting(monkeypatch):
     assert len(calls) == 2 and waits == [2]
 
 
+def test_the_timeout_follows_the_setting(monkeypatch):
+    seen = []
+    monkeypatch.setattr(http, "timeout_s", 8)
+    monkeypatch.setattr(
+        http.requests, "get", lambda url, params, timeout: seen.append(timeout) or Reply(200)
+    )
+    http.get("u")
+    assert seen == [8]
+
+
 def test_no_retry_after_success_and_errors_surface_after_the_last_try(monkeypatch):
     monkeypatch.setattr(http, "retries", 1)
     calls = []
