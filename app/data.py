@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import Engine
 
-from offpeak import components, db
+from offpeak import components, db, http
 from offpeak.analysis import covers_days
 from offpeak.markets import energy_charts
 from offpeak.sites import DEMO_SITE
@@ -21,6 +21,9 @@ from offpeak.timeutils import day_slots, market_today
 from offpeak.weather import open_meteo
 
 MARKET_TZ = "Europe/Berlin"
+# A visitor is waiting: one quick retry instead of up to 30 s of backoff (offpeak/http.py).
+# When a source keeps failing, the pages fall back to stored data or a clear message.
+http.retries = 1
 WEATHER_MAX_AGE = timedelta(hours=6)  # older stored forecasts are refreshed from the API
 
 
@@ -85,6 +88,7 @@ def weather(days: int = 3) -> tuple[pd.DataFrame | None, datetime, str | None, s
     eng = engine()
     now = datetime.now(UTC)
     start = day_slots(market_today(), MARKET_TZ)[0]
+    stored, run_at = None, None
     if eng is not None:
         try:
             stored, run_at = db.read_latest_weather(
@@ -98,6 +102,9 @@ def weather(days: int = 3) -> tuple[pd.DataFrame | None, datetime, str | None, s
     try:
         fetched = open_meteo.fetch_weather(DEMO_SITE, days=days)
     except Exception as err:  # shown on the page as a designed state, never as a traceback
+        if stored is not None and not stored.empty:  # an older forecast beats none
+            print(f"offpeak: weather API failed, using the forecast from {run_at}: {err}")
+            return stored, run_at, None, "database"
         return None, now, str(err), "API"
     if eng is not None:
         _store_quietly(lambda: db.upsert_weather(eng, fetched, DEMO_SITE.id, now))
@@ -248,24 +255,24 @@ def price_drivers(start: date, end: date) -> pd.DataFrame | None:
 
 
 def price_outlook() -> tuple[pd.Series, pd.DataFrame] | None:
-    """Hourly spot history (ct/kWh, about a year up to the last published hour) and the
-    Offpeak Intelligence outlook for the following days (ts, day, lead, p10, p50, p90,
-    miss_ct). None if there is too little history.
+    """Hourly spot history of the last two weeks (ct/kWh, up to the last published hour) and
+    the Offpeak Intelligence outlook for the following days (ts, day, lead, p10, p50, p90,
+    miss_ct). None if prices cannot be loaded.
 
-    The forecast job computes the outlook in the background and stores it. Only if no
-    stored outlook fits the latest published prices does the app compute one itself (about
-    half a minute) and store it. Checked again when a new day starts, when tomorrow's prices
-    come out, and at least every hour."""
+    The app never trains: the forecast job (offpeak/jobs/forecast_prices.py) computes the
+    outlook in the background and stores it. Once newer prices are out, the stored outlook
+    still covers the days after them until the job has run again. Only with no stored
+    outlook at all does the app make a quick one from simple rules (a few seconds)."""
     _, tomorrow, _, _ = today_and_tomorrow()
     return _price_outlook(market_today(), not tomorrow.empty)
 
 
-@st.cache_data(ttl=3600, show_spinner=False, max_entries=4)
+@st.cache_data(ttl=900, show_spinner=False, max_entries=4)
 def _price_outlook(today: date, tomorrow_published: bool):
     from offpeak.analysis import hourly
-    from offpeak.forecast.outlook import run_outlook
+    from offpeak.forecast.outlook import quick_outlook, still_ahead
 
-    loaded, _, _ = prices(today - timedelta(days=365), today + timedelta(days=1))
+    loaded, _, _ = prices(today - timedelta(days=15), today + timedelta(days=1))
     if loaded.empty:
         return None
     history = hourly(loaded, MARKET_TZ).set_index("ts")["ct"]
@@ -276,20 +283,16 @@ def _price_outlook(today: date, tomorrow_published: bool):
         except Exception as err:  # e.g. migration 005 not applied yet
             print(f"offpeak: cannot read price_outlook: {err}")
         else:
-            if not stored.empty and stored["based_on"].iloc[0] == history.index.max():
-                return history, stored
+            ahead = still_ahead(stored, history.index.max(), MARKET_TZ)
+            if not ahead.empty:
+                return history, ahead
+    # nothing stored: a quick outlook from ten weeks of prices, never stored (the job's is better)
+    longer, _, _ = prices(today - timedelta(days=70), today + timedelta(days=1))
     try:
-        out, _ = run_outlook(history, MARKET_TZ, outlook_drivers(today))
+        out = quick_outlook(hourly(longer, MARKET_TZ).set_index("ts")["ct"], MARKET_TZ)
     except ValueError:  # too little history
         return None
-    if eng is not None:
-        _store_quietly(lambda: db.save_outlook(eng, out, history.index.max().to_pydatetime()))
     return history, out
-
-
-def outlook_drivers(today: date) -> pd.DataFrame | None:
-    """The weather drivers from a week before the price history to a week after today."""
-    return price_drivers(today - timedelta(days=372), today + timedelta(days=9))
 
 
 # ── The coming days, for the cockpit and the dashboard's plan ────────────────

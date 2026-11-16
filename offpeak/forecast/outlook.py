@@ -12,7 +12,8 @@ import pandas as pd
 from offpeak.forecast.baselines import Blend, LastDay, LastWeek
 from offpeak.forecast.model import PriceModel
 
-FORECASTERS = [LastWeek(), LastDay(), Blend(), PriceModel()]
+BASELINES = [LastWeek(), LastDay(), Blend()]  # simple rules: no training, ready in seconds
+FORECASTERS = [*BASELINES, PriceModel()]
 LEAD_DAYS = range(1, 7)  # days after the last published day (D+2 .. D+7)
 
 
@@ -143,7 +144,8 @@ def day_summaries(out: pd.DataFrame, tz: str, window: int = 3) -> pd.DataFrame:
             {
                 "day": day,
                 "lead": int(g["lead"].iloc[0]),
-                "forecaster": g["forecaster"].iloc[0],
+                # a stored outlook (offpeak/db.py) does not keep which forecaster made it
+                "forecaster": g["forecaster"].iloc[0] if "forecaster" in g else None,
                 "p10": g["p10"].mean(),
                 "p50": g["p50"].mean(),
                 "p90": g["p90"].mean(),
@@ -175,12 +177,38 @@ def run_outlook(
         forecasters.append(WeatherPriceModel(drivers))
     test = backtest(history, tz, forecasters=forecasters)
     out, _ = outlook(history, tz, test, forecasters)
+    return _with_miss(out, test), test
+
+
+def _with_miss(out: pd.DataFrame, test: Backtest) -> pd.DataFrame:
+    """Add miss_ct: the chosen forecaster's average miss at that lead in the backtest."""
     scores = test.scores.set_index("forecaster")
     out["miss_ct"] = [
         float(scores.loc[key, f"mae_{lead}"])
         for key, lead in zip(out["forecaster"], out["lead"], strict=True)
     ]
-    return out, test
+    return out
+
+
+def quick_outlook(history: pd.Series, tz: str) -> pd.DataFrame:
+    """An outlook from the simple rules only, ready in a few seconds. The app uses it only
+    when no stored Offpeak Intelligence outlook exists at all (for example on a brand-new
+    database), so a visitor never waits for training. Raises ValueError with too little
+    history."""
+    test = backtest(history, tz, days=28, forecasters=BASELINES)
+    out, _ = outlook(history, tz, test, BASELINES)
+    return _with_miss(out, test)
+
+
+def still_ahead(stored: pd.DataFrame, last_published: pd.Timestamp, tz: str) -> pd.DataFrame:
+    """The part of a stored outlook that lies after the last published price hour, with the
+    lead counted again from the last published day. A stored outlook made yesterday stays
+    useful after today's prices come out: the days it covers beyond them are still its best
+    estimate until the job has computed a new one."""
+    rest = stored[stored["ts"] > last_published].copy()
+    last_day = last_published.tz_convert(tz).date()
+    rest["lead"] = [(pd.Timestamp(d).date() - last_day).days for d in rest["day"]]
+    return rest[rest["lead"] >= 1].reset_index(drop=True)
 
 
 def weather_note(drivers: pd.DataFrame | None, day, tz: str) -> str | None:

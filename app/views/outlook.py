@@ -2,6 +2,8 @@
 (D+2 to D+7), with a likely range and a short reason per day. The forecast is computed in the
 background (offpeak/jobs/forecast_prices.py); how it works is in offpeak/forecast/."""
 
+from datetime import timedelta
+
 import data
 import streamlit as st
 from ui import web
@@ -27,4 +29,8 @@ if found is None:
     )
     st.stop()
 history, out = found
-web.show("outlook", page_payload(history, out, TZ, data.outlook_drivers(market_today())))
+# the weather for the day cards' short reason: only the coming days are needed
+today = market_today()
+web.show(
+    "outlook", page_payload(history, out, TZ, data.price_drivers(today, today + timedelta(days=8)))
+)

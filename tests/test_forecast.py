@@ -120,3 +120,37 @@ def test_weather_note_says_why_in_a_few_words():
     assert weather_note(calm, day, TZ) == "Little wind · grey skies"
     assert weather_note(None, day, TZ) is None
     assert weather_note(calm, pd.Timestamp("2026-12-01").date(), TZ) is None  # no data that day
+
+
+def test_still_ahead_keeps_the_days_after_new_prices_and_counts_leads_again():
+    from offpeak.forecast.outlook import run_outlook, still_ahead
+
+    h = weekly_history(noise=1.5)
+    out, _ = run_outlook(h.iloc[:-24], TZ)  # made yesterday, before the last day was published
+    rest = still_ahead(out, h.index.max(), TZ)
+    assert rest["ts"].min() > h.index.max()
+    assert rest["day"].nunique() == 5  # the first day is now published
+    assert sorted(rest["lead"].unique()) == [1, 2, 3, 4, 5]
+    assert still_ahead(out, out["ts"].max(), TZ).empty  # all of it published by now
+    assert still_ahead(out.iloc[0:0], h.index.max(), TZ).empty  # nothing stored
+
+
+def test_quick_outlook_uses_only_the_simple_rules():
+    from offpeak.forecast.outlook import quick_outlook
+
+    out = quick_outlook(weekly_history(weeks=10, noise=1.5), TZ)
+    assert set(out["forecaster"]) <= {"last_week", "last_day", "blend"}
+    assert out["day"].nunique() == 6 and out["miss_ct"].notna().all()
+    with pytest.raises(ValueError):
+        quick_outlook(weekly_history().iloc[: 3 * 24], TZ)
+
+
+def test_page_payload_works_on_a_stored_outlook():
+    # what db.read_outlook returns: no forecaster column, plus when and from what it was made
+    from offpeak.forecast.outlook import page_payload, run_outlook, still_ahead
+
+    h = weekly_history(noise=1.5)
+    out, _ = run_outlook(h, TZ)
+    stored = out.drop(columns=["forecaster"]).assign(based_on=h.index.max(), made_at=h.index.max())
+    p = page_payload(h, still_ahead(stored, h.index.max(), TZ), TZ)
+    assert len(p["days"]) == 6 and p["typical_miss"] > 0
