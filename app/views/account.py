@@ -126,5 +126,19 @@ with st.container(border=True, key="card_connections"):
         detail = f"{s['rows']:,} entries" if s["ok"] else "table missing"
         tiles.append(tile(title, text, s["ok"], detail))
     st.html(f'<div class="op-tiles2">{"".join(tiles)}</div>')
+    missing = [
+        name
+        for name, found in (
+            ("DATABASE_URL", eng is not None),
+            ("ANTHROPIC_API_KEY or REQUESTY_API_KEY", assistant.configured()),
+            ("OFFPEAK_EDITORS, OFFPEAK_PASSWORD_HASH, OFFPEAK_AUTH_SECRET", account.configured()),
+        )
+        if not found
+    ]
+    if missing:
+        st.caption(
+            "Not found in the app's secrets (Streamlit Cloud → Manage app → Settings → "
+            f"Secrets): **{'**, **'.join(missing)}**. Names must match exactly."
+        )
     if any(not s["ok"] for s in status.values()):
         st.caption("A missing table usually means a file in db/migrations was not run in Supabase.")
