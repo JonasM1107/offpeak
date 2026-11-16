@@ -5,6 +5,7 @@ the app (app/ui/account.py)."""
 from html import escape
 
 import data
+import perf
 import streamlit as st
 from ui import account, assistant
 from ui.components import card_title, header, local
@@ -142,3 +143,22 @@ with st.container(border=True, key="card_connections"):
         )
     if any(not s["ok"] for s in status.values()):
         st.caption("A missing table usually means a file in db/migrations was not run in Supabase.")
+
+st.write("")
+with st.container(border=True, key="card_speed"):
+    card_title("Speed", "Time the server needs to build each page (since the app last started)")
+    timings = perf.summary()
+    if not timings:
+        st.caption("No pages measured yet.")
+    else:
+        st.html(
+            "".join(
+                f'<div class="op-row"><span>{escape(t["page"])}</span><span class="meta">'
+                f"{t['median_s']:.2f} s typical · {t['last_s']:.2f} s last · {t['runs']} runs"
+                "</span></div>"
+                for t in timings
+            )
+        )
+        st.caption(
+            "The browser and Streamlit Cloud add a few seconds around this when a page opens."
+        )

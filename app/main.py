@@ -10,6 +10,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
 import freshness  # noqa: E402
+import perf  # noqa: E402
 
 freshness.refresh()  # after a deploy: load the new versions of our modules (see freshness.py)
 
@@ -68,4 +69,5 @@ if not who:
 with st.sidebar, st.container(key="account_link"):  # the editor's name, at the very bottom
     st.page_link(account_page, label=account.editor_name(who), icon=":material/account_circle:")
 assistant.widget()  # before the page, so it shows even when a page stops early
-current.run()
+with perf.timed(current.title):  # server time per page, shown on the Account page
+    current.run()
