@@ -91,9 +91,11 @@ def parse_weather(payload: dict) -> pd.DataFrame:
     return merged[COLUMNS].sort_values("ts").reset_index(drop=True)
 
 
-def fetch_weather(site: Site, days: int = FORECAST_DAYS) -> pd.DataFrame:
+def fetch_weather(
+    site: Site, days: int = FORECAST_DAYS, timeout: float | None = None
+) -> pd.DataFrame:
     """Forecast for one site, one row per 15-minute slot (columns: see COLUMNS)."""
-    response = http.get(OPEN_METEO_URL, params=build_params(site, days))
+    response = http.get(OPEN_METEO_URL, params=build_params(site, days), timeout=timeout)
     if response.status_code != 200:
         try:
             reason = response.json().get("reason", response.text)

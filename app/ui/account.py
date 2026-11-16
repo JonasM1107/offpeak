@@ -14,6 +14,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from offpeak import auth
+from offpeak.settings import lookup
 
 _store = components.declare_component(
     "offpeak_token", path=str(Path(__file__).with_name("web") / "token")
@@ -21,11 +22,7 @@ _store = components.declare_component(
 
 
 def _setting(name: str) -> str | None:
-    try:
-        value = st.secrets.get(name)
-    except Exception:  # no secrets file
-        value = None
-    return value or os.environ.get(name)
+    return lookup(st.secrets, name) or os.environ.get(name)
 
 
 def _config() -> tuple[set[str], str | None, str | None]:

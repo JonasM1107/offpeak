@@ -21,7 +21,7 @@ def offline(monkeypatch):
     prices = energy_charts.parse_prices(json.loads((FIXTURES / "prices_sample.json").read_text()))
     weather = open_meteo.parse_weather(json.loads((FIXTURES / "weather_sample.json").read_text()))
     monkeypatch.setattr(energy_charts, "fetch_day_ahead", lambda zone, start, end: prices)
-    monkeypatch.setattr(open_meteo, "fetch_weather", lambda site, days=7: weather)
+    monkeypatch.setattr(open_meteo, "fetch_weather", lambda site, days=7, timeout=None: weather)
     check = open_meteo.parse_solar_check(
         json.loads((FIXTURES / "weather_previous_runs.json").read_text()),
         json.loads((FIXTURES / "weather_satellite.json").read_text()),

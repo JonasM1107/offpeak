@@ -53,9 +53,15 @@ def instructions(ctx: Context, now: datetime) -> str:
         f"({'published' if ctx.hours['kind'][d['start']] == 'published' else 'estimate'})"
         for d in known_days(ctx)
     )
-    return INSTRUCTIONS.format(
+    text = INSTRUCTIONS.format(
         now=f"{now:%A %-d %B %Y, %H:%M}", today=ctx.today.isoformat(), days=days
     )
+    if ctx.hours.get("weather_missing"):
+        text += (
+            "\n- The weather forecast is unavailable right now, so the plans count no own "
+            "solar or wind power. Mention this in one short sentence when you give a time."
+        )
+    return text
 
 
 def clean_question(text) -> str:

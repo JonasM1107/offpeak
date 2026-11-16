@@ -267,3 +267,10 @@ def test_a_chosen_model_is_tried_first_then_the_free_ones():
     )
     assert llm.models_for(None) == llm.MODELS and llm.models_for("  ") == llm.MODELS
     assert llm.models_for(llm.MODELS[1]) == (llm.MODELS[1], llm.MODELS[0])  # no duplicates
+
+
+def test_without_weather_ollie_says_plans_count_no_own_power():
+    c = ctx()
+    assert "unavailable" not in agent.instructions(c, NOW)
+    c.hours["weather_missing"] = True
+    assert "no own solar or wind power" in agent.instructions(c, NOW)

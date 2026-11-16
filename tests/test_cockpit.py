@@ -150,3 +150,19 @@ def test_site_machines_counts_every_charge_point():
     assert [m["name"] for m in machines] == [c.name for c in flexible]
     ev = next(c for c in flexible if c.kind == "ev_charger")
     assert next(m for m in machines if m["name"] == ev.name)["kw"] == ev.p("kw") * ev.p("count")
+
+
+def test_horizon_works_without_any_own_generation():
+    # no weather forecast: an empty generation table means no own surplus, prices still plan
+    import pandas as pd
+
+    from offpeak.cockpit import horizon
+    from offpeak.tariffs import germany_2026
+
+    today = pd.Timestamp("2026-11-12").date()
+    hours_idx = pd.date_range("2026-11-11 23:00", periods=48, freq="h", tz="UTC")
+    published = pd.Series(10.0, index=hours_idx)
+    forecast = pd.DataFrame(columns=["ts", "p10", "p50", "p90"])
+    empty = pd.DataFrame({"ts": pd.DatetimeIndex([], tz="UTC"), "pv_kw": [], "wind_kw": []})
+    h = horizon(published, forecast, empty, 5.0, germany_2026(), "Europe/Berlin", today, days=2)
+    assert len(h["buy"]) == 48 and set(h["surplus"]) == {0.0}

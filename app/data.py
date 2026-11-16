@@ -16,6 +16,7 @@ from sqlalchemy import Engine
 from offpeak import components, db, http
 from offpeak.analysis import covers_days
 from offpeak.markets import energy_charts
+from offpeak.settings import lookup
 from offpeak.sites import DEMO_SITE
 from offpeak.timeutils import day_slots, market_today
 from offpeak.weather import open_meteo
@@ -34,11 +35,7 @@ def now_utc() -> pd.Timestamp:
 
 
 def _database_url() -> str | None:
-    try:
-        url = st.secrets.get("DATABASE_URL")
-    except Exception:  # no secrets file at all
-        url = None
-    return url or db.database_url()
+    return lookup(st.secrets, "DATABASE_URL") or db.database_url()
 
 
 def engine() -> Engine | None:
@@ -111,7 +108,8 @@ def _weather_week(days: int = 7) -> tuple[pd.DataFrame | None, datetime, str | N
             if run_at is not None and now - run_at < WEATHER_MAX_AGE:
                 return stored, run_at, None, "database"
     try:
-        fetched = open_meteo.fetch_weather(DEMO_SITE, days=days)
+        # 15 s: Open-Meteo is sometimes slow, and this runs only when nothing fresh is stored
+        fetched = open_meteo.fetch_weather(DEMO_SITE, days=days, timeout=15)
     except Exception as err:  # shown on the page as a designed state, never as a traceback
         if stored is not None and not stored.empty:  # an older forecast beats none
             print(f"offpeak: weather API failed, using the forecast from {run_at}: {err}")
@@ -333,7 +331,9 @@ def _price_outlook(today: date, tomorrow_published: bool):
 
 def hours_ahead() -> tuple[dict, int] | None:
     """The coming 7 days hour by hour (offpeak.cockpit.horizon: prices, own surplus, ...)
-    and the index of the current hour. None if prices or weather are unavailable."""
+    and the index of the current hour. None if prices are unavailable. Without a weather
+    forecast the plan still works on prices alone (no own power counted); the result then
+    says so in "weather_missing"."""
     from offpeak.cockpit import horizon
     from offpeak.markets.energy_charts import PriceSourceError
     from offpeak.tariffs import germany_2026
@@ -343,20 +343,26 @@ def hours_ahead() -> tuple[dict, int] | None:
         found = price_outlook()
     except PriceSourceError:
         return None
-    week, _, _, _ = weather(days=7)
-    if not found or week is None or week.empty:
+    if not found:
         return None
+    week, _, _, _ = weather(days=7)
     history, forecast = found
     assets, _ = components.site_model(site_components()[0])
+    weather_missing = week is None or week.empty
+    if weather_missing:  # plan on prices alone, counting no own solar or wind power
+        gen = pd.DataFrame({"ts": pd.DatetimeIndex([], tz="UTC"), "pv_kw": [], "wind_kw": []})
+    else:
+        gen = generation(week, assets.pv_kwp, assets.turbine_kw * assets.turbines)
     hours = horizon(
         history,
         forecast,
-        generation(week, assets.pv_kwp, assets.turbine_kw * assets.turbines),
+        gen,
         base_kw=assets.cold_store_kw,
         tariff=germany_2026(pv_kwp=assets.pv_kwp),
         tz=MARKET_TZ,
         today=market_today(),
     )
+    hours["weather_missing"] = weather_missing
     now = int(now_utc().floor("h").timestamp())
     return hours, next((i for i, t in enumerate(hours["t"]) if t >= now), 0)
 

@@ -20,6 +20,7 @@ import streamlit.components.v1 as components
 
 from offpeak.assistant import agent, claude, llm
 from offpeak.assistant.tools import Context
+from offpeak.settings import lookup
 from offpeak.timeutils import market_today
 
 MAX_QUESTIONS = 25
@@ -35,10 +36,7 @@ BUSY = (
 
 
 def _secret(name: str) -> str | None:
-    try:
-        return st.secrets.get(name)
-    except Exception:  # no secrets file
-        return None
+    return lookup(st.secrets, name)
 
 
 def configured() -> bool:
@@ -47,11 +45,7 @@ def configured() -> bool:
 
 
 def api_key() -> str | None:
-    try:
-        key = st.secrets.get("REQUESTY_API_KEY")
-    except Exception:  # no secrets file
-        key = None
-    return key or os.environ.get("REQUESTY_API_KEY")
+    return _secret("REQUESTY_API_KEY") or os.environ.get("REQUESTY_API_KEY")
 
 
 def _context() -> Context | None:
