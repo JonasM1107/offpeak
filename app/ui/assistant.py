@@ -18,7 +18,7 @@ import data
 import streamlit as st
 import streamlit.components.v1 as components
 
-from offpeak.assistant import agent, llm
+from offpeak.assistant import agent, claude, llm
 from offpeak.assistant.tools import Context
 from offpeak.timeutils import market_today
 
@@ -39,6 +39,11 @@ def _secret(name: str) -> str | None:
         return st.secrets.get(name)
     except Exception:  # no secrets file
         return None
+
+
+def configured() -> bool:
+    """Whether Ollie has a model to talk to (a Claude or a Requesty key)."""
+    return bool(os.environ.get("ANTHROPIC_API_KEY") or _secret("ANTHROPIC_API_KEY") or api_key())
 
 
 def api_key() -> str | None:
@@ -73,16 +78,15 @@ def _reply(question: str, history: list[dict]) -> str:
     if ctx is None:
         return "I can't see the prices right now, so I can't plan. Please try again soon."
     st.session_state["ollie_asked"] = asked + 1
-    key = api_key()
     model = os.environ.get("OLLIE_MODEL") or _secret("OLLIE_MODEL")
+    claude_key = os.environ.get("ANTHROPIC_API_KEY") or _secret("ANTHROPIC_API_KEY")
+    if claude_key:  # the team's Claude Console key: Claude directly
+        ask = lambda messages, tools: claude.complete(messages, tools, claude_key, model)  # noqa: E731
+    else:  # otherwise the free models through Requesty
+        key = api_key()
+        ask = lambda messages, tools: llm.complete(messages, tools, key, llm.models_for(model))  # noqa: E731
     try:
-        return agent.answer(
-            question,
-            history,
-            ctx,
-            lambda messages, tools: llm.complete(messages, tools, key, llm.models_for(model)),
-            datetime.now(ZoneInfo("Europe/Berlin")),
-        )
+        return agent.answer(question, history, ctx, ask, datetime.now(ZoneInfo("Europe/Berlin")))
     except llm.AssistantUnavailable as err:
         print(f"offpeak: Ollie unavailable: {err}")
         return BUSY

@@ -92,6 +92,7 @@ def answer(
             return text or SORRY
         messages.append(
             {"role": "assistant", "content": reply.get("content") or "", "tool_calls": calls}
+            | ({"raw": reply["raw"]} if reply.get("raw") else {})  # Claude: its turn, unchanged
         )
         for call in calls:
             fn = call.get("function") or {}

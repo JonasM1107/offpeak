@@ -5,6 +5,7 @@ description = "Tells a small business when to use electricity tomorrow and how m
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=2.8.0",
     "pandas>=3.1.1",
     "plotly>=7.1.0",
     "psycopg[binary]>=3.3.8",
