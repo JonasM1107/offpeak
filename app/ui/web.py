@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import streamlit as st
 import streamlit.components.v1 as components
 
 WEB = Path(__file__).with_name("web")
@@ -32,7 +33,9 @@ def render_html(view: str, data: dict) -> str:
 
 
 def show(view: str, data: dict, height: int = 900) -> None:
-    components.html(render_html(view, data), height=height, scrolling=False)
+    # st.iframe replaces st.components.v1.html, which Streamlit removes. The HTML is our own
+    # template plus our JSON, never user input, so the frame may run its script (kit.js).
+    st.iframe(render_html(view, data), height=height)
 
 
 def live(view: str, data: dict, key: str, height: int = 900, keep: tuple[str, ...] = ()):

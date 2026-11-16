@@ -75,6 +75,26 @@ def test_other_pages_load(page):
     assert not at.exception
 
 
+@pytest.mark.parametrize(
+    "page",
+    ["views/dashboard.py", "views/site.py", "views/analytics.py", "views/weather.py"]
+    + ["views/outlook.py", "views/savings.py"],
+)
+def test_pages_do_not_use_the_removed_html_frame(page, monkeypatch):
+    """Streamlit removes st.components.v1.html (deprecated, removal after 2026-06-01): a newer
+    Streamlit would break every page still using it. Pretend it is gone already; the pages with
+    an HTML view must still load (they use st.iframe)."""
+    import streamlit.components.v1 as components
+
+    def removed(*args, **kwargs):
+        raise AttributeError("st.components.v1.html was removed from Streamlit")
+
+    monkeypatch.setattr(components, "html", removed)
+    at = signed_in_app().run()
+    at.switch_page(page).run()
+    assert not at.exception
+
+
 def test_site_scene_payload_is_embedded_safely():
     import sys
 
