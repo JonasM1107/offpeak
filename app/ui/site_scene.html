@@ -417,9 +417,9 @@ function instancedModel(name, matrices, own = {}, pre = null) {
   return true;
 }
 // A model inside its own group in the current group, for turning or scaling it.
-function modelGroup(name, x, y, z, setup) {
+function modelGroup(name, x, y, z, setup, own = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); if (setup) setup(g); current.add(g);
-  const prev = current; current = g; placeModel(MODELS[name]); current = prev; return g;
+  const prev = current; current = g; placeModel(MODELS[name], own); current = prev; return g;
 }
 // A model at (x, y, z) in the current group, turned by ry about the vertical axis.
 // Returns its meshes by material name, or null if the model is not there.
@@ -437,9 +437,13 @@ cyl(62, 60, 3, matte(0xE7E2DA), 0, -1.5, 0, null, 128).castShadow = false;
 cyl(61.2, 61.2, 0.08, matte(0xF7F5F1), 0, 0.04, 0, null, 128).castShadow = false;
 const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.ShadowMaterial({ opacity: 0.06 }));
 shadowFloor.rotation.x = -Math.PI / 2; shadowFloor.position.y = -3.01; shadowFloor.receiveShadow = true; scene.add(shadowFloor);
-const posts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 70) posts.push(mx(Math.cos(a) * 58.5, 0.8, Math.sin(a) * 58.5));
-instanced(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6), M.frame, posts, null).castShadow = false;
-const fenceRail = new THREE.Mesh(new THREE.TorusGeometry(58.5, 0.05, 6, 160), M.frame); fenceRail.rotation.x = Math.PI / 2; fenceRail.position.y = 1.5; scene.add(fenceRail);
+// the fence: 140 segments (a post and its rails to the next post) round the island
+const fence = []; for (let i = 0; i < 140; i++) { const a = i * Math.PI / 70; fence.push(mx(Math.cos(a) * 58.5, 0, Math.sin(a) * 58.5, 0, -a - Math.PI / 2, 0)); }
+if (!instancedModel('fence_segment', fence)) {
+  const posts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 70) posts.push(mx(Math.cos(a) * 58.5, 0.8, Math.sin(a) * 58.5));
+  instanced(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6), M.frame, posts, null).castShadow = false;
+  const fenceRail = new THREE.Mesh(new THREE.TorusGeometry(58.5, 0.05, 6, 160), M.frame); fenceRail.rotation.x = Math.PI / 2; fenceRail.position.y = 1.5; scene.add(fenceRail);
+}
 box(7, 0.06, 22, M.asphalt, 26, 0.09, 46, null).castShadow = false;
 for (let i = 0; i < 5; i++) box(0.25, 0.07, 2, M.line, 26, 0.13, 38 + i * 4, null).castShadow = false;
 
@@ -467,21 +471,26 @@ for (let i = 0; i < 3; i++) cyl(0.18, 0.28, 1.4, M.ink, 1 + i, 4.2, 3, null, 10)
 const gposts = []; for (let i = 0; i <= 8; i++) { gposts.push(mx(-2 + i, 0.9, -0.6), mx(-2 + i, 0.9, 6.6)); }
 instanced(new THREE.CylinderGeometry(0.06, 0.06, 1.8, 6), M.frame, gposts, null);
 }
-const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
-pylon.position.set(-5, 9, -4); pylon.rotation.y = Math.PI / 4; gridGroup.add(pylon);
-rbox(9, 0.3, 0.3, M.ink, -5, 16.5, -4, null, 0.1);
+if (!placeAt('pylon', -5, 0, -4)) {
+  const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
+  pylon.position.set(-5, 9, -4); pylon.rotation.y = Math.PI / 4; gridGroup.add(pylon);
+  rbox(9, 0.3, 0.3, M.ink, -5, 16.5, -4, null, 0.1);
+}
 
 // the site meter in the middle, where every flow meets
 const hubGroup = new THREE.Group(); scene.add(hubGroup); current = hubGroup;
-cyl(3, 3, 0.4, M.white, 0, 0.2, 0, null, 48);
-cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, null, 32);
+if (!placeAt('site_meter', 0, 0, 0)) {
+  cyl(3, 3, 0.4, M.white, 0, 0.2, 0, null, 48);
+  cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, null, 32);
+}
 const hubRing = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.12, 12, 64), M.orange);
 hubRing.rotation.x = Math.PI / 2; hubRing.position.y = 0.45; hubGroup.add(hubRing);
 
 current = scene;
 const treeMat = matte(0xE3DED5);
 [[-48, -32], [-54, 30], [46, -34], [52, -10], [-6, 46], [40, 42], [-30, 48], [54, 22], [-20, -48], [10, 52], [-54, 2]].forEach(([x, z], i) => {
-  const s = 0.8 + (i % 3) * 0.25;
+  const s = 0.8 + (i % 3) * 0.25, kind = i % 4 === 1 ? 'tree_tall' : 'tree_round';
+  if (MODELS[kind]) { modelGroup(kind, x, 0, z, g => { g.scale.setScalar(s); g.rotation.y = i * 1.3; }, { tree: treeMat }); return; }
   cyl(0.25, 0.3, 2 * s, M.frame, x, s, z, null, 8);
   const top = new THREE.Mesh(new THREE.SphereGeometry(2.2 * s, 20, 16), treeMat); top.position.set(x, 2.6 * s + 1.4, z); top.castShadow = true; scene.add(top);
 });
