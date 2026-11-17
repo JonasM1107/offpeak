@@ -29,6 +29,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import bpy
+from mathutils import Vector
 
 OUT_DIR = Path(sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "app/ui/models")
 
@@ -47,6 +48,7 @@ COLOURS = {
     "door": (0.05, 0.05, 0.045),
     "windows": (0.03, 0.03, 0.03),
     "screen": (0.7, 0.67, 0.62),
+    "tree": (0.89, 0.87, 0.84),
     "panel": (0.1, 0.12, 0.16),  # the page puts its solar cell texture on this one
 }
 MATS = {}
@@ -128,6 +130,30 @@ def t_cyl(r_bottom, r_top, h, x, y, z, material, part=None, seg=20, axis="y"):
     return b_cyl(
         r_bottom, r_top, h, x, -z, y, material, part, seg, {"y": "z", "x": "x", "z": "y"}[axis]
     )
+
+
+def t_seg(p0, p1, r, material, part=None, seg=6):
+    """A round bar from point p0 to p1 (page coordinates), for lattices and cables."""
+    a, b = Vector((p0[0], -p0[2], p0[1])), Vector((p1[0], -p1[2], p1[1]))
+    d = b - a
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=seg, radius=r, depth=d.length, location=(a + b) / 2
+    )
+    obj = bpy.context.active_object
+    obj.rotation_euler = Vector((0, 0, 1)).rotation_difference(d).to_euler()
+    bpy.ops.object.transform_apply(rotation=True)
+    return finish(obj, material, part, 0)
+
+
+def t_sphere(r, x, y, z, material, part=None, seg=16):
+    """A smooth sphere in page coordinates."""
+    bpy.ops.mesh.primitive_uv_sphere_add(
+        segments=seg, ring_count=seg // 2 + 2, radius=r, location=(x, -z, y)
+    )
+    obj = bpy.context.active_object
+    for f in obj.data.polygons:
+        f.use_smooth = True
+    return finish(obj, material, part, 0)
 
 
 def wheel(x, y, z, r=0.36, width=0.26):
@@ -575,6 +601,106 @@ def pv_inverter():
         t_box(0.04, 0.4, 0.04, -0.3 + i * 0.12, 1.35, 0.24, "frame", "inverter", 0.01)
 
 
+def pylon():
+    """The grid pylon: an 18 m lattice tower with two cross-arms, insulator strings and
+    three cables down to the transformer's bushings. Its origin is the tower's foot; the
+    page puts it 7 m behind and 6 m left of the transformer. Scenery."""
+    height, base, top, levels = 18.0, 1.84, 0.3, 6
+
+    def half(y):
+        return base - (base - top) * y / height
+
+    ys = [i * height / levels for i in range(levels + 1)]
+    corners = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    for y0, y1 in zip(ys, ys[1:], strict=False):
+        h0, h1 = half(y0), half(y1)
+        for k, (cx, cz) in enumerate(corners):
+            t_seg((cx * h0, y0, cz * h0), (cx * h1, y1, cz * h1), 0.09, "frame")  # legs
+            nx, nz = corners[(k + 1) % 4]
+            t_seg((cx * h1, y1, cz * h1), (nx * h1, y1, nz * h1), 0.05, "frame")  # ring
+            t_seg((cx * h0, y0, cz * h0), (nx * h1, y1, nz * h1), 0.035, "frame", seg=4)  # X
+            t_seg((nx * h0, y0, nz * h0), (cx * h1, y1, cz * h1), 0.035, "frame", seg=4)
+    for y, reach in ((16.5, 4.5), (13.5, 3.6)):  # cross-arms, as trusses
+        for side in (-1, 1):
+            t_seg((0, y, -0.3), (side * reach, y, -0.15), 0.06, "frame")
+            t_seg((0, y, 0.3), (side * reach, y, 0.15), 0.06, "frame")
+            t_seg((side * half(y), y - 1.2, 0), (side * reach, y, 0), 0.04, "frame", seg=4)
+    t_seg((0, height, 0), (0, height + 1.6, 0), 0.06, "frame")  # earth-wire peak
+    for x in (-4.5, 4.5):  # earth-wire clamps on the top arm
+        t_cyl(0.12, 0.12, 0.2, x, 16.35, 0, "ink", seg=8)
+    ends = []
+    for x in (1.4, 2.6, 3.5):  # insulator strings on the lower arm
+        for k in range(6):
+            t_cyl(0.16, 0.16, 0.08, x, 13.3 - k * 0.2, 0, "ink", seg=10)
+        t_seg((x, 13.45, 0), (x, 12.2, 0), 0.03, "steel", seg=4)
+        ends.append((x, 12.2, 0))
+    for i, (ex, ey, ez) in enumerate(ends):  # cables sagging down to the bushings
+        tx, ty, tz = 6 + i, 4.9, 7
+        pts = []
+        for k in range(9):
+            t = k / 8
+            pts.append(
+                (
+                    ex + (tx - ex) * t,
+                    ey + (ty - ey) * t - 1.2 * math.sin(math.pi * t),
+                    ez + (tz - ez) * t,
+                )
+            )
+        for a, b in zip(pts, pts[1:], strict=False):
+            t_seg(a, b, 0.03, "ink", seg=4)
+    for cx, cz in corners:  # footings
+        t_box(0.8, 0.4, 0.8, cx * base, 0.2, cz * base, "concrete", bevel=0.05)
+
+
+def site_meter():
+    """The site meter in the middle of the island, where every flow meets. The page adds
+    the pulsing ring around it. Scenery."""
+    t_cyl(3.0, 3.0, 0.4, 0, 0.2, 0, "white", seg=48)
+    t_cyl(3.05, 3.05, 0.08, 0, 0.42, 0, "frame", seg=48)
+    t_cyl(1.2, 1.2, 1.6, 0, 1.0, 0, "ink", seg=32)
+    t_cyl(1.3, 1.3, 0.16, 0, 1.86, 0, "white", seg=32)  # cap
+    t_cyl(0.7, 0.4, 0.3, 0, 2.05, 0, "white", seg=24)
+    t_box(0.7, 0.4, 0.06, 0, 1.25, 1.2, "orange", bevel=0.02)  # display
+    for k in range(8):  # cable glands where the paths come in
+        a = k * math.pi / 4
+        t_box(0.5, 0.3, 0.5, math.cos(a) * 2.6, 0.5, math.sin(a) * 2.6, "clay", bevel=0.06, ry=-a)
+
+
+def tree_round():
+    """A round tree, about 6 m tall at scale 1 (the page scales each tree). Scenery; the
+    crown takes the page's tree material."""
+    t_cyl(0.3, 0.22, 2.4, 0, 1.2, 0, "frame", seg=10)
+    t_seg((0, 2.0, 0), (0.7, 2.9, 0.2), 0.1, "frame")
+    t_sphere(2.0, 0, 4.0, 0, "tree", seg=20)
+    t_sphere(1.4, 0.9, 4.9, 0.4, "tree", seg=16)
+    t_sphere(1.3, -0.8, 4.6, -0.5, "tree", seg=16)
+
+
+def tree_tall():
+    """A tall, narrow tree (a conifer) in three tiers. Scenery."""
+    t_cyl(0.25, 0.2, 1.6, 0, 0.8, 0, "frame", seg=10)
+    for i, (r, h) in enumerate(((2.0, 2.8), (1.6, 2.4), (1.1, 2.0))):
+        bpy.ops.mesh.primitive_cone_add(
+            vertices=20, radius1=r, radius2=0.05, depth=h, location=(0, 0, 2.3 + i * 1.5)
+        )
+        obj = bpy.context.active_object
+        for f in obj.data.polygons:
+            f.use_smooth = True
+        finish(obj, "tree", None, 0)
+
+
+def fence_segment():
+    """One post of the island's fence and the rails to the next post, 2.625 m along +x
+    (the page puts 140 of them in a circle). Scenery."""
+    t_cyl(0.08, 0.08, 1.6, 0, 0.8, 0, "frame", seg=8)
+    t_cyl(0.11, 0.11, 0.06, 0, 1.62, 0, "frame", seg=8)
+    for y in (0.35, 0.9, 1.5):
+        t_seg((0, y, 0), (2.625, y, 0), 0.035, "frame", seg=5)
+    for k in range(1, 7):  # light vertical wires
+        x = k * 2.625 / 7
+        t_seg((x, 0.2, 0), (x, 1.5, 0), 0.012, "frame", seg=3)
+
+
 MODELS = {
     "furnace_hall": furnace_hall,
     "main_hall": main_hall,
@@ -595,6 +721,11 @@ MODELS = {
     "pv_module": pv_module,
     "pv_rack": pv_rack,
     "pv_inverter": pv_inverter,
+    "pylon": pylon,
+    "site_meter": site_meter,
+    "tree_round": tree_round,
+    "tree_tall": tree_tall,
+    "fence_segment": fence_segment,
 }
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
