@@ -58,8 +58,9 @@ comps, source = data.site_components()
 hour_now = data.now_utc().tz_convert(MARKET_TZ).hour
 
 
-def scene(site_comps, compact: bool = False) -> None:
-    """Draw the 3D site for a list of components (the saved site or the draft)."""
+def scene_data(site_comps, edit: bool = False) -> dict:
+    """The 3D scene's data for a list of components (the saved site or the draft);
+    `edit` makes it the layout designer."""
     assets, _ = components.site_model(site_comps)
     tariff = germany_2026(pv_kwp=assets.pv_kwp)
     inputs = demo_site.hourly_inputs(today_prices, weather, MARKET_TZ, assets)
@@ -70,8 +71,7 @@ def scene(site_comps, compact: bool = False) -> None:
         "zone": DEMO_SITE.zone,
         "date": market_today().isoformat(),
     }
-    payload = site_scene.payload(inputs, site, hour_now, tariff, site_comps, compact=compact)
-    site_scene.show(payload)
+    return site_scene.payload(inputs, site, hour_now, tariff, site_comps, edit=edit)
 
 
 def start_editing(start_from) -> None:
@@ -152,7 +152,9 @@ def editor() -> None:
 
     # The layout designer reports one action at a time; offpeak/layout.py decides if it is
     # allowed. Streamlit returns the last action on every rerun, so each is handled once.
-    event = layout_designer.show(draft, st.session_state.get(PICK), key="designer")
+    event = layout_designer.show(
+        scene_data(draft, edit=True), draft, st.session_state.get(PICK), key="designer"
+    )
     if event and event.get("n") != st.session_state.get(SEEN):
         st.session_state[SEEN] = event.get("n")
         st.session_state[DRAFT], picked, problem = layout.apply(draft, event)
@@ -182,7 +184,7 @@ def editor() -> None:
                         st.session_state[MESSAGE] = problem
                     st.rerun()
 
-    settings, preview = st.columns([2, 3], gap="medium")
+    settings, check = st.columns([2, 3], gap="medium")
     with settings:
         card_title("Size and hours", f"{len(draft)} of at most {components.MAX_COMPONENTS} parts")
         if not draft:
@@ -206,9 +208,14 @@ def editor() -> None:
             chosen = next((c for c in draft if c.id == picked), None)
             if chosen is not None:
                 component_card(chosen, draft)
-    with preview:
-        if st.toggle("Show the 3D preview", key="draft_3d"):
-            scene(draft, compact=True)
+    with check:
+        # e.g. a part that grew (more kWp, more chargers) now reaches into its neighbour
+        card_title("Layout check", "Shown before you save")
+        problems = layout.layout_problems(draft)
+        for problem in problems:
+            st.warning(problem, icon=":material/warning:")
+        if draft and not problems:
+            st.success("Everything fits.", icon=":material/check_circle:")
 
     if save:
         where, problems = data.replace_site(draft)
@@ -231,7 +238,7 @@ else:
     if st.button("Edit site", key="site_edit"):
         start_editing([])
         st.rerun()
-    scene(comps)
+    site_scene.show(scene_data(comps))
     st.page_link(
         "views/components.py",
         label="Add or remove components under Setup → Site & components",

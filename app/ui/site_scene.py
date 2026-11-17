@@ -40,12 +40,15 @@ def payload(
     tariff: Tariff | None = None,
     comps=None,
     compact: bool = False,
+    edit: bool = False,
 ) -> dict:
     """Everything the page needs: both plans for all 24 hours, per component and for the
     whole site, each plan's bill under the tariff, and every component's fact sheet.
 
     `inputs` comes from demo_site.apply_tariff() when a tariff is given, so every hour
-    has its all-in price. `compact` shows only the 3D stage (the preview in "Edit site")."""
+    has its all-in price. `compact` shows only the 3D stage. `edit` turns the stage into
+    the "Edit site" layout designer (see editor_data); it is compact too, and the models
+    are loaded as files instead of travelling inside the data on every change."""
     comps = list(comps if comps is not None else site_components.DEFAULT_COMPONENTS)
     day = site_components.site_day(inputs, comps, tariff)
     # where the layout designer put each component (metres east, south); None = automatic
@@ -54,7 +57,8 @@ def payload(
         c["pos"] = positions.get(c["id"])
     return {
         "site": site,
-        "compact": compact,
+        "compact": compact or edit,
+        "edit": editor_data(comps) if edit else None,
         "hour_now": hour_now,
         "real": {
             "price": bool(inputs["price_real"].all()),
@@ -70,8 +74,56 @@ def payload(
         "components": day["components"],
         "price_class": day["price_class"],
         "smart_battery": day["smart_battery"],
-        "models": models(),
+        "models": {} if edit else models(),
+        "model_names": sorted(models()) if edit else None,
     }
+
+
+ROLES = (
+    ("generation", "Generation"),
+    ("storage", "Storage"),
+    ("flexible", "Flexible machines"),
+    ("base", "Always on"),
+)
+
+
+def editor_data(comps) -> dict:
+    """What the layout designer draws and checks while dragging: the grid, the fixed
+    things, every part's footprint and square, and the parts list. All numbers come from
+    offpeak/layout.py, which also has the final say on every action."""
+    return {
+        "grid": layout.GRID,
+        "cell": layout.CELL_M,
+        "size": layout.SIZE_M,
+        "fence": layout.FENCE_M,
+        "fixed": [list(rect) for _, rect in layout.FIXED.values()],
+        "hall": list(layout.FIXED["hall"][1]),
+        "roof": sorted(layout.ON_ROOF),
+        "roles": [list(r) for r in ROLES],
+        "kinds": [
+            {
+                "key": k.key,
+                "label": k.label,
+                "role": k.role,
+                "description": k.description,
+                # the footprint of a new part, with the kind's typical values
+                "rect": list(layout.footprint(site_components.new_component(k.key, k.label))),
+            }
+            for k in site_components.CATALOGUE.values()
+        ],
+        "rects": {c.id: list(layout.footprint(c)) for c in comps},
+        "squares": squares(comps),
+    }
+
+
+def squares(comps) -> dict[str, list[int]]:
+    """Every placed part's square, by id."""
+    out = {}
+    for c in comps:
+        pos = layout.position(c)
+        if pos is not None and c.kind not in layout.ON_ROOF:
+            out[c.id] = list(pos)
+    return out
 
 
 def render_html(data: dict) -> str:
