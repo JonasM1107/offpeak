@@ -72,7 +72,12 @@ def models() -> dict[str, str]:
 
 
 def payload(
-    inputs: pd.DataFrame, site: dict, hour_now: int, tariff: Tariff | None = None, comps=None
+    inputs: pd.DataFrame,
+    site: dict,
+    hour_now: int,
+    tariff: Tariff | None = None,
+    comps=None,
+    measured: dict | None = None,
 ) -> dict:
     """Everything the page needs: both plans for all 24 hours, per component and for the
     whole site, each plan's bill under the tariff, and every component's fact sheet.
@@ -82,7 +87,7 @@ def payload(
     comps = list(comps if comps is not None else site_components.DEFAULT_COMPONENTS)
     profile = comps[0].profile if comps else "business"  # all of a site's are one profile
     day = site_components.site_day(inputs, comps, tariff)
-    return {
+    out = {
         "site": site,
         "hour_now": hour_now,
         "real": {
@@ -102,6 +107,15 @@ def payload(
         "profile": profile,
         "models": models_for(profile),
     }
+    if measured:  # a measured day, played like a third plan ("Yesterday at home")
+        out["rows"]["measured"] = measured["rows"]
+        out["series"]["measured"] = measured["series"]
+        if out["bill"] is not None and measured["bill"] is not None:
+            out["bill"]["measured"] = measured["bill"]
+        for c in out["components"]:
+            c["analytics"]["measured"] = measured["analytics"][c["id"]]
+        out["measured"] = {"date": measured["date"], "price_class": measured["price_class"]}
+    return out
 
 
 def render_html(data: dict) -> str:

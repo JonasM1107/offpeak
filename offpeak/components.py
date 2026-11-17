@@ -28,6 +28,7 @@ from offpeak.demo_site import (
     usual_plan,
 )
 from offpeak.tariffs import Tariff
+from offpeak.tariffs import bill as tariff_bill
 
 # ── The catalogue of kinds ───────────────────────────────────────────────────
 
@@ -932,4 +933,50 @@ def site_day(inputs: pd.DataFrame, components, tariff: Tariff | None = None) -> 
             if tariff is not None
             else None
         ),
+    }
+
+
+def measured_day(inputs: pd.DataFrame, components, measured: pd.DataFrame, tariff=None) -> dict:
+    """A measured day (offpeak/load/measured.hourly_day) in the shape of a plan of site_day,
+    so the Home view can play it like a plan: rows, series per component, analytics per
+    component, the bill and the price classes.
+
+    `inputs` are that day's hourly inputs (its own prices; with a tariff from
+    demo_site.apply_tariff). A meter sees the whole house, not each device, so all
+    consumption is the base load's and the flexible devices show 0: the "House" label in
+    the scene adds them up anyway."""
+    _, loads = site_model(components)
+    buy, sell = buy_ct(inputs).to_numpy(), sell_ct(inputs).to_numpy()
+    m = measured.reset_index(drop=True)
+    day = pd.DataFrame(
+        {
+            "hour": inputs["hour"].to_numpy(),
+            "price_ct": inputs["price_ct"].to_numpy(),
+            "pv_kw": m["pv_kw"],
+            "wind_kw": 0.0,
+            "cold_kw": m["load_kw"],
+            **{f"{f.key}_kw": 0.0 for f in loads},
+            "load_kw": m["load_kw"],
+            "battery_kw": m["battery_kw"],
+            "soc_pct": m["soc_pct"],
+            "grid_kw": m["grid_kw"],
+        }
+    )
+    day["cost_eur"] = [
+        g * (b if g > 0 else s) / 100 for g, b, s in zip(day["grid_kw"], buy, sell, strict=True)
+    ]
+    prices = [c for c in PRICE_COLUMNS if c in inputs]
+    day = day.join(inputs[prices].reset_index(drop=True))
+    series = component_series(day, components)
+    billed = (
+        _bill_dict(tariff_bill(day["grid_kw"], inputs.reset_index(drop=True), tariff))
+        if tariff is not None
+        else None
+    )
+    return {
+        "rows": day.round(3).to_dict("records"),
+        "series": series,
+        "analytics": {c.id: analytics(c, series[c.id], day) for c in components},
+        "bill": billed,
+        "price_class": price_classes(list(buy_ct(inputs))),
     }

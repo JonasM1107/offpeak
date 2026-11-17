@@ -459,6 +459,17 @@ def read_measurements(
     return out
 
 
+def delete_measurements(engine: Engine, site_id: int, profile: str) -> int:
+    """Remove every measurement of one site and profile (the owner's "delete my data")."""
+    profile = _profile(profile)
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("delete from site_measurements where site_id = :s and profile = :p"),
+            {"s": site_id, "p": profile},
+        )
+    return result.rowcount
+
+
 TABLES = (
     "prices_da",
     "weather_fc",

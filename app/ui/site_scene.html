@@ -194,6 +194,7 @@
     <div class="seg" role="tablist" aria-label="Schedule">
       <button class="on" data-plan="offpeak" role="tab"><span class="d"></span>Offpeak plan</button>
       <button data-plan="usual" role="tab"><span class="d"></span>Usual day</button>
+      <button data-plan="measured" role="tab" id="seg-measured" hidden><span class="d"></span>Measured day</button>
     </div>
     <button class="ghost" id="reset" type="button">Reset view</button>
   </div>
@@ -872,7 +873,7 @@ for (const c of COMPS) {
 }
 // the home's devices inside the house: one label and one cable, carrying their total
 if (houseMembers.length) {
-  for (const p of ['offpeak', 'usual']) {
+  for (const p of Object.keys(D.series)) {  // every plan, the measured day too
     D.series[p].__house = D.series[p][houseMembers[0].id].map((_, h) => houseMembers.reduce((t, m) => t + D.series[p][m.id][h], 0));
   }
   const g = new THREE.Group(); g.position.set(HOUSES[0], 0, HOUSES[1]); scene.add(g);
@@ -922,6 +923,12 @@ document.getElementById('reset').addEventListener('click', () => { goal.target =
 // ── State and small helpers ────────────────────────────────────────────────
 let plan = 'offpeak', hour = Math.min(23, Math.max(0, D.hour_now)), selected = COMPS[0] && COMPS[0].id, tab = 'today', hlPart = null;
 const rows = () => D.rows[plan];
+// "Yesterday at home": a measured day, played like a plan (app/data.measured_scene_day)
+const pclass = () => (plan === 'measured' && D.measured ? D.measured.price_class : D.price_class);
+if (D.measured) {
+  const b = document.getElementById('seg-measured');
+  b.hidden = false; b.lastChild.textContent = `${D.measured.date} at home · measured`;
+}
 const ser = (id, p = plan) => D.series[p][id];
 // all-in price per kWh bought (spot + supplier, grid fees, levies, tax) from the tariff
 const allIn = r => r.import_ct ?? r.price_ct;
@@ -1108,7 +1115,7 @@ const lightGoal = { sun: 2.2, hemi: 1.2, night: 0 };
 function update() {
   const R = rows(), r = R[hour];
   document.getElementById('clock').textContent = hh(hour);
-  const cls = D.price_class[hour], t = document.getElementById('price-tag');
+  const cls = pclass()[hour], t = document.getElementById('price-tag');
   t.className = `tag ${cls}`; t.textContent = cls === 'cheap' ? 'cheap hour' : cls === 'dear' ? 'expensive hour' : 'normal hour';
   document.getElementById('price').textContent = `${allIn(r).toFixed(1)} ct/kWh all-in${sunny[hour] ? ' · strong own sun & wind' : ''}`;
   document.getElementById('rows').innerHTML = [['Spot price', `${r.price_ct.toFixed(1)} ct`], ['Fees, levies, tax', `${(allIn(r) - (r.energy_ct ?? r.price_ct)).toFixed(1)} ct`], ['Generating', kw(r.pv_kw + r.wind_kw)], ['Using', kw(r.load_kw)], [r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Battery', `${Math.round(r.soc_pct)} %`]]
@@ -1133,7 +1140,7 @@ function update() {
     document.getElementById('brief').innerHTML = `<h4>${esc(c.name)}</h4><p>${c.kind_label} · now ${now}${c.role === 'flexible' ? ` · best ${c.advice.best}` : ''}</p><button class="go" type="button" id="go">Open fact sheet ↓</button>`;
     document.getElementById('go').addEventListener('click', scrollToSheet);
   }
-  [...bars.children].forEach((b, i) => { b.className = `${i === hour ? 'on' : D.price_class[i]} ${sunny[i] ? 'sun' : ''}`; });
+  [...bars.children].forEach((b, i) => { b.className = `${i === hour ? 'on' : pclass()[i]} ${sunny[i] ? 'sun' : ''}`; });
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.plan === plan));
 
   for (const comp of COMPS) { const f = flows[comp.id]; if (f) { const v = ser(comp.id)[hour]; f.kw = comp.role === 'generation' ? -v : v; } }
@@ -1157,11 +1164,14 @@ function update() {
   // the bills include the day's share of the demand charge and fixed fees
   const saving = D.bill ? D.bill.usual.total - D.bill.offpeak.total : sum(D.rows.usual, x => x.cost_eur) - sum(D.rows.offpeak, x => x.cost_eur);
   const gen = sum(R, x => x.pv_kw + x.wind_kw), used = sum(R, x => Math.min(x.pv_kw + x.wind_kw, x.load_kw + Math.max(x.battery_kw, 0)));
+  const measuredDay = plan === 'measured';
   document.getElementById('kpis').innerHTML = [
-    ['Saved today vs usual', plan === 'offpeak' ? euro(saving) : '€0', true],
+    measuredDay
+      ? ['Used by the house', `${sum(R, x => x.load_kw).toFixed(1)}<small>kWh</small>`, true]
+      : ['Saved today vs usual', plan === 'offpeak' ? euro(saving) : '€0', true],
     ['Own power used', `${gen ? Math.round(used / gen * 100) : 0}<small>%</small>`],
-    ['Bought from the grid', `${Math.round(sum(R, x => Math.max(x.grid_kw, 0)))}<small>kWh</small>`],
-    ['Cost of power today', euro(D.bill ? D.bill[plan].total : sum(R, x => x.cost_eur))],
+    ['Bought from the grid', `${sum(R, x => Math.max(x.grid_kw, 0)).toFixed(HOME ? 1 : 0)}<small>kWh</small>`],
+    [measuredDay ? `Cost of power, ${D.measured.date}` : 'Cost of power today', euro(D.bill && D.bill[plan] ? D.bill[plan].total : sum(R, x => x.cost_eur))],
   ].map(([l, v, acc]) => `<div class="kpi ${acc ? 'accent' : ''}"><p>${l}</p><div class="v">${v}</div></div>`).join('');
   dayPlan();
   renderSheet();
