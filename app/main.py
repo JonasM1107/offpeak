@@ -14,7 +14,7 @@ import perf  # noqa: E402
 
 freshness.refresh()  # after a deploy: load the new versions of our modules (see freshness.py)
 
-from ui import account, assistant  # noqa: E402
+from ui import account, assistant, landing  # noqa: E402
 from ui.components import inject_css  # noqa: E402
 
 st.set_page_config(page_title="offpeak", page_icon="⚡", layout="wide")
@@ -30,9 +30,10 @@ def page(file: str, title: str, icon: str, default: bool = False) -> st.Page:
 
 # The page files live in views/, not pages/: Streamlit would turn a pages/ folder into its own
 # automatic menu and show that briefly before ours.
+home = page("dashboard", "Dashboard", "dashboard", default=True)
 pages = {
     "Overview": [
-        page("dashboard", "Dashboard", "dashboard", default=True),
+        home,
         page("site", "Site view", "view_in_ar"),
     ],
     "Analytics": [
@@ -64,7 +65,19 @@ account.sync_browser()  # stored sign-in from this browser; saves a new one afte
 who = account.editor()
 current = st.navigation(pages, position="sidebar" if who else "hidden")
 if not who:
-    account.login_screen()
+    # The app's plain address shows the landing page until the visitor presses Login. A link
+    # to a page inside the app goes straight to the sign-in. While the browser still looks for
+    # a stored sign-in, login_screen shows a short wait, so a signed-in visitor never sees the
+    # landing page flash by.
+    if current is home and account.browser_answered() and not landing.login_wanted():
+        landing.show()
+    else:
+
+        def back_home() -> None:
+            landing.back_home()
+            st.switch_page(home)
+
+        account.login_screen(back=back_home)
     st.stop()
 with st.sidebar, st.container(key="account_link"):  # the editor's name, at the very bottom
     st.page_link(account_page, label=account.editor_name(who), icon=":material/account_circle:")

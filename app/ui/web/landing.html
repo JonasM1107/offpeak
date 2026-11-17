@@ -1,0 +1,1073 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>offpeak · Peak prices are optional</title>
+<!-- The landing page: what visitors see at the app's address before they sign in
+     (app/ui/landing.py). Static on purpose: no data calls, so it opens fast and never
+     breaks when a source is down. All numbers here are one example day, labelled as such.
+     Its Login buttons press the hidden Streamlit "Login" button in the page around it. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F6F3; --ink: #1C1B19; --muted: #6F6A62; --faint: #A39D94; --line: rgba(28,27,25,.09);
+    --accent: #FF5F00; --accent2: #FF8A3D; --soft: #FFE9DC; --glass: rgba(255,255,255,.66);
+    --cheap: #FFB98A; --normal: #E4DFD7; --dear: #8C857B;
+    --display: 'Space Grotesk', Inter, system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --ease: cubic-bezier(.2,.8,.2,1);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif; overflow-x: hidden; }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; }
+  ::selection { background: var(--accent); color: #fff; }
+
+  /* ── the background: a faint blueprint grid and the power lines (canvas) ── */
+  #field { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .grid-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 64px 64px; opacity: .55;
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 20%, transparent 75%);
+            mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 20%, transparent 75%); }
+  .glow { position: fixed; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%; z-index: 1; pointer-events: none;
+    background: radial-gradient(circle, rgba(255,95,0,.13), rgba(255,95,0,.05) 40%, transparent 68%); transform: translate3d(-999px,-999px,0); }
+  main, footer, .nav { position: relative; z-index: 2; }
+  .progress { position: fixed; top: 0; left: 0; height: 2px; width: 100%; z-index: 60; transform-origin: 0 50%; transform: scaleX(0);
+    background: linear-gradient(90deg, var(--accent2), var(--accent)); box-shadow: 0 0 12px var(--accent); }
+
+  /* ── intro: a short "syncing to the grid" count, shown once per visit ── */
+  .intro { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-items: center; transition: transform .9s var(--ease), opacity .9s; }
+  .intro.done { transform: translateY(-100%); opacity: .4; pointer-events: none; }
+  .intro-box { width: min(420px, 80vw); font-family: var(--mono); font-size: 12px; letter-spacing: .14em; color: var(--muted); }
+  .intro-num { font-family: var(--display); font-size: clamp(64px, 14vw, 132px); font-weight: 600; letter-spacing: -.04em; color: var(--ink); line-height: 1; margin: 10px 0 18px; }
+  .intro-num span { color: var(--accent); }
+  .intro-bar { height: 2px; background: var(--line); overflow: hidden; }
+  .intro-bar i { display: block; height: 100%; width: 0; background: var(--accent); box-shadow: 0 0 14px var(--accent); }
+  .intro-row { display: flex; justify-content: space-between; margin-top: 12px; }
+
+  /* ── navigation ── */
+  .nav { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); width: min(1180px, calc(100% - 28px)); z-index: 50;
+    display: flex; align-items: center; gap: 18px; padding: 10px 10px 10px 22px; border-radius: 999px;
+    background: var(--glass); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,.8); box-shadow: 0 10px 40px rgba(28,27,25,.07); transition: padding .3s, box-shadow .3s; }
+  .nav.small { box-shadow: 0 10px 40px rgba(28,27,25,.12); }
+  .logo { font-family: Inter, sans-serif; font-weight: 700; font-size: 22px; letter-spacing: -.04em; }
+  .logo span { color: var(--accent); }
+  .nav-links { display: flex; gap: 4px; margin-left: 18px; }
+  .nav-links a { font-size: 14px; color: var(--muted); padding: 8px 14px; border-radius: 999px; transition: color .2s, background .2s; }
+  .nav-links a:hover { color: var(--ink); background: rgba(28,27,25,.05); }
+  .nav-live { margin-left: auto; font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; color: var(--muted); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 rgba(255,95,0,.6); animation: ping 1.8s infinite; flex: none; }
+  @keyframes ping { 70% { box-shadow: 0 0 0 8px rgba(255,95,0,0); } 100% { box-shadow: 0 0 0 0 rgba(255,95,0,0); } }
+
+  /* buttons; .mag ones lean towards the cursor */
+  .btn { display: inline-flex; align-items: center; gap: 10px; border: 0; cursor: pointer; border-radius: 999px; font-weight: 600; font-size: 15px;
+    padding: 14px 24px; transition: transform .25s var(--ease), box-shadow .3s, background .3s; will-change: transform; white-space: nowrap; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 28px rgba(255,95,0,.35), inset 0 1px 0 rgba(255,255,255,.3); position: relative; overflow: hidden; }
+  .btn-primary::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.45) 50%, transparent 70%);
+    transform: translateX(-120%); transition: transform .8s var(--ease); }
+  .btn-primary:hover { box-shadow: 0 12px 44px rgba(255,95,0,.55), 0 0 0 6px rgba(255,95,0,.12); }
+  .btn-primary:hover::after { transform: translateX(120%); }
+  .btn-ghost { background: rgba(255,255,255,.7); color: var(--ink); border: 1px solid var(--line); }
+  .btn-ghost:hover { background: #fff; }
+  .btn-sm { padding: 10px 20px; font-size: 14px; }
+  .btn svg { width: 16px; height: 16px; transition: transform .3s var(--ease); }
+  .btn:hover svg { transform: translateX(3px); }
+  .btn:focus-visible, a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ── layout helpers ── */
+  section { padding: 120px 0; position: relative; }
+  .wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); display: inline-flex; align-items: center; gap: 10px; }
+  .eyebrow::before { content: ''; width: 22px; height: 1px; background: currentColor; box-shadow: 0 0 8px currentColor; }
+  h2 { font-family: var(--display); font-weight: 600; font-size: clamp(34px, 4.6vw, 64px); line-height: 1.02; letter-spacing: -.035em; margin: 18px 0 18px; }
+  .lead { font-size: 18px; line-height: 1.6; color: var(--muted); max-width: 620px; }
+  .reveal { opacity: 0; transform: translateY(28px); transition: opacity .9s var(--ease), transform .9s var(--ease); transition-delay: var(--d, 0s); }
+  .reveal.in { opacity: 1; transform: none; }
+  .glass { background: var(--glass); backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    border: 1px solid rgba(255,255,255,.85); box-shadow: 0 20px 60px rgba(28,27,25,.08), 0 2px 6px rgba(28,27,25,.04); border-radius: 28px; }
+
+  /* ── hero ── */
+  .hero { min-height: 100vh; min-height: 100dvh; padding: 150px 0 80px; display: flex; align-items: center; }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center; }
+  .hero h1 { font-family: var(--display); font-weight: 600; font-size: clamp(52px, 7vw, 108px); line-height: .94; letter-spacing: -.05em; margin: 22px 0 26px; }
+  .hero h1 .ln { display: block; overflow: hidden; padding-bottom: .14em; margin-bottom: -.08em; }
+  .hero h1 em { display: inline-block; }
+  .hero h1 .ch { display: inline-block; transform: translateY(105%); animation: rise 1s var(--ease) forwards; animation-delay: calc(var(--i) * 28ms + var(--start, 0ms)); }
+  @keyframes rise { to { transform: none; } }
+  .hero h1 em { font-style: normal; color: var(--accent); position: relative; text-shadow: 0 0 40px rgba(255,95,0,.35); }
+  .hero h1 .under { display: block; height: .07em; margin-top: .04em; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 9px;
+    transform: scaleX(0); transform-origin: left; animation: draw 1.2s var(--ease) forwards; animation-delay: calc(var(--start, 0ms) + 900ms); box-shadow: 0 0 22px rgba(255,95,0,.6); }
+  @keyframes draw { to { transform: scaleX(1); } }
+  .hero p.lead { font-size: 19px; }
+  .ticker { font-family: var(--mono); font-size: 13px; color: var(--muted); margin: 26px 0 30px; display: flex; gap: 10px; align-items: center; min-height: 22px; flex-wrap: wrap; }
+  .ticker b { color: var(--ink); font-weight: 500; }
+  .ticker .caret { display: inline-block; width: 8px; height: 16px; background: var(--accent); vertical-align: -3px; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .sources { margin-top: 34px; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--faint); text-transform: uppercase; }
+
+  /* the "shift the load" card */
+  .shift { padding: 26px 26px 22px; position: relative; }
+  .shift::before { content: ''; position: absolute; inset: -1px; border-radius: 29px; padding: 1px; pointer-events: none;
+    background: conic-gradient(from var(--ang, 0deg), transparent 0 70%, var(--accent) 80%, transparent 90%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: spin 6s linear infinite; }
+  @property --ang { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+  @keyframes spin { to { --ang: 360deg; } }
+  .shift-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .label { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .shift-title { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin-top: 6px; }
+  .chip { font-family: var(--mono); font-size: 11px; padding: 6px 10px; border-radius: 999px; background: var(--soft); color: #B84300; white-space: nowrap; }
+  .chart { position: relative; margin: 20px 0 8px; height: 190px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .bars { position: absolute; inset: 0 0 22px 0; display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; }
+  .bars i { display: block; border-radius: 5px 5px 2px 2px; transition: background .35s, box-shadow .35s, transform .35s var(--ease); transform-origin: bottom; }
+  .bars i.on { box-shadow: 0 0 16px rgba(255,95,0,.55); background: var(--accent) !important; }
+  .axis { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+  .key { display: flex; gap: 14px; align-items: center; font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 4px; flex-wrap: wrap; }
+  .key i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .key span:last-child { margin-left: auto; color: var(--faint); }
+  .now { display: flex; align-items: center; gap: 16px; margin: 18px 0 4px; padding: 16px 18px; border-radius: 18px; background: #fff; border: 1px solid var(--line); }
+  .now b { font-family: var(--display); font-size: 30px; letter-spacing: -.03em; line-height: 1; }
+  .now b small { font-family: Inter, sans-serif; font-size: 12px; color: var(--muted); letter-spacing: 0; font-weight: 500; margin-left: 3px; }
+  .gauge { flex: 1; height: 8px; border-radius: 8px; background: linear-gradient(90deg, var(--cheap), var(--normal) 50%, var(--dear)); position: relative; }
+  .gauge i { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: #fff; border: 3px solid var(--accent);
+    box-shadow: 0 0 0 5px rgba(255,95,0,.14); left: 20%; transition: left 1.6s var(--ease) .3s; }
+  .in .gauge i { left: 46%; }
+  .band { position: absolute; top: -6px; bottom: 16px; border-radius: 12px; cursor: grab; border: 1.5px solid var(--accent);
+    background: linear-gradient(180deg, rgba(255,95,0,.14), rgba(255,95,0,.05)); box-shadow: 0 0 0 4px rgba(255,95,0,.08), 0 0 30px rgba(255,95,0,.25); transition: left .08s linear; }
+  .band.glide { transition: left 1.1s var(--ease); }
+  .band:active { cursor: grabbing; }
+  .band span { position: absolute; left: 50%; top: -14px; transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; font-weight: 600; white-space: nowrap;
+    background: var(--accent); color: #fff; padding: 4px 9px; border-radius: 999px; box-shadow: 0 6px 18px rgba(255,95,0,.4); }
+  .band .grip { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: 22px; height: 4px; border-radius: 4px; background: rgba(255,95,0,.55); }
+  .usual { position: absolute; top: 4px; bottom: 22px; border: 1.5px dashed var(--dear); border-radius: 10px; pointer-events: none; }
+  .usual span { position: absolute; left: 6px; top: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .readout { display: grid; grid-template-columns: 1.1fr 1fr 1.1fr; gap: 10px; margin-top: 16px; }
+  .readout div { background: rgba(255,255,255,.75); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+  .readout b { display: block; font-family: var(--display); font-size: 22px; letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .readout .save { background: var(--soft); border-color: transparent; }
+  .readout .save b { color: var(--accent); }
+  .shift-foot { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+  .shift-foot small { color: var(--faint); font-size: 12px; margin-left: auto; }
+
+  /* ── marquee ── */
+  .marquee { padding: 40px 0; overflow: hidden; position: relative; z-index: 2; }
+  .mq-row { display: flex; white-space: nowrap; will-change: transform; }
+  .mq-row span { font-family: var(--display); font-weight: 600; font-size: clamp(54px, 9vw, 140px); letter-spacing: -.045em; line-height: 1.05; padding-right: .35em; }
+  .mq-row .o { color: transparent; -webkit-text-stroke: 1.5px rgba(28,27,25,.55); }
+  .mq-row .f { color: var(--accent); text-shadow: 0 0 40px rgba(255,95,0,.3); }
+  .mq-row .s { color: var(--accent); font-size: clamp(30px, 5vw, 70px); vertical-align: middle; }
+
+  /* ── problem: words light up as you scroll ── */
+  .statement { font-family: var(--display); font-size: clamp(30px, 4.2vw, 58px); line-height: 1.12; letter-spacing: -.03em; font-weight: 500; max-width: 1050px; margin: 22px 0 0; }
+  .statement .w { opacity: .14; transition: opacity .25s, color .25s; }
+  .statement .w.hot { color: var(--accent); }
+  .answer { margin-top: 44px; display: inline-flex; align-items: center; gap: 14px; font-size: 19px; font-weight: 600; }
+  .answer .logo { font-size: 26px; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 80px; }
+  .stat { padding: 26px; }
+  .stat b { font-family: var(--display); font-size: clamp(44px, 5vw, 68px); font-weight: 600; letter-spacing: -.045em; display: block; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stat b em { font-style: normal; color: var(--accent); }
+  .stat p { color: var(--muted); margin: 12px 0 0; line-height: 1.5; font-size: 15px; }
+
+  /* ── how it works: a power line that charges as you scroll ── */
+  .steps { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 64px; }
+  .wire { position: absolute; left: 6%; right: 6%; top: 39px; height: 2px; background: var(--line); border-radius: 2px; }
+  .wire i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--p, 0)); background: linear-gradient(90deg, var(--accent2), var(--accent)); box-shadow: 0 0 14px var(--accent); border-radius: 2px; }
+  .wire b { position: absolute; top: 50%; left: calc(var(--p, 0) * 100%); width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #fff;
+    box-shadow: 0 0 0 4px var(--accent), 0 0 24px 6px rgba(255,95,0,.6); opacity: var(--show, 0); }
+  .step { padding: 0 6px; position: relative; }
+  .node { width: 80px; height: 80px; border-radius: 24px; display: grid; place-items: center; background: #fff; border: 1px solid var(--line); position: relative; z-index: 1;
+    font-family: var(--mono); font-size: 13px; color: var(--muted); transition: all .5s var(--ease); box-shadow: 0 10px 30px rgba(28,27,25,.06); }
+  .step.lit .node { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 0 0 8px rgba(255,95,0,.12), 0 14px 40px rgba(255,95,0,.45); transform: translateY(-4px); }
+  .node svg { width: 30px; height: 30px; }
+  .step h3 { font-family: var(--display); font-size: 26px; letter-spacing: -.02em; margin: 26px 0 10px; font-weight: 600; }
+  .step p { color: var(--muted); line-height: 1.6; margin: 0; }
+  .step .n { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: var(--faint); }
+
+  /* ── product bento ── */
+  .bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 260px; gap: 16px; margin-top: 56px; }
+  .tile { position: relative; overflow: hidden; padding: 24px; border-radius: 28px; background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.9);
+    box-shadow: 0 16px 50px rgba(28,27,25,.07); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .4s var(--ease), box-shadow .4s; display: flex; flex-direction: column; }
+  .tile:hover { box-shadow: 0 24px 70px rgba(28,27,25,.12); }
+  .tile::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s;
+    background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(255,95,0,.12), transparent 45%); }
+  .tile::after { content: ''; position: absolute; inset: 0; border-radius: 28px; padding: 1px; pointer-events: none; opacity: 0; transition: opacity .4s;
+    background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), var(--accent), transparent 60%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+  .tile:hover::before, .tile:hover::after { opacity: 1; }
+  .tile.w2 { grid-column: span 2; } .tile.h2 { grid-row: span 2; }
+  .tile h3 { font-family: var(--display); font-size: 22px; letter-spacing: -.02em; margin: 8px 0 6px; font-weight: 600; }
+  .tile p { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 0; max-width: 420px; }
+  .tile .viz { margin-top: auto; position: relative; }
+  .plan-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; background: #fff; border: 1px solid var(--line); margin-top: 10px;
+    opacity: 0; transform: translateX(-20px); transition: all .7s var(--ease); }
+  .in .plan-row { opacity: 1; transform: none; }
+  .plan-row:nth-child(2) { transition-delay: .15s; } .plan-row:nth-child(3) { transition-delay: .3s; }
+  .plan-row.first { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,95,0,.12); }
+  .plan-row .pd { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex: none; }
+  .plan-row:nth-child(2) .pd { background: var(--ink); } .plan-row:nth-child(3) .pd { background: var(--accent2); }
+  .plan-row div { flex: 1; min-width: 0; }
+  .plan-row strong { font-size: 15px; display: block; }
+  .plan-row small { color: var(--muted); font-size: 12.5px; }
+  .plan-row .sv { font-family: var(--mono); font-size: 12px; color: #B84300; background: var(--soft); padding: 5px 9px; border-radius: 999px; white-space: nowrap; }
+  .slider { height: 6px; border-radius: 6px; background: var(--normal); position: relative; margin: 18px 0 6px; }
+  .slider i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--accent); width: var(--v); animation: slide 5s var(--ease) infinite alternate; animation-delay: var(--dl, 0s); }
+  .slider i::after { content: ''; position: absolute; right: -8px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); box-shadow: 0 2px 8px rgba(255,95,0,.4); }
+  @keyframes slide { from { width: var(--v); } to { width: var(--v2); } }
+  .slabel { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .big-num { font-family: var(--display); font-size: clamp(44px, 4.8vw, 64px); font-weight: 600; letter-spacing: -.045em; color: var(--accent); line-height: 1; text-shadow: 0 0 30px rgba(255,95,0,.25); }
+  .bubble { background: #fff; border: 1px solid var(--line); border-radius: 18px 18px 18px 6px; padding: 12px 14px; font-size: 13.5px; line-height: 1.45; min-height: 64px; box-shadow: 0 8px 22px rgba(28,27,25,.06); }
+  .robot { animation: bob 3s ease-in-out infinite; filter: drop-shadow(0 10px 14px rgba(255,95,0,.28)); }
+  .robot .eye { animation: eye 4.5s infinite; transform-origin: center; transform-box: fill-box; }
+  .robot .wave { animation: wave 2.6s ease-in-out infinite; transform-origin: 66px 58px; }
+  @keyframes bob { 50% { transform: translateY(-6px); } }
+  @keyframes eye { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+  @keyframes wave { 0%, 60%, 100% { transform: rotate(0); } 20% { transform: rotate(-18deg); } 40% { transform: rotate(10deg); } }
+  .blades { transform-box: fill-box; transform-origin: center; animation: turn 3s linear infinite; }
+  .blades.b2 { animation-duration: 4.2s; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  .sun-rays { transform-box: fill-box; transform-origin: center; animation: turn 18s linear infinite; }
+  .wbars { display: flex; align-items: flex-end; gap: 8px; height: 90px; }
+  .wbars i { flex: none; width: 100%; border-radius: 8px 8px 3px 3px; background: linear-gradient(180deg, var(--accent2), var(--cheap)); height: 0; transition: height 1s var(--ease); }
+  .wbars small { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+  .draw { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 2.2s var(--ease); }
+  .in .draw { stroke-dashoffset: 0; }
+  .fade-band { opacity: 0; transition: opacity 1.4s .6s; }
+  .in .fade-band { opacity: 1; }
+
+  /* ── who it's for ── */
+  .tabs { display: inline-flex; gap: 4px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,.7); border: 1px solid var(--line); margin-top: 36px; flex-wrap: wrap; position: relative; }
+  .tabs button { border: 0; background: transparent; cursor: pointer; padding: 11px 20px; border-radius: 999px; font-size: 14.5px; font-weight: 500; color: var(--muted); position: relative; z-index: 1; transition: color .3s; }
+  .tabs button[aria-selected=true] { color: #fff; }
+  .tabs .pill { position: absolute; top: 5px; bottom: 5px; border-radius: 999px; background: var(--ink); transition: left .45s var(--ease), width .45s var(--ease), top .45s var(--ease); }
+  .who { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; padding: 40px; align-items: center; }
+  .who h3 { font-family: var(--display); font-size: 34px; letter-spacing: -.03em; margin: 0 0 14px; font-weight: 600; }
+  .who ul { list-style: none; padding: 0; margin: 20px 0 0; }
+  .who li { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); font-size: 15.5px; }
+  .who li::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); flex: none; }
+  .move { background: #fff; border-radius: 22px; border: 1px solid var(--line); padding: 26px; }
+  .move .from, .move .to { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-radius: 16px; }
+  .move .from { background: rgba(28,27,25,.04); color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(28,27,25,.3); }
+  .move .to { background: var(--soft); color: var(--ink); font-weight: 600; margin-top: 10px; box-shadow: 0 0 0 1.5px var(--accent) inset; }
+  .move .to b { color: var(--accent); }
+  .move .arrow { text-align: center; color: var(--accent); font-size: 22px; margin: 6px 0 -4px; animation: nudge 1.6s ease-in-out infinite; }
+  @keyframes nudge { 50% { transform: translateY(4px); } }
+  .swap { animation: swapin .55s var(--ease); }
+  @keyframes swapin { from { opacity: 0; transform: translateY(12px); } }
+
+  /* ── pricing ── */
+  .toggle { display: inline-flex; align-items: center; gap: 12px; margin-top: 28px; font-size: 14.5px; color: var(--muted); }
+  .switch { width: 52px; height: 30px; border-radius: 999px; background: var(--normal); border: 0; position: relative; cursor: pointer; transition: background .3s; }
+  .switch::after { content: ''; position: absolute; left: 4px; top: 4px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.15); transition: transform .35s var(--ease); }
+  .switch[aria-checked=true] { background: var(--accent); }
+  .switch[aria-checked=true]::after { transform: translateX(22px); }
+  .toggle .off { font-family: var(--mono); font-size: 11px; color: #B84300; background: var(--soft); padding: 4px 8px; border-radius: 999px; }
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 44px; align-items: stretch; }
+  .plan { padding: 32px; display: flex; flex-direction: column; position: relative; }
+  .plan.pro { background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,244,236,.92)); transform: translateY(-10px); }
+  .plan.pro::before { content: ''; position: absolute; inset: -1.5px; border-radius: 30px; padding: 1.5px; pointer-events: none;
+    background: conic-gradient(from var(--ang, 0deg), var(--accent), #FFD0B0, var(--accent2), #FFD0B0, var(--accent));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: spin 5s linear infinite; }
+  .plan .tag { position: absolute; top: 20px; right: 20px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; background: var(--accent); color: #fff; padding: 5px 10px; border-radius: 999px; box-shadow: 0 6px 18px rgba(255,95,0,.35); }
+  .plan h3 { font-family: var(--display); font-size: 22px; margin: 0; font-weight: 600; letter-spacing: -.02em; }
+  .plan .for { color: var(--muted); font-size: 14.5px; margin: 8px 0 22px; min-height: 44px; line-height: 1.5; }
+  .price { font-family: var(--display); font-weight: 600; letter-spacing: -.05em; font-size: 58px; line-height: 1; display: flex; align-items: baseline; gap: 6px; }
+  .price small { font-family: Inter, sans-serif; font-size: 14px; letter-spacing: 0; color: var(--muted); font-weight: 500; }
+  .plan ul { list-style: none; padding: 0; margin: 26px 0 30px; flex: 1; }
+  .plan li { display: flex; gap: 12px; padding: 9px 0; font-size: 14.5px; line-height: 1.45; }
+  .plan li svg { width: 18px; height: 18px; flex: none; color: var(--accent); margin-top: 1px; }
+  .plan .btn { justify-content: center; }
+  .fine { text-align: center; color: var(--faint); font-size: 13px; margin-top: 30px; }
+
+  /* ── final call ── */
+  .final { text-align: center; padding: 160px 0 140px; }
+  .final h2 { font-size: clamp(50px, 9vw, 150px); line-height: .92; letter-spacing: -.055em; margin: 22px 0 34px; }
+  .final h2 em { font-style: normal; color: var(--accent); text-shadow: 0 0 60px rgba(255,95,0,.35); }
+  .final .btn-primary { font-size: 18px; padding: 20px 38px; }
+  .final p { color: var(--muted); font-size: 17px; margin: 0 0 36px; }
+
+  footer { border-top: 1px solid var(--line); padding: 44px 0 50px; background: rgba(247,246,243,.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .foot { display: flex; justify-content: space-between; gap: 30px; flex-wrap: wrap; align-items: flex-start; }
+  .foot p { color: var(--muted); font-size: 13.5px; line-height: 1.6; max-width: 520px; margin: 10px 0 0; }
+  .foot nav { display: flex; gap: 22px; font-size: 14px; color: var(--muted); flex-wrap: wrap; }
+  .foot nav a:hover { color: var(--accent); }
+  .mono { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--faint); text-transform: uppercase; }
+
+  body.leaving main, body.leaving footer, body.leaving .nav { transition: opacity .3s, filter .3s; opacity: 0; filter: blur(6px); }
+
+  @media (max-width: 1000px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+    .nav-links { display: none; }
+    .bento { grid-template-columns: repeat(2, 1fr); }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .plans { grid-template-columns: 1fr; max-width: 520px; }
+    .plan.pro { transform: none; }
+    .who { grid-template-columns: 1fr; padding: 28px; }
+  }
+  @media (max-width: 640px) {
+    section { padding: 84px 0; }
+    .hero { padding-top: 120px; }
+    .nav { padding-left: 16px; gap: 10px; }
+    .nav-live { font-size: 10px; }
+    .nav-live .city { display: none; }
+    .steps { grid-template-columns: 1fr; gap: 40px; }
+    .wire { display: none; }
+    .bento { grid-template-columns: 1fr; grid-auto-rows: auto; }
+    .tile { min-height: 240px; }
+    .tile.w2, .tile.h2 { grid-column: auto; grid-row: auto; }
+    .stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat { padding: 18px; }
+    .readout { grid-template-columns: 1fr 1fr; }
+    .readout .save { grid-column: span 2; }
+    .shift { padding: 20px 16px 18px; }
+    .chart { height: 170px; }
+    .ytick { display: none; }
+    .tabs button { padding: 9px 14px; font-size: 13.5px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="field" aria-hidden="true"></canvas>
+<div class="grid-bg" aria-hidden="true"></div>
+<div class="glow" id="glow" aria-hidden="true"></div>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<div class="intro" id="intro" aria-hidden="true">
+  <div class="intro-box">
+    <div>SYNCING TO THE GRID</div>
+    <div class="intro-num" id="intro-num">000<span>%</span></div>
+    <div class="intro-bar"><i id="intro-bar"></i></div>
+    <div class="intro-row"><span>96 QUARTER-HOURS</span><span id="intro-step">PRICES</span></div>
+  </div>
+</div>
+
+<header class="nav" id="nav">
+  <a class="logo" href="#top" aria-label="offpeak, back to the top"><span>off</span>peak</a>
+  <nav class="nav-links" aria-label="Sections">
+    <a href="#product">Product</a><a href="#how">How it works</a><a href="#for">Who it's for</a><a href="#pricing">Pricing</a>
+  </nav>
+  <div class="nav-live" title="Local time in Germany"><i class="dot"></i><span class="city">DE-LU ·</span><span id="clock">--:--</span></div>
+  <a class="btn btn-primary btn-sm mag" data-login href="https://offpeak.streamlit.app/?login" target="_top">Login</a>
+</header>
+
+<main id="top">
+  <!-- ── hero ── -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow">Energy intelligence for small businesses</div>
+        <h1 id="headline" aria-label="Peak prices are optional."><span class="ln">Peak prices</span><span class="ln">are <em>optional.</em></span></h1>
+        <p class="lead">offpeak tells your business when to run its machines: in the cheapest quarter-hours, on your own sun and wind first. No hardware. Just a plan, and the euros it saves.</p>
+        <div class="ticker" aria-live="polite"><span>› NEXT CHEAP WINDOW</span><b id="type"></b><i class="caret"></i></div>
+        <div class="cta-row">
+          <a class="btn btn-primary mag" data-login href="https://offpeak.streamlit.app/?login" target="_top">Login <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
+          <a class="btn btn-ghost mag" href="#how">See how it works</a>
+        </div>
+        <div class="sources">Built on public data · Energy-Charts · ENTSO-E · Open-Meteo</div>
+      </div>
+
+      <div class="glass shift reveal" style="--d:.5s" id="shift">
+        <div class="shift-head">
+          <div>
+            <div class="label">Example day · all-in price per kWh</div>
+            <div class="shift-title">Move the EV charging. Watch the bill.</div>
+          </div>
+          <span class="chip">Drag me ↔</span>
+        </div>
+        <div class="chart" id="chart">
+          <div class="bars" id="bars"></div>
+          <div class="usual" id="usual"><span>usual</span></div>
+          <div class="band" id="band" tabindex="0" role="slider" aria-label="Start time of the charging" aria-valuemin="0" aria-valuemax="20"><span id="band-label">17:00–21:00</span><i class="grip"></i></div>
+          <div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+        </div>
+        <div class="key"><span><i style="background:var(--cheap)"></i>cheap</span><span><i style="background:var(--normal)"></i>normal</span><span><i style="background:var(--dear)"></i>expensive</span><span>12–53 ct/kWh</span></div>
+        <div class="readout">
+          <div><span class="label">Runs</span><b id="r-when">17–21 h</b></div>
+          <div><span class="label">Costs</span><b id="r-cost">€54.75</b></div>
+          <div class="save"><span class="label">Saved vs usual</span><b id="r-save">€0.00</b></div>
+        </div>
+        <div class="shift-foot">
+          <button class="btn btn-primary btn-sm" id="pick">Let offpeak pick</button>
+          <button class="btn btn-ghost btn-sm" id="reset">Usual time</button>
+          <small>EV fleet · 30 kW · 4 h</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── kinetic type ── -->
+  <div class="marquee" aria-hidden="true">
+    <div class="mq-row" id="mq1"></div>
+    <div class="mq-row" id="mq2"></div>
+  </div>
+
+  <!-- ── the problem ── -->
+  <section id="problem">
+    <div class="wrap">
+      <div class="eyebrow reveal">The problem</div>
+      <p class="statement" id="statement">The same kilowatt-hour cost *12 cents* at lunchtime and *53 cents* at 7 p.m. Big companies have energy managers for that. Small businesses have a monthly invoice.</p>
+      <div class="answer reveal"><span class="logo"><span style="color:var(--accent)">off</span>peak</span> is the energy manager for everyone else.</div>
+      <div class="stats">
+        <div class="glass stat reveal"><b data-count="96">0</b><p>prices a day, one for every quarter-hour of the market</p></div>
+        <div class="glass stat reveal" style="--d:.1s"><b><span data-count="4.4" data-dec="1">0</span><em>×</em></b><p>between the cheapest and the dearest hour on our example day</p></div>
+        <div class="glass stat reveal" style="--d:.2s"><b data-count="7">0</b><p>days of price outlook from Offpeak Intelligence, shown as a range</p></div>
+        <div class="glass stat reveal" style="--d:.3s"><b data-count="0">0</b><p>pieces of hardware to install. offpeak plans; you press start.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── how it works ── -->
+  <section id="how">
+    <div class="wrap">
+      <div class="eyebrow reveal">How it works</div>
+      <h2 class="reveal">Three steps from<br>market price to money saved.</h2>
+      <div class="steps" id="steps">
+        <div class="wire" aria-hidden="true"><i></i><b></b></div>
+        <div class="step reveal">
+          <div class="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l4-5 4 3 4-7 6 9"/><path d="M3 21h18"/></svg></div>
+          <h3>Prices in</h3><p>Every quarter-hour of the day-ahead market, plus grid fees, levies and tax: the price you really pay. And the weather, for your own solar and wind.</p>
+        </div>
+        <div class="step reveal" style="--d:.12s">
+          <div class="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4M7 14h4"/></svg></div>
+          <h3>A plan</h3><p>For every machine that can wait, offpeak finds the cheapest start within the hours you allow, and uses your own sun and wind first.</p>
+        </div>
+        <div class="step reveal" style="--d:.24s">
+          <div class="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 8.5a3.5 3.5 0 1 0 0 7M7 11h6M7 13.5h6"/></svg></div>
+          <h3>Savings</h3><p>Your week plan says which machine, when, and what it saves. The savings replay checks it against real prices of the last 30 days.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── product ── -->
+  <section id="product">
+    <div class="wrap">
+      <div class="eyebrow reveal">The product</div>
+      <h2 class="reveal">One app. Every answer<br>about your power.</h2>
+      <div class="bento">
+        <div class="tile w2 h2 reveal" data-tilt>
+          <span class="label">Dashboard</span>
+          <h3>A week plan, not a wall of charts.</h3>
+          <p>The top of the page answers the question: which machine, when, and how much it saves.</p>
+          <div class="now"><div><span class="label">Right now</span><br><b>29.3<small>ct/kWh</small></b></div><div class="gauge"><i></i></div><span class="label">average</span></div>
+          <div class="viz">
+            <div class="plan-row first"><i class="pd"></i><div><strong>EV fleet chargers</strong><small>Sat · 10:00–15:00 · 30 kW</small></div><span class="sv">saves €10.42</span></div>
+            <div class="plan-row"><i class="pd"></i><div><strong>Electric furnace</strong><small>Sun · 09:00–17:00 · 40 kW</small></div><span class="sv">saves €20.85</span></div>
+            <div class="plan-row"><i class="pd"></i><div><strong>Heat pump</strong><small>Mon · 00:00–06:00 · 4 kW</small></div><span class="sv">saves €1.96</span></div>
+          </div>
+        </div>
+        <div class="tile w2 reveal" data-tilt style="--d:.08s">
+          <span class="label">Price outlook</span>
+          <h3>Seven days ahead.</h3>
+          <p>Tomorrow from the market, the days after from Offpeak Intelligence, as a range.</p>
+          <div class="viz">
+            <svg viewBox="0 0 400 80" width="100%" height="80" preserveAspectRatio="none" aria-hidden="true">
+              <path class="fade-band" d="M0,46 C30,30 50,26 70,40 S110,64 140,50 S190,18 220,34 S270,66 300,52 S360,20 400,32 L400,58 C360,48 330,74 300,74 S250,52 220,58 S170,74 140,70 S100,80 70,62 S30,50 0,62 Z" fill="rgba(255,95,0,.12)"/>
+              <path class="draw" pathLength="1" d="M0,54 C30,40 50,36 70,50 S110,72 140,60 S190,30 220,46 S270,70 300,62 S360,34 400,44" fill="none" stroke="#FF5F00" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="70" y1="0" x2="70" y2="80" stroke="rgba(28,27,25,.25)" stroke-dasharray="3 4"/>
+            </svg>
+          </div>
+        </div>
+        <div class="tile reveal" data-tilt style="--d:.14s">
+          <span class="label">Simulation cockpit</span>
+          <h3>Try any what-if.</h3>
+          <div class="viz">
+            <div class="slabel"><span>Power</span><span>kW</span></div>
+            <div class="slider"><i style="--v:30%;--v2:62%"></i></div>
+            <div class="slabel" style="margin-top:14px"><span>Job length</span><span>h</span></div>
+            <div class="slider"><i style="--v:70%;--v2:35%;--dl:-2s"></i></div>
+          </div>
+        </div>
+        <div class="tile reveal" data-tilt style="--d:.2s">
+          <span class="label">Savings replay</span>
+          <h3>Proof, in euros.</h3>
+          <div class="viz">
+            <div class="big-num">€<span data-count="1154" data-sep>0</span></div>
+            <p style="margin-top:8px;font-size:13px">saved in 30 days on our demo site, replayed with real prices</p>
+          </div>
+        </div>
+        <div class="tile w2 reveal" data-tilt style="--d:.08s">
+          <span class="label">Site view</span>
+          <h3>Your site in 3D, hour by hour.</h3>
+          <p>See where every kilowatt goes: solar field, turbines, battery and machines.</p>
+          <div class="viz" style="position:absolute;right:18px;bottom:6px;width:46%;max-width:300px">
+            <svg viewBox="0 0 300 150" width="100%" aria-hidden="true">
+              <ellipse cx="150" cy="122" rx="138" ry="24" fill="rgba(28,27,25,.06)"/>
+              <path d="M150 70 L250 110 L150 140 L50 110 Z" fill="#fff" stroke="rgba(28,27,25,.12)"/>
+              <path d="M70 104 L120 84 L150 96 L100 116 Z" fill="#2F3440" opacity=".85"/>
+              <path d="M74 103 L120 86 M84 107 L130 89 M94 111 L140 93" stroke="rgba(255,255,255,.35)"/>
+              <path d="M165 92 L215 72 L240 82 L190 102 Z" fill="#E9E5DE"/><path d="M190 102 L240 82 L240 98 L190 118 Z" fill="#D9D3C9"/><path d="M165 92 L190 102 L190 118 L165 108 Z" fill="#CFC8BD"/>
+              <circle cx="150" cy="104" r="4" fill="#FF5F00"><animate attributeName="r" values="3;6;3" dur="1.6s" repeatCount="indefinite"/></circle>
+              <path d="M150 104 C170 96 185 92 200 95" stroke="#FF5F00" stroke-width="1.5" fill="none" stroke-dasharray="3 4"><animate attributeName="stroke-dashoffset" from="14" to="0" dur="1s" repeatCount="indefinite"/></path>
+              <line x1="62" y1="96" x2="62" y2="30" stroke="#C9C2B7" stroke-width="3"/>
+              <g class="blades"><path d="M62 30 L62 6 M62 30 L83 42 M62 30 L41 42" stroke="#8C857B" stroke-width="3" stroke-linecap="round"/></g>
+              <circle cx="62" cy="30" r="3.5" fill="#FF5F00"/>
+              <line x1="262" y1="104" x2="262" y2="44" stroke="#C9C2B7" stroke-width="3"/>
+              <g class="blades b2"><path d="M262 44 L262 22 M262 44 L281 55 M262 44 L243 55" stroke="#8C857B" stroke-width="3" stroke-linecap="round"/></g>
+              <circle cx="262" cy="44" r="3.5" fill="#FF5F00"/>
+            </svg>
+          </div>
+        </div>
+        <div class="tile reveal" data-tilt style="--d:.14s">
+          <span class="label">Ask Ollie</span>
+          <h3>Just ask.</h3>
+          <div class="viz" style="display:flex;gap:10px;align-items:flex-end">
+            <div id="ollie" style="flex:none"></div>
+            <div class="bubble" id="ollie-say"></div>
+          </div>
+        </div>
+        <div class="tile reveal" data-tilt style="--d:.2s">
+          <span class="label">Weather &amp; solar</span>
+          <h3>Your own sun, first.</h3>
+          <div class="viz">
+            <div class="wbars" id="wbars"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── who it's for ── -->
+  <section id="for">
+    <div class="wrap">
+      <div class="eyebrow reveal">Who it's for</div>
+      <h2 class="reveal">Made for businesses whose<br>machines can wait an hour.</h2>
+      <div class="tabs reveal" role="tablist" id="tabs"><i class="pill" aria-hidden="true"></i></div>
+      <div class="glass who reveal" id="who" role="tabpanel"></div>
+    </div>
+  </section>
+
+  <!-- ── pricing ── -->
+  <section id="pricing">
+    <div class="wrap" style="text-align:center">
+      <div class="eyebrow reveal">Pricing</div>
+      <h2 class="reveal">Simple pricing.<br>Pays for itself.</h2>
+      <div class="toggle reveal">Monthly <button class="switch" id="yearly" role="switch" aria-checked="false" aria-label="Pay yearly"></button> Yearly <span class="off">−20 %</span></div>
+    </div>
+    <div class="wrap plans">
+      <div class="glass plan reveal">
+        <h3>Tariff check</h3>
+        <p class="for">Find out whether a dynamic tariff pays off for you.</p>
+        <div class="price">€0 <small>forever</small></div>
+        <ul>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Fixed against dynamic, for your load</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>German tariff engine: grid fees, levies, tax</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Today's prices, every quarter-hour</li>
+        </ul>
+        <a class="btn btn-ghost mag" data-login href="https://offpeak.streamlit.app/?login" target="_top">Login</a>
+      </div>
+      <div class="glass plan pro reveal" style="--d:.1s">
+        <span class="tag">Most chosen</span>
+        <h3>Business</h3>
+        <p class="for">The full plan for one site and all its flexible machines.</p>
+        <div class="price">€<span id="p-biz">49</span> <small>per site / month</small></div>
+        <ul>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Week plan for every flexible machine</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Simulation cockpit and 3D site view</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>7-day price outlook by Offpeak Intelligence</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Own solar and wind counted first</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Ask Ollie, and the 30-day savings replay</li>
+        </ul>
+        <a class="btn btn-primary mag" data-login href="https://offpeak.streamlit.app/?login" target="_top">Login</a>
+      </div>
+      <div class="glass plan reveal" style="--d:.2s">
+        <h3>Multi-site</h3>
+        <p class="for">For several sites and price zones, run by one team.</p>
+        <div class="price">€<span id="p-multi">39</span> <small>per site / month, from 5 sites</small></div>
+        <ul>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Everything in Business</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Germany and Portugal, more zones to come</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Team sign-in for every site</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>Set up with your own meter data</li>
+        </ul>
+        <a class="btn btn-ghost mag" data-login href="https://offpeak.streamlit.app/?login" target="_top">Login</a>
+      </div>
+    </div>
+    <p class="fine wrap">Prices excluding VAT. offpeak is a student project at Nova SBE: these prices are a concept, nothing is sold or charged.</p>
+  </section>
+
+  <!-- ── final call ── -->
+  <section class="final">
+    <div class="wrap">
+      <div class="eyebrow reveal">Ready when the prices are</div>
+      <h2 class="reveal">Peak prices<br>are <em>optional.</em></h2>
+      <p class="reveal">Your plan for the cheapest hours is one click away.</p>
+      <a class="btn btn-primary mag reveal" id="final-login" data-login href="https://offpeak.streamlit.app/?login" target="_top">Login <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <span class="logo"><span>off</span>peak</span>
+      <p>offpeak is a student project for Introduction to Programming at Nova SBE, 2026. Prices from Energy-Charts (Fraunhofer ISE) and ENTSO-E, weather from Open-Meteo. The numbers on this page are one example day.</p>
+    </div>
+    <nav aria-label="Footer"><a href="#product">Product</a><a href="#how">How it works</a><a href="#for">Who it's for</a><a href="#pricing">Pricing</a><a data-login href="https://offpeak.streamlit.app/?login" target="_top">Login</a></nav>
+  </div>
+  <div class="wrap" style="margin-top:28px"><span class="mono">© 2026 offpeak · Köln · Lisboa</span></div>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const finePointer = matchMedia('(pointer: fine)').matches;
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const eur = v => '€' + v.toFixed(2);
+
+  // ── the example day: all-in price per hour in ct/kWh (market + fees + tax) ──
+  // A sunny day in Germany: cheap at lunchtime (solar), dear in the evening peak.
+  const PRICE = [24.1, 22.8, 21.9, 21.4, 21.8, 23.5, 28.9, 34.6, 36.2, 31.0, 24.4, 18.2,
+                 13.1, 12.4, 14.0, 19.5, 27.3, 38.7, 46.9, 53.0, 44.1, 35.2, 30.1, 27.0];
+  const KW = 30, HOURS = 4, USUAL = 17;  // EV fleet: 30 kW for 4 hours, usually from 17:00
+  const cost = start => KW * PRICE.slice(start, start + HOURS).reduce((a, b) => a + b, 0) / 100;
+  const BEST = [...Array(25 - HOURS).keys()].reduce((b, s) => cost(s) < cost(b) ? s : b, 0);
+
+  // "energy" makes the power lines brighter and faster: scrolling and the Login buttons raise it
+  let surge = 0;
+
+  // ── intro: count to 100 %, once per visit ──
+  function intro(done) {
+    const box = $('#intro');
+    let seen = false;
+    try { seen = sessionStorage.getItem('offpeak-intro') === '1'; sessionStorage.setItem('offpeak-intro', '1'); } catch (e) { /* storage blocked */ }
+    if (calm || seen) { box.remove(); done(); return; }
+    const words = ['PRICES', 'WEATHER', 'SOLAR', 'WIND', 'PLAN'];
+    const t0 = performance.now(), dur = 1500;
+    let finished = false;
+    const finish = () => { if (finished) return; finished = true; box.classList.add('done'); setTimeout(() => box.remove(), 1000); done(); };
+    box.addEventListener('click', finish);
+    (function tick(now) {
+      const p = clamp((now - t0) / dur, 0, 1), e = 1 - Math.pow(1 - p, 3);
+      $('#intro-num').innerHTML = String(Math.round(e * 100)).padStart(3, '0') + '<span>%</span>';
+      $('#intro-bar').style.width = (e * 100) + '%';
+      $('#intro-step').textContent = words[Math.min(words.length - 1, Math.floor(p * words.length))];
+      if (p < 1 && !finished) requestAnimationFrame(tick); else setTimeout(finish, 180);
+    })(t0);
+  }
+
+  // ── headline: letters rise one after another ──
+  function headline(startMs) {
+    const h = $('#headline');
+    let i = 0;
+    const split = node => {
+      [...node.childNodes].forEach(n => {
+        if (n.nodeType === 3) {
+          const frag = document.createDocumentFragment();
+          [...n.textContent].forEach(c => {
+            const s = document.createElement('span');
+            s.className = 'ch'; s.style.setProperty('--i', i++); s.textContent = c === ' ' ? ' ' : c;
+            s.setAttribute('aria-hidden', 'true');
+            frag.appendChild(s);
+          });
+          n.replaceWith(frag);
+        } else split(n);
+      });
+    };
+    split(h);
+    h.style.setProperty('--start', startMs + 'ms');
+    const em = h.querySelector('em');
+    const u = document.createElement('i'); u.className = 'under'; em.appendChild(u);
+  }
+
+  // ── typewriter: the next cheap window for one machine after another ──
+  function typewriter() {
+    const el = $('#type');
+    const lines = ['Charge the vans · 11:00–15:00', 'Pre-cool the cold store · 12:00–14:00', 'Heat the water · 02:00–05:00',
+                   'Run the compressor · 12:00–13:00', 'Dry the laundry · 11:00–14:00'];
+    if (calm) { el.textContent = lines[0]; return; }
+    let li = 0, ci = 0, del = false;
+    (function step() {
+      const text = lines[li];
+      ci += del ? -1 : 1;
+      el.textContent = text.slice(0, ci);
+      let wait = del ? 22 : 48;
+      if (!del && ci === text.length) { del = true; wait = 1900; }
+      else if (del && ci === 0) { del = false; li = (li + 1) % lines.length; wait = 350; }
+      setTimeout(step, wait);
+    })();
+  }
+
+  // ── the power lines behind everything (one canvas, redrawn every frame) ──
+  function field() {
+    const cv = $('#field'), ctx = cv.getContext('2d');
+    if (!ctx) return;
+    let W = 0, H = 0, lines = [], last = performance.now(), lastScroll = scrollY, scrollV = 0, energy = 0;
+    const mouse = { x: -9999, y: -9999, tx: -9999, ty: -9999 };
+    // a seeded random, so the lines look the same on every visit
+    const rnd = (s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; })(7);
+    // one glowing dot, drawn once and stamped wherever a pulse travels
+    const sprite = document.createElement('canvas');
+    sprite.width = sprite.height = 96;
+    const sg = sprite.getContext('2d'), rg = sg.createRadialGradient(48, 48, 0, 48, 48, 48);
+    rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(.1, 'rgba(255,226,196,1)'); rg.addColorStop(.28, 'rgba(255,128,40,.8)');
+    rg.addColorStop(.6, 'rgba(255,95,0,.16)'); rg.addColorStop(1, 'rgba(255,95,0,0)');
+    sg.fillStyle = rg; sg.fillRect(0, 0, 96, 96);
+
+    function build() {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      W = innerWidth; H = innerHeight;
+      cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const n = W < 700 ? 13 : 22;
+      lines = [];
+      for (let i = 0; i < n; i++) {
+        lines.push({
+          base: (i + rnd() * .8) / n, amp: 16 + rnd() * 64, f: .0014 + rnd() * .0024, ph: rnd() * 6.3, ph2: rnd() * 6.3,
+          sp: .00010 + rnd() * .00026, tilt: (rnd() - .5) * .45, w: .6 + rnd() * 1.1, a: .10 + rnd() * .2, depth: .04 + rnd() * .22,
+          pulses: Array.from({ length: 1 + Math.floor(rnd() * 2.2) }, () => ({ s: rnd(), v: .00003 + rnd() * .00008, size: 9 + rnd() * 14 })),
+          ys: null,
+        });
+      }
+    }
+    const STEP = 16;
+    function wrap(v, m) { return ((v % m) + m) % m; }
+    function shape(L, t, sy) {
+      const n = Math.ceil(W / STEP) + 2;
+      if (!L.ys || L.ys.length !== n) L.ys = new Float32Array(n);
+      const span = H * 1.3, base = wrap(L.base * span - sy * L.depth, span) - H * .15;
+      for (let k = 0; k < n; k++) {
+        const x = k * STEP;
+        let y = base + L.tilt * (x - W / 2) + L.amp * Math.sin(x * L.f + L.ph + t * L.sp) + L.amp * .35 * Math.sin(x * L.f * 2.7 - t * L.sp * 1.3 + L.ph2);
+        // the cursor pushes the lines apart, like field lines around a charge
+        const dx = x - mouse.x, dy = y - mouse.y, d2 = dx * dx + dy * dy;
+        if (d2 < 260000) y += (dy >= 0 ? 1 : -1) * Math.exp(-d2 / 36000) * 44;
+        L.ys[k] = y;
+      }
+    }
+    function yAt(L, x) {
+      const f = x / STEP, k = clamp(Math.floor(f), 0, L.ys.length - 2), r = f - k;
+      return L.ys[k] * (1 - r) + L.ys[k + 1] * r;
+    }
+    function frame(now) {
+      const dt = Math.min(now - last, 50); last = now;
+      mouse.x += (mouse.tx - mouse.x) * .1; mouse.y += (mouse.ty - mouse.y) * .1;
+      const sy = scrollY; scrollV = scrollV * .9 + (sy - lastScroll); lastScroll = sy;
+      energy += (clamp(Math.abs(scrollV) / 260, 0, 1) * .8 + surge - energy) * .05;
+      ctx.clearRect(0, 0, W, H);
+      const grad = ctx.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0, 'rgba(255,95,0,0)'); grad.addColorStop(.18, 'rgba(255,95,0,1)'); grad.addColorStop(.82, 'rgba(255,110,20,1)'); grad.addColorStop(1, 'rgba(255,95,0,0)');
+      ctx.strokeStyle = grad; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const L of lines) {
+        shape(L, now, sy);
+        ctx.beginPath();
+        for (let k = 0; k < L.ys.length; k++) k ? ctx.lineTo(k * STEP, L.ys[k]) : ctx.moveTo(0, L.ys[0]);
+        ctx.globalAlpha = L.a * (.22 + energy * .35); ctx.lineWidth = L.w * 6; ctx.stroke();   // soft halo
+        ctx.globalAlpha = clamp(L.a * (1 + energy * 1.2), 0, 1); ctx.lineWidth = L.w; ctx.stroke(); // the line
+      }
+      for (const L of lines) for (const p of L.pulses) {
+        p.s = (p.s + p.v * dt * (1 + energy * 5)) % 1;
+        const x = p.s * (W + 240) - 120, tail = p.size * (5 + energy * 6);
+        // the tail: the line itself, glowing brighter towards the head
+        const tg = ctx.createLinearGradient(x - tail, 0, x, 0);
+        tg.addColorStop(0, 'rgba(255,95,0,0)'); tg.addColorStop(1, 'rgba(255,120,30,1)');
+        ctx.beginPath();
+        for (let xx = x - tail; xx <= x; xx += 6) xx === x - tail ? ctx.moveTo(xx, yAt(L, xx)) : ctx.lineTo(xx, yAt(L, xx));
+        ctx.lineTo(x, yAt(L, x));
+        ctx.strokeStyle = tg;
+        ctx.globalAlpha = .16 + energy * .12; ctx.lineWidth = 7; ctx.stroke();
+        ctx.globalAlpha = .75 + energy * .2; ctx.lineWidth = 1.8; ctx.stroke();
+        // the head: one glowing dot
+        const sz = p.size * 2.4 * (1 + energy * .5);
+        ctx.globalAlpha = .9;
+        ctx.drawImage(sprite, x - sz / 2, yAt(L, x) - sz / 2, sz, sz);
+      }
+      ctx.globalAlpha = 1;
+      if (!calm) requestAnimationFrame(frame);
+    }
+    build();
+    addEventListener('resize', build);
+    addEventListener('pointermove', e => { mouse.tx = e.clientX; mouse.ty = e.clientY; if (mouse.x < -999) { mouse.x = mouse.tx; mouse.y = mouse.ty; } }, { passive: true });
+    document.addEventListener('pointerleave', () => { mouse.tx = mouse.ty = -9999; });
+    requestAnimationFrame(frame);
+  }
+
+  // ── cursor light and buttons that lean towards the cursor ──
+  function cursor() {
+    if (!finePointer || calm) { $('#glow').remove(); return; }
+    const g = $('#glow');
+    let x = -999, y = -999, tx = -999, ty = -999;
+    addEventListener('pointermove', e => { tx = e.clientX; ty = e.clientY; if (x < -900) { x = tx; y = ty; } }, { passive: true });
+    (function loop() { x += (tx - x) * .14; y += (ty - y) * .14; g.style.transform = `translate3d(${x}px,${y}px,0)`; requestAnimationFrame(loop); })();
+    $$('.mag').forEach(b => {
+      b.addEventListener('pointermove', e => {
+        const r = b.getBoundingClientRect();
+        b.style.transform = `translate(${(e.clientX - r.left - r.width / 2) * .22}px, ${(e.clientY - r.top - r.height / 2) * .3}px)`;
+      });
+      b.addEventListener('pointerleave', () => { b.style.transform = ''; });
+    });
+  }
+
+  // ── nav, scroll progress, things appearing on scroll ──
+  function scrolling() {
+    const nav = $('#nav'), bar = $('#progress');
+    const onScroll = () => {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      bar.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
+      nav.classList.toggle('small', scrollY > 40);
+    };
+    addEventListener('scroll', onScroll, { passive: true }); onScroll();
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .15 });
+    $$('.reveal, .tile').forEach(el => io.observe(el));
+  }
+
+  // ── "shift the load": drag the 4-hour band over the example day ──
+  function shift() {
+    const bars = $('#bars'), band = $('#band'), chart = $('#chart'), usual = $('#usual');
+    const max = Math.max(...PRICE);
+    const cls = p => p <= 22 ? 'var(--cheap)' : p >= 35 ? 'var(--dear)' : 'var(--normal)';  // three colours for price
+    bars.innerHTML = PRICE.map(p => `<i style="height:${(p / max * 100).toFixed(1)}%;background:${cls(p)}"></i>`).join('');
+    const col = () => (chart.clientWidth + 3) / 24;   // one hour in pixels (3 px gap)
+    let start = USUAL, shown = cost(USUAL), touched = false, anim = 0;
+    const place = (el, s) => { el.style.left = (s * col() - 2) + 'px'; el.style.width = (HOURS * col() - 1) + 'px'; };
+    const pad = h => String(h).padStart(2, '0');
+    function update() {
+      place(band, start); place(usual, USUAL);
+      $('#band-label').textContent = `${pad(start)}:00–${pad(start + HOURS)}:00`;
+      band.setAttribute('aria-valuenow', start);
+      band.setAttribute('aria-valuetext', `${pad(start)}:00 to ${pad(start + HOURS)}:00, costs ${eur(cost(start))}`);
+      [...bars.children].forEach((b, i) => b.classList.toggle('on', i >= start && i < start + HOURS));
+      $('#r-when').textContent = `${pad(start)}–${pad(start + HOURS)} h`;
+      // the euro figures count to their new value instead of jumping
+      const from = shown, to = cost(start), t0 = performance.now();
+      cancelAnimationFrame(anim);
+      (function tick(now) {
+        const p = calm ? 1 : clamp((now - t0) / 500, 0, 1), v = from + (to - from) * (1 - Math.pow(1 - p, 3));
+        shown = v;
+        $('#r-cost').textContent = eur(v);
+        $('#r-save').textContent = eur(Math.max(0, cost(USUAL) - v));
+        if (p < 1) anim = requestAnimationFrame(tick);
+      })(t0);
+    }
+    function moveTo(s, glide) {
+      s = clamp(Math.round(s), 0, 24 - HOURS);
+      band.classList.toggle('glide', !!glide);
+      if (s !== start) { start = s; update(); }
+    }
+    let drag = null;
+    band.addEventListener('pointerdown', e => {
+      touched = true; band.setPointerCapture(e.pointerId);
+      drag = { x: e.clientX, s: start }; band.classList.remove('glide');
+    });
+    band.addEventListener('pointermove', e => { if (drag) moveTo(drag.s + (e.clientX - drag.x) / col()); });
+    const stop = () => { drag = null; };
+    band.addEventListener('pointerup', stop); band.addEventListener('pointercancel', stop);
+    chart.addEventListener('pointerdown', e => {   // a click on the chart moves the band there
+      if (e.target.closest('.band')) return;
+      touched = true;
+      moveTo((e.clientX - chart.getBoundingClientRect().left) / col() - HOURS / 2, true);
+    });
+    band.addEventListener('keydown', e => {
+      const k = { ArrowLeft: -1, ArrowRight: 1, ArrowDown: -1, ArrowUp: 1 }[e.key];
+      if (k) { e.preventDefault(); touched = true; moveTo(start + k, true); }
+    });
+    $('#pick').addEventListener('click', () => { touched = true; moveTo(BEST, true); });
+    $('#reset').addEventListener('click', () => { touched = true; moveTo(USUAL, true); });
+    addEventListener('resize', update);
+    update();
+    // show the idea once by itself: offpeak moves the charging to the cheap hours
+    const io = new IntersectionObserver(es => {
+      if (es[0].isIntersecting) { io.disconnect(); setTimeout(() => { if (!touched) moveTo(BEST, true); }, 1600); }
+    }, { threshold: .35 });
+    io.observe($('#shift'));
+  }
+
+  // ── kinetic type: two rows that drift, faster while you scroll ──
+  function marquee() {
+    const words = [['Shift the load', 'o'], ['✦', 's'], ['Catch the cheap hours', 'f'], ['✦', 's'], ['Use your own sun first', 'o'], ['✦', 's'], ['Save in euros', 'f'], ['✦', 's']];
+    const row = (el, list) => { el.innerHTML = [0, 1, 2].map(() => list.map(([w, c]) => `<span class="${c}">${w}</span>`).join('')).join(''); };
+    const a = $('#mq1'), b = $('#mq2');
+    row(a, words); row(b, [...words.slice(4), ...words.slice(0, 4)]);
+    if (calm) return;
+    let x = 0, last = scrollY, v = 0;
+    (function loop() {
+      const d = scrollY - last; last = scrollY;
+      v = v * .92 + d * .08;
+      x -= .6 + Math.abs(v) * .9;
+      const wa = a.scrollWidth / 3, wb = b.scrollWidth / 3;
+      a.style.transform = `translateX(${wrap(x, wa) - wa}px)`;
+      b.style.transform = `translateX(${-wrap(x * .8, wb)}px)`;
+      requestAnimationFrame(loop);
+    })();
+    function wrap(v, m) { return m ? ((v % m) + m) % m : 0; }
+  }
+
+  // ── the problem statement: words light up as it scrolls through the screen ──
+  function statement() {
+    const p = $('#statement');
+    let hot = false;
+    p.innerHTML = p.textContent.split(/(\s+)/).map(w => {
+      if (/^\s+$/.test(w)) return w;
+      const starts = w.startsWith('*'), ends = w.endsWith('*');
+      if (starts) hot = true;
+      const html = `<span class="w${hot ? ' hot' : ''}">${w.replace(/\*/g, '')}</span>`;
+      if (ends) hot = false;
+      return html;
+    }).join('');
+    const ws = [...p.querySelectorAll('.w')];
+    const onScroll = () => {
+      const r = p.getBoundingClientRect();
+      const prog = clamp((innerHeight * .85 - r.top) / (r.height + innerHeight * .35), 0, 1);
+      const lit = Math.round(prog * ws.length * 1.1);
+      ws.forEach((w, i) => { w.style.opacity = calm || i < lit ? 1 : .14; });
+    };
+    addEventListener('scroll', onScroll, { passive: true }); onScroll();
+  }
+
+  // ── numbers count up when they come into view ──
+  function counters() {
+    const io = new IntersectionObserver(es => es.forEach(e => {
+      if (!e.isIntersecting) return;
+      io.unobserve(e.target);
+      const el = e.target, to = parseFloat(el.dataset.count), dec = +(el.dataset.dec || 0), t0 = performance.now();
+      const fmt = v => el.dataset.sep !== undefined ? Math.round(v).toLocaleString('en-GB') : v.toFixed(dec);
+      (function tick(now) {
+        const p = calm ? 1 : clamp((now - t0) / 1600, 0, 1);
+        el.textContent = fmt(to * (1 - Math.pow(1 - p, 4)));
+        if (p < 1) requestAnimationFrame(tick);
+      })(t0);
+    }), { threshold: .5 });
+    $$('[data-count]').forEach(el => io.observe(el));
+  }
+
+  // ── how it works: the wire fills and each step lights up as you scroll ──
+  function steps() {
+    const box = $('#steps'), wire = box.querySelector('.wire'), items = $$('.step');
+    const onScroll = () => {
+      const r = box.getBoundingClientRect();
+      const p = clamp((innerHeight * .78 - r.top) / (innerHeight * .55), 0, 1);
+      wire.style.setProperty('--p', p.toFixed(3));
+      wire.style.setProperty('--show', p > 0 && p < 1 ? 1 : 0);
+      items.forEach((s, i) => s.classList.toggle('lit', p >= i / 2 - .02));
+    };
+    addEventListener('scroll', onScroll, { passive: true }); onScroll();
+  }
+
+  // ── product tiles: a light that follows the cursor, and a slight tilt ──
+  function tiles() {
+    $$('[data-tilt]').forEach(t => {
+      t.addEventListener('pointermove', e => {
+        const r = t.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+        t.style.setProperty('--mx', x * 100 + '%'); t.style.setProperty('--my', y * 100 + '%');
+        if (finePointer && !calm) { t.style.setProperty('--ry', ((x - .5) * 6).toFixed(2) + 'deg'); t.style.setProperty('--rx', ((.5 - y) * 6).toFixed(2) + 'deg'); }
+      });
+      t.addEventListener('pointerleave', () => { t.style.setProperty('--rx', '0deg'); t.style.setProperty('--ry', '0deg'); });
+    });
+    // weather tile: a week of solar, bars grow in
+    const days = [['Mon', 62], ['Tue', 88], ['Wed', 40], ['Thu', 18], ['Fri', 74], ['Sat', 95], ['Sun', 80]];
+    $('#wbars').innerHTML = days.map(([d, v]) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><i data-h="${v}"></i><small>${d}</small></div>`).join('');
+    $$('#wbars i').forEach(i => { i.style.width = '100%'; });
+    new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); $$('#wbars i').forEach((i, k) => setTimeout(() => { i.style.height = i.dataset.h * .7 + 'px'; }, k * 90)); } }, { threshold: .4 }).observe($('#wbars'));
+    // Ollie, the assistant, answering one question after another
+    $('#ollie').innerHTML = `<svg class="robot" width="62" height="72" viewBox="0 0 80 94" aria-hidden="true">
+      <line x1="40" y1="14" x2="40" y2="4" stroke="#1C1B19" stroke-width="3" stroke-linecap="round"/><circle cx="40" cy="4" r="4" fill="#FF5F00"/>
+      <rect x="10" y="14" width="60" height="44" rx="18" fill="#FF5F00"/><rect x="17" y="22" width="46" height="28" rx="12" fill="#1C1B19"/>
+      <rect class="eye" x="27" y="30" width="8" height="12" rx="4" fill="#5CF2C9"/><rect class="eye" x="45" y="30" width="8" height="12" rx="4" fill="#5CF2C9"/>
+      <rect x="20" y="60" width="40" height="26" rx="12" fill="#FF5F00"/><circle cx="40" cy="72" r="5" fill="#FFD9C2"/>
+      <rect x="6" y="62" width="10" height="18" rx="5" fill="#E85600"/><g class="wave"><rect x="64" y="50" width="10" height="20" rx="5" fill="#E85600"/></g></svg>`;
+    const answers = ['Run the furnace on Sunday at 09:00. That saves €20.85.', 'Saturday 10:00 is the cheapest start for the vans.', 'Tomorrow is sunny: your solar covers the cold store until 15:00.'];
+    const say = $('#ollie-say');
+    let ai = 0;
+    (function talk() {
+      const text = answers[ai++ % answers.length];
+      let i = 0;
+      if (calm) { say.textContent = text; return; }
+      (function type() { say.textContent = text.slice(0, ++i); if (i < text.length) setTimeout(type, 26); else setTimeout(talk, 2600); })();
+    })();
+  }
+
+  // ── who it's for: tabs ──
+  function who() {
+    const groups = [
+      { tab: 'Farms', title: 'Farms', text: 'Milk cooling, feed mixing and irrigation can move by hours. Many farms already have solar, some a turbine.',
+        loads: ['Milk cooling', 'Feed mixer', 'Irrigation pumps', 'Water heating'], from: ['Irrigation at 18:00', '46.9 ct'], to: ['Irrigation at 12:00, on your solar', '13.1 ct'] },
+      { tab: 'Workshops', title: 'Workshops & manufacturers', text: 'Compressors fill tanks, forklifts and vans charge overnight or at lunch: whenever power is cheapest.',
+        loads: ['Compressed air', 'Forklift charging', 'EV fleet charging', 'Heat treatment'], from: ['Vans charge at 17:00', '38.7 ct'], to: ['Vans charge at 11:00', '18.2 ct'] },
+      { tab: 'Hotels & laundries', title: 'Hotels & laundries', text: 'Washing, drying and hot water follow a daily rhythm that can shift into the cheap hours.',
+        loads: ['Washing machines', 'Tumble dryers', 'Hot water tanks', 'Pool heating'], from: ['Dryers at 19:00', '53.0 ct'], to: ['Dryers at 13:00', '12.4 ct'] },
+      { tab: 'Cold storage', title: 'Food retail & cold storage', text: 'Pre-cool the store while power is cheap; the cold keeps through the evening peak.',
+        loads: ['Pre-cooling', 'Freezers', 'Ice machines', 'Ventilation'], from: ['Cooling at 18:00', '46.9 ct'], to: ['Pre-cool at 12:00', '13.1 ct'] },
+    ];
+    const tabs = $('#tabs'), pill = tabs.querySelector('.pill'), panel = $('#who');
+    groups.forEach((g, i) => {
+      const b = document.createElement('button');
+      b.role = 'tab'; b.id = 'tab-' + i; b.textContent = g.tab; b.setAttribute('aria-controls', 'who');
+      b.addEventListener('click', () => show(i));
+      b.addEventListener('keydown', e => { const k = { ArrowRight: 1, ArrowLeft: -1 }[e.key]; if (k) { const n = (i + k + groups.length) % groups.length; show(n); tabs.querySelectorAll('button')[n].focus(); } });
+      tabs.appendChild(b);
+    });
+    function show(i) {
+      const g = groups[i];
+      tabs.querySelectorAll('button').forEach((b, k) => { b.setAttribute('aria-selected', k === i); b.tabIndex = k === i ? 0 : -1; });
+      const b = tabs.querySelectorAll('button')[i];
+      pill.style.left = b.offsetLeft + 'px'; pill.style.width = b.offsetWidth + 'px'; pill.style.top = b.offsetTop + 'px'; pill.style.height = b.offsetHeight + 'px';
+      panel.setAttribute('aria-labelledby', b.id);
+      panel.innerHTML = `<div class="swap"><h3>${g.title}</h3><p class="lead" style="font-size:16.5px">${g.text}</p><ul>${g.loads.map(l => `<li>${l}</li>`).join('')}</ul></div>
+        <div class="move swap"><div class="label" style="margin-bottom:14px">On our example day</div>
+        <div class="from"><span>${g.from[0]}</span><span>${g.from[1]}</span></div><div class="arrow">↓</div>
+        <div class="to"><span>${g.to[0]}</span><b>${g.to[1]}</b></div>
+        <p style="color:var(--muted);font-size:13.5px;margin:16px 0 0">All-in price per kWh. offpeak finds the hour, you press start.</p></div>`;
+    }
+    show(0);
+    addEventListener('resize', () => show([...tabs.querySelectorAll('button')].findIndex(b => b.getAttribute('aria-selected') === 'true')));
+    if (document.fonts) document.fonts.ready.then(() => show([...tabs.querySelectorAll('button')].findIndex(b => b.getAttribute('aria-selected') === 'true')));
+  }
+
+  // ── pricing: monthly or yearly ──
+  function pricing() {
+    const sw = $('#yearly'), prices = { 'p-biz': 49, 'p-multi': 39 };
+    sw.addEventListener('click', () => {
+      const yearly = sw.getAttribute('aria-checked') !== 'true';
+      sw.setAttribute('aria-checked', yearly);
+      Object.entries(prices).forEach(([id, v]) => {
+        const el = document.getElementById(id), from = +el.textContent, to = Math.round(yearly ? v * .8 : v), t0 = performance.now();
+        (function tick(now) { const p = calm ? 1 : clamp((now - t0) / 450, 0, 1); el.textContent = Math.round(from + (to - from) * p); if (p < 1) requestAnimationFrame(tick); })(t0);
+      });
+    });
+  }
+
+  // ── a clock with the time in Germany, where the prices are made ──
+  function clock() {
+    const el = $('#clock');
+    const tick = () => { try { el.textContent = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Europe/Berlin' }).format(new Date()); } catch (e) { /* no Intl */ } };
+    tick(); setInterval(tick, 1000);
+  }
+
+  // ── Login: press the hidden "Login" button of the Streamlit page around this frame.
+  //    Opened on its own (not inside the app), the link goes to the sign-in page instead.
+  function login() {
+    $$('[data-login]').forEach(a => {
+      a.addEventListener('pointerenter', () => { surge = 1.2; });
+      a.addEventListener('pointerleave', () => { surge = 0; });
+      a.addEventListener('click', e => {
+        let button = null;
+        try { button = window.parent !== window && window.parent.document.querySelector('.st-key-landing_login button'); } catch (err) { /* not inside the app */ }
+        if (!button) return;
+        e.preventDefault();
+        surge = 2;
+        document.body.classList.add('leaving');
+        setTimeout(() => button.click(), calm ? 0 : 280);
+      });
+    });
+  }
+
+  const ready = () => { headline(0); typewriter(); };
+  field(); cursor(); scrolling(); shift(); marquee(); statement(); counters(); steps(); tiles(); who(); pricing(); clock(); login();
+  intro(ready);
+})();
+</script>
+</body>
+</html>
