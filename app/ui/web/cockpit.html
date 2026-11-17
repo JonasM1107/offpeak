@@ -244,7 +244,7 @@ function update() {
   renderList(res); renderAnswer(res); chart.update();
 }
 document.getElementById('kept').textContent = {
-  database: 'Changes are saved automatically for everyone on this site.',
+  database: `Changes are saved automatically for everyone using this ${W.site}.`,
   local: 'Not signed in: changes stay in this browser tab.',
   session: 'No database connected: changes stay until you close this tab.',
 }[D.storage] || '';

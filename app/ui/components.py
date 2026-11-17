@@ -27,16 +27,33 @@ CSS = f"""
 .block-container {{ padding: 2.4rem 2.2rem 3rem; max-width: 1320px; }}
 [data-testid="stHeader"] {{ background: transparent; }}
 
-/* sidebar: white, quiet, one orange accent on the active page */
-[data-testid="stSidebar"] {{ background: #FFFFFF; border-right: 1px solid {LINE}; }}
+/* sidebar: white, quiet, one orange accent on the active page. Hovering a page lifts it a
+   little: a warm background, the icon turns orange and an orange bar grows on the left. */
+[data-testid="stSidebar"] {{ border-right: 1px solid {LINE};
+    background: radial-gradient(420px 260px at 0% 0%, rgba(255, 95, 0, 0.06), transparent 70%), #FFFFFF; }}
 [data-testid="stSidebarHeader"] {{ padding: 1.6rem 1.4rem 1rem; }}
 [data-testid="stSidebarNav"] {{ padding: 0 0.6rem; }}
+[data-testid="stSidebarNavSeparator"] {{ display: none; }}  /* no line under the menu */
 [data-testid="stNavSectionHeader"] {{ font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em;
     text-transform: uppercase; color: #A39E96; margin: 1.1rem 0 0.35rem 0.55rem; }}
-[data-testid="stSidebarNavLink"] {{ border-radius: 10px; padding: 0.5rem 0.7rem; margin: 1px 0; }}
-[data-testid="stSidebarNavLink"] span {{ font-size: 0.92rem; color: #4A4640; }}
-[data-testid="stSidebarNavLink"]:hover {{ background: #F6F5F2; }}
-[data-testid="stSidebarNavLink"][aria-current="page"] {{ background: {ORANGE_SOFT}; }}
+[data-testid="stSidebarNavLink"] {{ position: relative; border-radius: 12px; padding: 0.5rem 0.7rem;
+    margin: 2px 0; transition: background 0.2s, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.2s; }}
+[data-testid="stSidebarNavLink"]::before {{ content: ""; position: absolute; left: 0; top: 50%;
+    width: 3px; height: 0; border-radius: 3px; background: {ORANGE}; transform: translateY(-50%);
+    transition: height 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }}
+[data-testid="stSidebarNavLink"] span {{ font-size: 0.92rem; color: #4A4640; transition: color 0.2s; }}
+[data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"] {{ transition: color 0.2s, transform 0.2s; }}
+[data-testid="stSidebarNavLink"]:hover {{ background: #FFF4EC; transform: translateX(3px);
+    box-shadow: 0 4px 14px rgba(255, 95, 0, 0.08); }}
+[data-testid="stSidebarNavLink"]:hover::before {{ height: 45%; }}
+[data-testid="stSidebarNavLink"]:hover span {{ color: {INK}; }}
+[data-testid="stSidebarNavLink"]:hover [data-testid="stIconMaterial"] {{ color: {ORANGE}; transform: scale(1.1); }}
+[data-testid="stSidebarNavLink"]:active {{ transform: translateX(3px) scale(0.98); }}
+[data-testid="stSidebarNavLink"][aria-current="page"] {{ background: {ORANGE_SOFT};
+    box-shadow: 0 6px 18px rgba(255, 95, 0, 0.12); }}
+[data-testid="stSidebarNavLink"][aria-current="page"]::before {{ height: 60%;
+    box-shadow: 0 0 10px rgba(255, 95, 0, 0.6); }}
 [data-testid="stSidebarNavLink"][aria-current="page"] span {{ color: {INK}; font-weight: 600; }}
 [data-testid="stSidebarNavLink"][aria-current="page"] [data-testid="stIconMaterial"] {{ color: {ORANGE}; }}
 
@@ -48,7 +65,12 @@ CSS = f"""
 /* the signed-in name at the very bottom of the sidebar */
 [data-testid="stSidebarContent"] {{ display: flex; flex-direction: column; }}
 [data-testid="stSidebarUserContent"] {{ margin-top: auto; padding-bottom: 1.2rem; }}
-.st-key-account_link {{ border-top: 1px solid {LINE}; padding-top: 0.8rem; }}
+.st-key-account_link {{ padding: 0 0.6rem; }}
+.st-key-account_link a {{ border-radius: 14px; background: #F6F5F2; border: 1px solid transparent;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s; }}
+.st-key-account_link a:hover {{ background: #FFF4EC; border-color: rgba(255, 95, 0, 0.35);
+    transform: translateY(-2px); box-shadow: 0 8px 20px rgba(255, 95, 0, 0.12); }}
+.st-key-account_link a:hover [data-testid="stIconMaterial"] {{ color: {ORANGE}; }}
 
 /* account page */
 .op-profile {{ display: flex; gap: 16px; align-items: center; margin-bottom: 10px; }}
