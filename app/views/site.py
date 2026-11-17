@@ -190,12 +190,9 @@ else:
     header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Site view", live=True)
     if "site_saved" in st.session_state:
         st.success(st.session_state.pop("site_saved"), icon=":material/check_circle:")
-    if st.button(
-        "Edit site",
-        type="primary",
-        icon=":material/edit:",
-        help="Rebuild the site to match your own facility, starting from an empty site",
-    ):
+    # pressed by the "Edit site" tab inside the 3D view (site_scene.html), so it stays hidden
+    st.html("<style>.st-key-site_edit { display: none !important; }</style>")
+    if st.button("Edit site", key="site_edit"):
         start_editing([])
         st.rerun()
     scene(comps)
