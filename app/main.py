@@ -44,16 +44,13 @@ pages = {
     "Overview": [
         home,
         page("site", words["view"], "view_in_ar" if words["site"] == "site" else "cottage"),
+        page("savings", "Savings", "savings"),
     ],
     "Analytics": [
         page("analytics", "Power", "show_chart"),
         page("weather", "Weather & solar", "partly_cloudy_day"),
         page("outlook", "Price outlook", "online_prediction"),
         page("cockpit", words["planner"], "tune"),
-    ],
-    "Results": [
-        page("savings", "Savings", "savings"),
-        page("tariff", "Tariff calculator", "receipt_long"),
     ],
     "Setup": [
         page("components", words["setup"], "precision_manufacturing"),

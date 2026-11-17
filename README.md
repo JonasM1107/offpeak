@@ -28,7 +28,6 @@ Each page answers one question:
 | **Price outlook** | What will power cost in the days after tomorrow? (Offpeak Intelligence, our forecast trained in the background) |
 | **Simulation cockpit** | When should each machine run? (try machines, job lengths and time windows) |
 | **Savings** | What did it bring? (past days replayed with real prices and weather) |
-| **Tariff calculator** | What does a kWh really cost us, dynamic or fixed? |
 | **Site view, Site & components** | What is on the site? (3D view, components and machines) |
 
 **Ask Ollie**, the robot at the bottom right, answers questions like "when should I run the heat pump in 3 days, 3 hours, done by 18:00?" from the app's own data. The app is behind a login for the team (emails and a password set in the Streamlit secrets, see `.env.example`); a browser stays signed in for 24 hours.

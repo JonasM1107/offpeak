@@ -186,7 +186,6 @@ def test_a_token_from_before_roles_opens_the_business_portal():
         "views/outlook.py",
         "views/cockpit.py",
         "views/savings.py",
-        "views/tariff.py",
         "views/components.py",
         "views/settings.py",
         "views/account.py",
