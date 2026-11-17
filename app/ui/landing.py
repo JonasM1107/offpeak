@@ -10,11 +10,11 @@ page because both come from the same server). That sets "login_open", and the si
 screen takes over (see main.py).
 """
 
-from pathlib import Path
-
 import streamlit as st
 
-PAGE = Path(__file__).with_name("web") / "landing.html"
+from ui.web import WEB, with_field
+
+PAGE = WEB / "landing.html"
 
 # The frame fills the window, above Streamlit's own header; the Login button stays hidden.
 CSS = """<style>
@@ -23,7 +23,7 @@ CSS = """<style>
 .st-key-landing iframe { position: fixed; inset: 0; width: 100vw !important;
     height: 100vh !important; height: 100dvh !important; border: 0; z-index: 999990; }
 .st-key-landing_login { display: none !important; }
-#op-portal { display: block !important; }  /* the Login lens (landing.html: portal) */
+#op-portal { display: block !important; }  /* the Login core (landing.html: core) */
 </style>"""
 
 LOGIN_OPEN = "login_open"
@@ -50,4 +50,4 @@ def show() -> None:
         st.rerun()
     with st.container(key="landing"):
         # Our own file, never user input, so the frame may run its script.
-        st.iframe(PAGE.read_text(), height=900)
+        st.iframe(with_field(PAGE.read_text()), height=900)

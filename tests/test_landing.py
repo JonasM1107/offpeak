@@ -99,6 +99,31 @@ def test_before_the_browser_answers_neither_page_flashes_by():
     assert not landing_shown(at) and not login_shown(at)
 
 
+def test_the_landing_page_and_the_sign_in_share_the_power_lines():
+    """Both pages get web/field.js put in; no placeholder is left behind."""
+    at = visitor()
+    landing = next(f.proto.srcdoc for f in at.get("iframe") if "Peak prices" in f.proto.srcdoc)
+    assert "function PowerField" in landing and "<!--FIELD-->" not in landing
+    at = press(at, "landing_login")
+    background = [
+        f.proto.srcdoc for f in at.get("iframe") if "PowerField(document" in f.proto.srcdoc
+    ]
+    assert len(background) == 1 and "<!--FIELD-->" not in background[0]
+
+
+def test_no_style_block_is_dropped_by_the_html_cleaner():
+    """st.html removes a whole <style> block whose text contains "<" followed by a letter,
+    "/" or "!" (it looks like a tag). That once took away every style of the app, so check
+    each style block the sign-in and landing page send."""
+    at = press(visitor(), "landing_login")  # the sign-in page, after the landing page
+    styles = [h.proto.body for h in at.get("html") if "<style>" in h.proto.body]
+    styles += [h.proto.body for h in visitor().get("html") if "<style>" in h.proto.body]
+    assert len(styles) >= 4
+    for block in styles:
+        for css in re.findall(r"<style>(.*?)</style>", block, flags=re.S):
+            assert not re.search(r"<[/\w!]", css), css[:80]
+
+
 def test_every_menu_link_has_a_section_to_scroll_to():
     """Product, Pricing, ... scroll to a part of the page; each needs that part to exist."""
     html = PAGE.read_text()
