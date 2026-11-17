@@ -5,7 +5,9 @@ moving the time slider, switching the plan or clicking through the fact sheets h
 the browser without a rerun.
 """
 
+import base64
 import json
+from functools import cache
 from pathlib import Path
 
 import pandas as pd
@@ -15,6 +17,14 @@ from offpeak import components as site_components
 from offpeak.tariffs import Tariff
 
 TEMPLATE = Path(__file__).with_name("site_scene.html")
+MODELS = Path(__file__).with_name("models")  # GLB files built by scripts/blender/
+
+
+@cache
+def models() -> dict[str, str]:
+    """The detailed 3D models, base64-encoded, by file name without .glb. They travel inside
+    the page's data, so the page needs no file server. Read once per app process."""
+    return {p.stem: base64.b64encode(p.read_bytes()).decode() for p in sorted(MODELS.glob("*.glb"))}
 
 
 def payload(
@@ -50,6 +60,7 @@ def payload(
         "components": day["components"],
         "price_class": day["price_class"],
         "smart_battery": day["smart_battery"],
+        "models": models(),
     }
 
 
