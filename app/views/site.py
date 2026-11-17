@@ -38,7 +38,8 @@ site = {
 hour_now = data.now_utc().tz_convert(MARKET_TZ).hour
 # a home with measurements can also play its last measured day ("Yesterday at home")
 measured = data.measured_scene_day(comps, tariff) if data.role() == "home" else None
-site_scene.show(site_scene.payload(inputs, site, hour_now, tariff, comps, measured))
+day = data.site_day(inputs, data.setup_key(comps), data.role())  # planned once, then kept
+site_scene.show(site_scene.payload(inputs, site, hour_now, tariff, comps, measured, day))
 
 st.page_link(
     "views/components.py",
