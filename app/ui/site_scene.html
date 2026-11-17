@@ -270,7 +270,7 @@ scene.fog = new THREE.Fog(scene.background, 260, 520);
 // all sides, so white walls show their shape instead of looking flat.
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.3;
+scene.environmentIntensity = 0.15;
 const camera = new THREE.PerspectiveCamera(28, 1, 1, 1000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
@@ -282,6 +282,24 @@ sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 320 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
+
+// three.js's Neutral tone mapping (same formula as its shader), and the colour that maps to
+// `target`, found by repeating small corrections (the mapping only ever rises).
+function neutral(c) {
+  const start = 0.76, desat = 0.15, x = Math.min(c.r, c.g, c.b), off = x < 0.08 ? x - 6.25 * x * x : 0.04;
+  let r = c.r - off, g = c.g - off, b = c.b - off;
+  const peak = Math.max(r, g, b);
+  if (peak < start) return new THREE.Color(r, g, b);
+  const d = 1 - start, np = 1 - d * d / (peak + d - start), k = np / peak;
+  r *= k; g *= k; b *= k;
+  const t = 1 - 1 / (desat * (peak - np) + 1);
+  return new THREE.Color(r + (np - r) * t, g + (np - g) * t, b + (np - b) * t);
+}
+function beforeToneMapping(target) {
+  const c = target.clone();
+  for (let i = 0; i < 40; i++) { const o = neutral(c); c.r += target.r - o.r; c.g += target.g - o.g; c.b += target.b - o.b; }
+  return c;
+}
 
 // Post-processing: ambient occlusion darkens corners, gaps and the ground right under
 // each object, which makes the model read as solid. If the browser cannot do it, the
@@ -297,6 +315,10 @@ try {
   ao.blendIntensity = 1;
   composer.addPass(ao);
   composer.addPass(new OutputPass());
+  // With post-processing the background also goes through the tone mapping, which would
+  // grey it. Pick the colour that comes out as the page colour after tone mapping.
+  DAY_BG.copy(beforeToneMapping(DAY_BG)); NIGHT_BG.copy(beforeToneMapping(NIGHT_BG));
+  scene.background.copy(DAY_BG); scene.fog.color.copy(DAY_BG);
 } catch (err) {
   console.warn('offpeak: no post-processing, drawing the plain scene', err);
   composer = null;
