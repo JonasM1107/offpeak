@@ -7,6 +7,7 @@ Streamlit Cloud does not pass cookies on to the app, which is why it is not a co
 """
 
 import os
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -90,8 +91,8 @@ def sign_out() -> None:
     )
 
 
-def login_screen() -> None:
-    """The page everyone sees before the app: only the sign-in form, no menu."""
+def login_screen(back: Callable[[], None] | None = None) -> None:
+    """The sign-in form, alone on the page: no menu. `back` leads to the landing page."""
     st.html(
         "<style>[data-testid=stSidebar], [data-testid=stSidebarCollapsedControl],"
         "[data-testid=stSidebarCollapseButton] { display: none !important; }</style>"
@@ -120,3 +121,5 @@ def login_screen() -> None:
             else:
                 st.rerun()
         st.caption(f"You stay signed in on this browser for {auth.SESSION_HOURS} hours.")
+        if back and st.button("← Back to the homepage", key="login_back", type="tertiary"):
+            back()
