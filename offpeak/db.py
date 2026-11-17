@@ -221,6 +221,38 @@ def delete_component(engine: Engine, component_id: str) -> None:
         conn.execute(text("delete from site_components where id = :id"), {"id": component_id})
 
 
+def replace_components(engine: Engine, site_id: int, components: list[dict]) -> None:
+    """Make the site's components exactly this list (the "Edit site" save).
+
+    One transaction: if anything fails, the site keeps its old components instead of ending
+    up half old, half new. Components that stay are updated in place, so they keep their
+    place in the list (it is ordered by when each was first saved)."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("delete from site_components where site_id = :s and not (id = any(:keep))"),
+            {"s": site_id, "keep": [c["id"] for c in components]},
+        )
+        if components:
+            conn.execute(
+                text("""
+                    insert into site_components (id, site_id, kind, name, params)
+                    values (:id, :site_id, :kind, :name, cast(:params as jsonb))
+                    on conflict (id) do update set
+                        kind = excluded.kind, name = excluded.name, params = excluded.params
+                """),
+                [
+                    {
+                        "id": c["id"],
+                        "site_id": site_id,
+                        "kind": c["kind"],
+                        "name": c["name"],
+                        "params": json.dumps(c["params"]),
+                    }
+                    for c in components
+                ],
+            )
+
+
 # ── Simulation cockpit machines ─────────────────────────────────────────────
 
 

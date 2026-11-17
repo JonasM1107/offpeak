@@ -116,3 +116,20 @@ def test_table_status_names_missing_tables(engine):
         conn.exec_driver_sql("drop table price_outlook")
     missing = db.table_status(engine)["price_outlook"]
     assert not missing["ok"] and "price_outlook" in missing["error"]
+
+
+def test_replace_components_makes_the_site_exactly_the_new_list(engine):
+    from offpeak.components import new_component
+
+    def row(c):
+        return {"id": c.id, "kind": c.kind, "name": c.name, "params": c.params}
+
+    keep, drop = new_component("pv_roof", "Roof"), new_component("battery", "Old battery")
+    db.save_components(engine, 1, [row(keep), row(drop)])
+    added = new_component("heat_pump", "New heat pump")
+    db.replace_components(engine, 1, [row(keep) | {"name": "Roof east"}, row(added)])
+    stored = db.read_components(engine, 1)
+    assert [c["name"] for c in stored] == ["Roof east", "New heat pump"]  # kept first
+    assert drop.id not in {c["id"] for c in stored}
+    db.replace_components(engine, 1, [])  # an empty list clears the site
+    assert db.read_components(engine, 1) == []

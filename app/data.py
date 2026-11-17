@@ -230,6 +230,29 @@ def remove_component(component_id: str) -> str:
     return "database"
 
 
+def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]]:
+    """Make the site exactly `new` (the "Edit site" save). Returns where it went and the
+    problems that stopped it (then nothing is saved).
+
+    Checked here again, not only on the page: this is where the data is stored. Like adding
+    and removing, only a signed-in editor changes the shared site; anyone else keeps the
+    new site in this browser tab."""
+    problems = components.validate_site(new)
+    if problems:
+        return None, problems
+    new = [replace(c, name=c.name.strip(), params=dict(c.params)) for c in new]
+    if not can_share():
+        st.session_state[LOCAL_COMPONENTS] = new
+        return ("local" if engine() else "session"), []
+    try:
+        db.replace_components(engine(), DEMO_SITE.id, [_as_row(c) for c in new])
+    except Exception as err:
+        print(f"offpeak: cannot save the edited site: {err}")
+        return None, ["The site could not be saved right now. Please try again in a minute."]
+    st.session_state.pop(LOCAL_COMPONENTS, None)
+    return "database", []
+
+
 # ── Simulation cockpit machines ──────────────────────────────────────────────
 
 

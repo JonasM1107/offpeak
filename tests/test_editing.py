@@ -93,3 +93,68 @@ def test_signing_out_shows_the_login_again(fake_db):
     next(b for b in at.button if b.label == "Sign out").click()
     at.run()
     assert not shows_the_app(at) and [t.label for t in at.text_input] == ["Email", "Password"]
+
+
+# ── "Edit site" on the site view ─────────────────────────────────────────────
+
+
+def site_editor(fake_db, monkeypatch) -> tuple[AppTest, list]:
+    """A signed-in editor on the site view; returns the app and what replace_components got."""
+    replaced = []
+    monkeypatch.setattr(db, "replace_components", lambda e, site_id, rows: replaced.append(rows))
+    at = AppTest.from_file(str(APP), default_timeout=60)
+    at.session_state["editor_token"] = auth.make_token("ann@example.com", datetime.now(UTC), SECRET)
+    at.switch_page("views/site.py").run()
+    return at, replaced
+
+
+def click(at: AppTest, label: str) -> None:
+    next(b for b in at.button if b.label == label).click()
+    at.run()
+    assert not at.exception
+
+
+def test_edit_site_starts_empty_and_saves_what_was_built(fake_db, monkeypatch):
+    at, replaced = site_editor(fake_db, monkeypatch)
+    click(at, "Edit site")
+    assert any("Your site is empty" in i.value for i in at.info)
+    click(at, "Heat pump")
+    click(at, "Heat pump")  # a second one gets its own name
+    click(at, "Rooftop solar")
+    click(at, "Save site")
+    assert len(replaced) == 1
+    assert [r["name"] for r in replaced[0]] == ["Heat pump", "Heat pump 2", "Rooftop solar"]
+    assert not any(b.label == "Save site" for b in at.button)  # back in the site view
+    assert "Saved for everyone" in at.success[0].value
+
+
+def test_edit_site_does_not_save_an_empty_site_or_a_duplicate_name(fake_db, monkeypatch):
+    at, replaced = site_editor(fake_db, monkeypatch)
+    click(at, "Edit site")
+    click(at, "Save site")
+    assert "Add at least one component" in at.error[0].value
+    click(at, "Battery storage")
+    click(at, "Battery storage")
+    next(t for t in at.text_input if t.value == "Battery storage 2").input("battery storage")
+    at.run()
+    click(at, "Save site")
+    assert "two components have this name" in at.error[0].value
+    assert replaced == [] and fake_db == []  # nothing reached the database
+
+
+def test_cancel_leaves_the_site_as_it_was(fake_db, monkeypatch):
+    at, replaced = site_editor(fake_db, monkeypatch)
+    click(at, "Edit site")
+    click(at, "Wind turbine")
+    click(at, "Cancel")
+    assert replaced == [] and any(b.label == "Edit site" for b in at.button)
+
+
+def test_without_a_database_the_edited_site_is_kept_in_the_tab(fake_db, monkeypatch):
+    monkeypatch.setattr(db, "database_url", lambda: None)
+    at, replaced = site_editor(fake_db, monkeypatch)
+    click(at, "Edit site")
+    click(at, "Cold store")
+    click(at, "Save site")
+    assert replaced == []
+    assert [c.name for c in at.session_state["components_local"]] == ["Cold store"]

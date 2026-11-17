@@ -216,6 +216,63 @@ def validate(kind: str, params: dict) -> list[str]:
     return problems
 
 
+# ── Editing a whole site at once (the "Edit site" mode of the site view) ─────
+
+# A small business site with more than this is unlikely, and the 3D island has room for
+# about this many; it also keeps one browser from storing an endless list.
+MAX_COMPONENTS = 20
+MAX_NAME = 60
+
+
+def next_name(kind: str, components) -> str:
+    """A name for a new component that is not taken yet: "Heat pump", then "Heat pump 2"."""
+    label = CATALOGUE[kind].label
+    taken = {c.name.casefold() for c in components}
+    if label.casefold() not in taken:
+        return label
+    n = 2
+    while f"{label} {n}".casefold() in taken:
+        n += 1
+    return f"{label} {n}"
+
+
+def validate_site(components) -> list[str]:
+    """Problems with a whole site before it is saved, in plain words (empty list = fine).
+
+    Checks every component like `validate` does for one, plus what only shows up across
+    the whole list: missing or duplicate names, unknown kinds, too many components. Called
+    by the page for quick feedback and again where the site is saved, because a page is not
+    a safe place to check things (anything can be sent to it)."""
+    components = list(components)
+    problems = []
+    if not components:
+        # an empty list in the database means "never edited", which shows the demo site again
+        problems.append("Add at least one component before saving")
+    if len(components) > MAX_COMPONENTS:
+        problems.append(f"A site can have at most {MAX_COMPONENTS} components")
+    seen = set()
+    for i, c in enumerate(components, start=1):
+        name = (c.name or "").strip()
+        who = name or f"Component {i}"
+        if c.kind not in CATALOGUE:
+            problems.append(f"{who}: unknown type")
+            continue
+        if not name:
+            problems.append(f"Component {i} ({c.spec.label}) needs a name")
+        elif len(name) > MAX_NAME:
+            problems.append(f"{who}: the name can be at most {MAX_NAME} characters")
+        elif name.casefold() in seen:
+            problems.append(f"{who}: two components have this name")
+        seen.add(name.casefold())
+        try:
+            values = {k: float(v) for k, v in c.params.items()}
+        except (TypeError, ValueError):
+            problems.append(f"{who}: every size and hour must be a number")
+            continue
+        problems += [f"{who}: {p}" for p in validate(c.kind, values)]
+    return problems
+
+
 # ── From components to the site energy model ────────────────────────────────
 
 

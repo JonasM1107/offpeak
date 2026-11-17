@@ -17,6 +17,8 @@
   .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 20px 22px; }
   section { margin-top: 12px; }
+  /* compact: only the 3D stage, used as the live preview while editing the site */
+  body.compact section, body.compact .foot { display: none; }
 
   /* 3D stage */
   .stage { position: relative; height: 600px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
@@ -240,6 +242,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 // All numbers come from Python (offpeak/components.py and offpeak/demo_site.py).
 // This file only draws them.
 const D = window.OFFPEAK;
+document.body.classList.toggle('compact', !!D.compact);
 const COMPS = D.components;
 const byId = Object.fromEntries(COMPS.map(c => [c.id, c]));
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
