@@ -30,7 +30,9 @@ class Assets:
     turbine_kw: float = 15.0
     battery_kwh: float = 120.0
     battery_kw: float = 20.0
-    cold_store_kw: float = 15.0
+    cold_store_kw: float = 15.0  # the load that runs around the clock (a home: its base load)
+    # how that load varies over the day: 24 factors with a mean of 1, or None for flat
+    base_shape: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -160,7 +162,8 @@ def simulate(
             f.key: f.kw if plan.starts[f.key] <= r.hour < plan.starts[f.key] + f.hours else 0.0
             for f in loads
         }
-        load = assets.cold_store_kw + sum(running.values())
+        base = assets.cold_store_kw * (assets.base_shape[r.hour] if assets.base_shape else 1.0)
+        load = base + sum(running.values())
         gen = r.pv_kw + r.wind_kw
         battery = 0.0
         if gen > load:
@@ -176,7 +179,7 @@ def simulate(
                 "price_ct": r.price_ct,
                 "pv_kw": r.pv_kw,
                 "wind_kw": r.wind_kw,
-                "cold_kw": assets.cold_store_kw,
+                "cold_kw": base,
                 **{f"{key}_kw": kw for key, kw in running.items()},
                 "load_kw": load,
                 "battery_kw": battery,

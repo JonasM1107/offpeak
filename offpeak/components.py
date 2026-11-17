@@ -171,7 +171,12 @@ HOME_CATALOGUE: dict[str, Kind] = {
             "generation",
             "Solar modules on the house roof, with an inverter in the utility room.",
             25,
-            (Param("kwp", "Peak power", "kWp", 8, 1, 30),),
+            (
+                Param("kwp", "Peak power", "kWp", 8, 1, 30),
+                # trees, a neighbour's roof, dirt, wiring: what this roof yields less than the
+                # model of a clear roof. The demo home's is from its measurements.
+                Param("losses", "Shading and site losses", "%", 0, 0, 60),
+            ),
         ),
         Kind(
             "battery",
@@ -287,10 +292,16 @@ DEFAULT_COMPONENTS = (
     Component("cold-store", "cold_store", "Cold store", {"kw": 15}),
 )
 
-# The demo home: typical values for a family house in Germany with solar on the roof
+# The demo home: a real family house with solar on the roof (one of the team's, measured with
+# its Fronius inverter from Sep 2023 to Nov 2026; only these summary values are used, the
+# measurements stay out of the repository): 8 kWp, a 9.6 kWh usable battery that charges at up
+# to 6 kW and gives up to 5.5 kW, and about 3,200 kWh a year for the household. The heat pump
+# and the wallbox are typical additions, to show what a home can move to cheaper hours.
 DEFAULT_HOME_COMPONENTS = (
-    Component("home-pv", "pv_roof", "Rooftop solar", {"kwp": 8}, "home"),
-    Component("home-battery", "battery", "Home battery", {"kwh": 10, "kw": 5}, "home"),
+    # 15 %: the house yields about 800 kWh per kWp a year where a clear roof would give about
+    # 940 (trees and the neighbours' roof)
+    Component("home-pv", "pv_roof", "Rooftop solar", {"kwp": 8, "losses": 15}, "home"),
+    Component("home-battery", "battery", "Home battery", {"kwh": 9.6, "kw": 5.5}, "home"),
     Component(
         "home-heat-pump",
         "heat_pump",
@@ -320,7 +331,8 @@ DEFAULT_HOME_COMPONENTS = (
         {"kw": 1.5, "hours": 2, "earliest": 7, "latest_end": 23, "usual_start": 21},  # 3 kWh
         "home",
     ),
-    Component("home-base", "household", "Household base load", {"kw": 0.35}, "home"),
+    # measured: 0.36 kW on average, 0.19 kW at night; washer and dryer are planned on their own
+    Component("home-base", "household", "Household base load", {"kw": 0.3}, "home"),
 )
 
 DEFAULTS = {"business": DEFAULT_COMPONENTS, "home": DEFAULT_HOME_COMPONENTS}
@@ -368,11 +380,54 @@ def _total(components, kind_keys, param) -> float:
     return sum(c.p(param) for c in components if c.kind in kind_keys)
 
 
+def _effective_kwp(components) -> float:
+    """Solar peak power after each system's shading and site losses (only rooftop systems of
+    a home have that setting; everything else counts in full)."""
+    total = 0.0
+    for c in components:
+        if c.kind in ("pv_field", "pv_roof"):
+            has = any(x.key == "losses" for x in c.spec.params)
+            total += c.p("kwp") * (1 - (c.p("losses") / 100 if has else 0.0))
+    return total
+
+
+# How a household's base load varies over the day, by local hour, as factors of its average.
+# Measured in a real family house (one of the team's, Sep 2023 to Nov 2026, Fronius
+# inverter): low at night (about half the average), a rise from 6 o'clock, highest in the
+# early afternoon. Only these 24 averages are in the repository, never the measurements.
+HOUSEHOLD_SHAPE = (
+    0.66,
+    0.58,
+    0.52,
+    0.52,
+    0.52,
+    0.69,
+    0.94,
+    1.02,
+    1.21,
+    1.10,
+    1.16,
+    1.16,
+    1.38,
+    1.29,
+    1.35,
+    1.40,
+    1.29,
+    1.24,
+    1.24,
+    1.13,
+    1.05,
+    0.99,
+    0.85,
+    0.69,
+)
+
+
 def site_model(components) -> tuple[Assets, tuple[FlexLoad, ...]]:
     """The whole site as the energy model sees it: summed assets plus every flexible load."""
     wind_kw = _total(components, {"wind"}, "kw")
     assets = Assets(
-        pv_kwp=_total(components, {"pv_field", "pv_roof"}, "kwp"),
+        pv_kwp=_effective_kwp(components),
         # the power curve is linear in the rated power, so one turbine with the summed
         # rating produces exactly what all turbines together produce
         turbines=1 if wind_kw else 0,
@@ -381,6 +436,7 @@ def site_model(components) -> tuple[Assets, tuple[FlexLoad, ...]]:
         battery_kw=_total(components, {"battery"}, "kw"),
         # the load that runs around the clock: a business's cold store, a home's base load
         cold_store_kw=_total(components, BASE_KINDS, "kw"),
+        base_shape=HOUSEHOLD_SHAPE if any(c.kind == "household" for c in components) else None,
     )
     loads = tuple(
         FlexLoad(
