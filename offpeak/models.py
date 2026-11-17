@@ -12,3 +12,4 @@ class Site:
     zone: str = "DE-LU"
     tilt_deg: float = 30.0
     azimuth_deg: float = 180.0  # compass bearing, 180 = south (see PLAN.md, conventions)
+    profile: str = "business"  # "business" or "home" (offpeak/roles.py)

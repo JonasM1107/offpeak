@@ -5,14 +5,18 @@ import streamlit as st
 from ui import site_scene
 from ui.components import header
 
-from offpeak import components, demo_site
+from offpeak import components, demo_site, roles
 from offpeak.config import MARKET_TZ
 from offpeak.markets.energy_charts import PriceSourceError
-from offpeak.sites import DEMO_CITY, DEMO_SITE
+from offpeak.sites import DEMO_CITY
 from offpeak.tariffs import germany_2026
 from offpeak.timeutils import market_today
 
-header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Site view", live=True)
+header(
+    f"{data.site().name} · {DEMO_CITY} · {data.site().zone}",
+    roles.words(data.role())["view"],
+    live=True,
+)
 
 try:
     today_prices, _, _, _ = data.today_and_tomorrow()
@@ -26,9 +30,9 @@ tariff = germany_2026(pv_kwp=assets.pv_kwp)
 inputs = demo_site.hourly_inputs(today_prices, weather, MARKET_TZ, assets)
 inputs = demo_site.apply_tariff(inputs, tariff, market_today())
 site = {
-    "name": DEMO_SITE.name,
+    "name": data.site().name,
     "city": DEMO_CITY,
-    "zone": DEMO_SITE.zone,
+    "zone": data.site().zone,
     "date": market_today().isoformat(),
 }
 hour_now = data.now_utc().tz_convert(MARKET_TZ).hour
@@ -36,6 +40,6 @@ site_scene.show(site_scene.payload(inputs, site, hour_now, tariff, comps))
 
 st.page_link(
     "views/components.py",
-    label="Add or remove components under Setup → Site & components",
+    label=f"Add or remove them under Setup → {roles.words(data.role())['setup']}",
     icon=":material/add_circle:",
 )

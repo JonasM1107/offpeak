@@ -9,11 +9,11 @@ from ui import web
 from ui.components import header
 
 from offpeak import savings
-from offpeak.sites import DEMO_CITY, DEMO_SITE
+from offpeak.sites import DEMO_CITY
 from offpeak.timeutils import market_today
 
 TZ = "Europe/Berlin"
-header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Savings", live=True)
+header(f"{data.site().name} · {DEMO_CITY} · {data.site().zone}", "Savings", live=True)
 
 period = st.segmented_control(
     "Period",

@@ -9,10 +9,15 @@ import streamlit as st
 from ui import web
 from ui.components import header
 
+from offpeak import roles
 from offpeak.cockpit import clean_machines
-from offpeak.sites import DEMO_CITY, DEMO_SITE
+from offpeak.sites import DEMO_CITY
 
-header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Simulation cockpit", live=True)
+header(
+    f"{data.site().name} · {DEMO_CITY} · {data.site().zone}",
+    roles.words(data.role())["planner"],
+    live=True,
+)
 
 
 @st.fragment
@@ -37,6 +42,8 @@ def cockpit() -> None:
         "saved": saved,
         "storage": storage,
         "now_index": now_index,
+        "words": roles.words(data.role()),  # "Pick a device" for a home
+        "presets": roles.PLANNER_PRESETS[data.role()],  # household or business templates
     }
     web.live("cockpit", payload, key="cockpit", height=1400, keep=("machines", "saved"))
 

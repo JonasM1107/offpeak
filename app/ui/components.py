@@ -91,7 +91,7 @@ CSS = f"""
 /* "\\3C angle\\3E" is the type "angle" in angle brackets, written as CSS escapes: st.html
    drops a whole style block whose text has a "less than" sign followed by a letter */
 @property --op-trace {{ syntax: "\\3C angle\\3E"; inherits: false; initial-value: 0deg; }}
-.st-key-card_login {{ width: min(420px, 100%) !important; margin: 12vh auto 0 !important;
+.st-key-card_login, .st-key-card_roles {{ margin: 12vh auto 0 !important;
     position: relative; z-index: 2; overflow: visible !important;
     background: radial-gradient(480px circle at var(--mx, 50%) var(--my, -30%),
         rgba(255, 95, 0, 0.07), transparent 45%), #fff !important;
@@ -100,7 +100,7 @@ CSS = f"""
 @keyframes op-card-in {{
     from {{ opacity: 0; transform: scale(0.86); filter: blur(14px); }}
     60% {{ filter: blur(0); }} }}
-.st-key-card_login::before {{ content: ""; position: absolute; inset: -1.5px; padding: 1.5px;
+.st-key-card_login::before, .st-key-card_roles::before {{ content: ""; position: absolute; inset: -1.5px; padding: 1.5px;
     border-radius: 21px; pointer-events: none;
     background: conic-gradient(from var(--op-trace), transparent 0 62%, #FFB27A 78%,
         {ORANGE} 88%, transparent 97%);
@@ -110,10 +110,23 @@ CSS = f"""
 @keyframes op-trace {{
     0% {{ --op-trace: 0deg; opacity: 0; }} 12% {{ opacity: 1; }} 80% {{ opacity: 1; }}
     100% {{ --op-trace: 360deg; opacity: 0; }} }}
-.st-key-card_login::after {{ content: ""; position: absolute; inset: 0; border-radius: 20px;
+.st-key-card_login::after, .st-key-card_roles::after {{ content: ""; position: absolute; inset: 0; border-radius: 20px;
     pointer-events: none; box-shadow: 0 0 70px rgba(255, 95, 0, 0.35);
     animation: op-card-glow 1.6s ease 0.2s both; }}
 @keyframes op-card-glow {{ from {{ opacity: 0; }} 30% {{ opacity: 1; }} to {{ opacity: 0; }} }}
+.st-key-card_login {{ width: min(420px, 100%) !important; }}
+/* step 1 of signing in: two cards side by side, Homeowner and Business (account.py) */
+.st-key-card_roles {{ width: min(760px, 100%) !important; }}
+.st-key-role_home, .st-key-role_business {{ border-radius: 18px !important; padding: 18px !important;
+    transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s; height: 100%; }}
+.st-key-role_home:hover, .st-key-role_business:hover {{ transform: translateY(-3px);
+    border-color: {ORANGE} !important; box-shadow: 0 18px 44px rgba(255, 95, 0, 0.14); }}
+.op-role img {{ width: 42px; height: 42px; display: block; }}
+.op-role h3 {{ font-size: 1.25rem; font-weight: 650; margin: 10px 0 6px; color: {INK}; }}
+.op-role p {{ color: {MUTED}; font-size: 0.88rem; line-height: 1.5; margin: 0 0 4px;
+    min-height: 4.4em; }}
+.op-role-chip {{ display: inline-block; padding: 4px 12px; border-radius: 999px;
+    background: {ORANGE_SOFT}; color: #B84300; font-weight: 600; font-size: 0.85rem; }}
 /* the field being typed in glows */
 .st-key-card_login [data-baseweb=input] {{ transition: box-shadow 0.25s, border-color 0.25s; }}
 .st-key-card_login [data-baseweb=input]:focus-within {{ border-color: {ORANGE} !important;
@@ -126,7 +139,8 @@ CSS = f"""
    everywhere; the landing page shows it, the sign-in page bursts it (account.py). */
 #op-portal {{ display: none !important; }}
 /* the landing page's background: a faint grid and an orange glow at the top */
-[data-testid=stAppViewContainer]:has(.st-key-card_login) {{
+[data-testid=stAppViewContainer]:has(.st-key-card_login),
+[data-testid=stAppViewContainer]:has(.st-key-card_roles) {{
     background:
         radial-gradient(900px 520px at 50% 0%, rgba(255, 95, 0, 0.08), transparent 70%),
         linear-gradient(rgba(28, 27, 25, 0.045) 1px, transparent 1px) 0 0 / 64px 64px,

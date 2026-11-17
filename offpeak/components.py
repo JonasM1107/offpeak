@@ -156,16 +156,105 @@ CATALOGUE: dict[str, Kind] = {
 }
 
 
+# The household catalogue (the "home" profile). The same physical kinds as a business where
+# they exist (rooftop solar, battery, heat pump, car charger), with household names, sizes and
+# limits, plus two kinds only a home has: an appliance with a start timer (washing machine,
+# dryer, dishwasher) and the household's base load. A business never gets these, and a home
+# never gets a solar field, a turbine, a furnace or a cold store: a component's kind must be
+# in its profile's catalogue (check_profile), wherever it is saved.
+HOME_CATALOGUE: dict[str, Kind] = {
+    k.key: k
+    for k in (
+        Kind(
+            "pv_roof",
+            "Rooftop solar",
+            "generation",
+            "Solar modules on the house roof, with an inverter in the utility room.",
+            25,
+            (Param("kwp", "Peak power", "kWp", 8, 1, 30),),
+        ),
+        Kind(
+            "battery",
+            "Home battery",
+            "storage",
+            "Lithium iron phosphate (LFP) battery on the wall of the utility room.",
+            15,
+            (
+                Param("kwh", "Capacity", "kWh", 10, 2, 40),
+                Param("kw", "Power", "kW", 5, 1, 15),
+            ),
+        ),
+        Kind(
+            "heat_pump",
+            "Heat pump",
+            "flexible",
+            "Air-to-water heat pump with a hot-water tank, so heating can move to cheaper hours.",
+            20,
+            (
+                Param("kw", "Electrical power", "kW", 3, 1, 15),
+                Param("hours", "Run time per day", "h", 5, 1, 24),
+                Param("earliest", "Earliest start", "h", 0, 0, 23),
+                Param("latest_end", "Must be done by", "h", 24, 1, 24),
+                Param("usual_start", "Usually starts at", "h", 6, 0, 23),
+            ),
+        ),
+        Kind(
+            "ev_charger",
+            "Wallbox",
+            "flexible",
+            "Wall-mounted car charger in the garage; the car only needs to be full when it leaves.",
+            12,
+            (
+                Param("count", "Chargers", "", 1, 1, 2),
+                Param("kw", "Charging power", "kW", 11, 3, 22),
+                Param("hours", "Charging time per day", "h", 1, 1, 24),
+                Param("earliest", "Earliest start", "h", 0, 0, 23),
+                Param("latest_end", "Must be done by", "h", 24, 1, 24),
+                Param("usual_start", "Usually starts at", "h", 18, 0, 23),
+            ),
+        ),
+        Kind(
+            "appliance",
+            "Household appliance",
+            "flexible",
+            "A washing machine, dryer or dishwasher with a start timer.",
+            12,
+            (
+                Param("kw", "Electrical power", "kW", 1.5, 0.5, 5),
+                Param("hours", "Run time", "h", 2, 1, 6),
+                Param("earliest", "Earliest start", "h", 7, 0, 23),
+                Param("latest_end", "Must be done by", "h", 23, 1, 24),
+                Param("usual_start", "Usually starts at", "h", 19, 0, 23),
+            ),
+        ),
+        Kind(
+            "household",
+            "Household base load",
+            "base",
+            "Fridge, lights, cooking, computers: what runs whenever it is needed.",
+            15,
+            # 0.35 kW around the clock is about 8.4 kWh a day, 3,000 kWh a year
+            (Param("kw", "Average power", "kW", 0.35, 0.1, 3),),
+        ),
+    )
+}
+
+# Every profile and its catalogue: "business" for a small or medium business, "home" for a
+# household. The profile of the signed-in account decides which one a page uses.
+CATALOGUES: dict[str, dict[str, Kind]] = {"business": CATALOGUE, "home": HOME_CATALOGUE}
+
+
 @dataclass
 class Component:
     id: str
     kind: str
     name: str
     params: dict = field(default_factory=dict)
+    profile: str = "business"
 
     @property
     def spec(self) -> Kind:
-        return CATALOGUE[self.kind]
+        return CATALOGUES[self.profile][self.kind]
 
     def p(self, key: str) -> float:
         """A parameter, or the kind's default if it was never set."""
@@ -173,10 +262,12 @@ class Component:
         return float(self.params.get(key, default))
 
 
-def new_component(kind: str, name: str, params: dict | None = None) -> Component:
-    spec = CATALOGUE[kind]
+def new_component(
+    kind: str, name: str, params: dict | None = None, profile: str = "business"
+) -> Component:
+    spec = CATALOGUES[profile][kind]
     values = {p.key: p.default for p in spec.params} | (params or {})
-    return Component(id=f"{kind}-{uuid4().hex[:6]}", kind=kind, name=name, params=values)
+    return Component(f"{kind}-{uuid4().hex[:6]}", kind, name, values, profile)
 
 
 DEFAULT_COMPONENTS = (
@@ -196,10 +287,61 @@ DEFAULT_COMPONENTS = (
     Component("cold-store", "cold_store", "Cold store", {"kw": 15}),
 )
 
+# The demo home: typical values for a family house in Germany with solar on the roof
+DEFAULT_HOME_COMPONENTS = (
+    Component("home-pv", "pv_roof", "Rooftop solar", {"kwp": 8}, "home"),
+    Component("home-battery", "battery", "Home battery", {"kwh": 10, "kw": 5}, "home"),
+    Component(
+        "home-heat-pump",
+        "heat_pump",
+        "Heat pump",
+        {"kw": 3, "hours": 5, "earliest": 0, "latest_end": 24, "usual_start": 6},
+        "home",
+    ),
+    Component(
+        "home-wallbox",
+        "ev_charger",
+        "Wallbox",
+        # 11 kWh a day, about 60 km by electric car
+        {"count": 1, "kw": 11, "hours": 1, "earliest": 0, "latest_end": 24, "usual_start": 18},
+        "home",
+    ),
+    Component(
+        "home-washer",
+        "appliance",
+        "Washing machine",
+        {"kw": 1, "hours": 2, "earliest": 7, "latest_end": 23, "usual_start": 19},  # 2 kWh
+        "home",
+    ),
+    Component(
+        "home-dryer",
+        "appliance",
+        "Dryer",
+        {"kw": 1.5, "hours": 2, "earliest": 7, "latest_end": 23, "usual_start": 21},  # 3 kWh
+        "home",
+    ),
+    Component("home-base", "household", "Household base load", {"kw": 0.35}, "home"),
+)
 
-def validate(kind: str, params: dict) -> list[str]:
+DEFAULTS = {"business": DEFAULT_COMPONENTS, "home": DEFAULT_HOME_COMPONENTS}
+
+
+def check_profile(components, profile: str) -> None:
+    """Raise ValueError unless every component belongs to `profile` and has a kind from its
+    catalogue. Called where components are saved, so a household device can never land in a
+    business site and the other way round, whatever the page sent."""
+    if profile not in CATALOGUES:
+        raise ValueError(f"Unknown profile: {profile!r}")
+    for c in components:
+        if c.profile != profile or c.kind not in CATALOGUES[profile]:
+            raise ValueError(f"{c.name!r} ({c.kind}) does not belong to a {profile} profile")
+
+
+def validate(kind: str, params: dict, profile: str = "business") -> list[str]:
     """Problems with a new component's parameters, in plain words (empty list = fine)."""
-    spec = CATALOGUE[kind]
+    if kind not in CATALOGUES.get(profile, {}):
+        return ["This kind of component is not available here"]
+    spec = CATALOGUES[profile][kind]
     problems = [
         f"{p.label} must be between {p.min:g} and {p.max:g} {p.unit}".strip()
         for p in spec.params
@@ -219,6 +361,9 @@ def validate(kind: str, params: dict) -> list[str]:
 # ── From components to the site energy model ────────────────────────────────
 
 
+BASE_KINDS = {"cold_store", "household"}  # loads that run around the clock
+
+
 def _total(components, kind_keys, param) -> float:
     return sum(c.p(param) for c in components if c.kind in kind_keys)
 
@@ -234,7 +379,8 @@ def site_model(components) -> tuple[Assets, tuple[FlexLoad, ...]]:
         turbine_kw=wind_kw,
         battery_kwh=_total(components, {"battery"}, "kwh"),
         battery_kw=_total(components, {"battery"}, "kw"),
-        cold_store_kw=_total(components, {"cold_store"}, "kw"),
+        # the load that runs around the clock: a business's cold store, a home's base load
+        cold_store_kw=_total(components, BASE_KINDS, "kw"),
     )
     loads = tuple(
         FlexLoad(
@@ -267,8 +413,8 @@ def component_series(day: pd.DataFrame, components) -> dict[str, list[float]]:
             s = day["wind_kw"] * _share(c, components, {"wind"}, "kw")
         elif c.kind == "battery":
             s = day["battery_kw"] * _share(c, components, {"battery"}, "kwh")
-        elif c.kind == "cold_store":
-            s = day["cold_kw"] * _share(c, components, {"cold_store"}, "kw")
+        elif c.kind in BASE_KINDS:
+            s = day["cold_kw"] * _share(c, components, BASE_KINDS, "kw")
         else:
             s = day[f"{c.id}_kw"]
         out[c.id] = [round(float(v), 3) for v in s]

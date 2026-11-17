@@ -44,14 +44,14 @@
   const stop = new AbortController(), on = { signal: stop.signal, passive: true };
   addEventListener('pagehide', () => stop.abort());
   const doc = app.document;
-  const inCard = el => el && el.closest && el.closest('.st-key-card_login');
+  const inCard = el => el && el.closest && el.closest('.st-key-card_login, .st-key-card_roles');
   // typing charges the lines a little, a field in focus a bit more, "Sign in" most
   doc.addEventListener('keydown', e => { if (inCard(e.target)) field.kick(.35); }, on);
   doc.addEventListener('focusin', e => { if (inCard(e.target)) field.kick(.6); }, on);
   doc.addEventListener('pointerdown', e => { if (inCard(e.target) && e.target.closest('button')) field.kick(1.6); }, on);
   // a soft light on the card follows the cursor (CSS: --mx, --my in app/ui/components.py)
   app.addEventListener('pointermove', e => {
-    const card = doc.querySelector('.st-key-card_login');
+    const card = doc.querySelector('.st-key-card_login, .st-key-card_roles');
     if (!card) return;
     const r = card.getBoundingClientRect();
     card.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');

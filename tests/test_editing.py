@@ -18,8 +18,12 @@ def fake_db(monkeypatch):
     saved = []
     monkeypatch.setattr(db, "database_url", lambda: "postgresql://fake")
     monkeypatch.setattr(db, "get_engine", lambda url: object())
-    monkeypatch.setattr(db, "read_components", lambda engine, site_id: [])
-    monkeypatch.setattr(db, "save_components", lambda engine, site_id, rows: saved.append(rows))
+    monkeypatch.setattr(db, "read_components", lambda engine, site_id, profile="business": [])
+    monkeypatch.setattr(
+        db,
+        "save_components",
+        lambda engine, site_id, rows, profile="business": saved.append(rows),
+    )
     monkeypatch.setenv("OFFPEAK_EDITORS", "ann@example.com")
     monkeypatch.setenv("OFFPEAK_PASSWORD_HASH", auth.hash_password("pw", salt="s"))
     monkeypatch.setenv("OFFPEAK_AUTH_SECRET", SECRET)
@@ -30,6 +34,7 @@ def visitor(page: str = "views/components.py", stored: str = "") -> AppTest:
     """A browser that is not signed in; `stored` is what its storage holds."""
     at = AppTest.from_file(str(APP), default_timeout=60)
     at.session_state["stored_token"] = stored
+    at.session_state["login_role"] = "business"  # step 1 of signing in: the Business card
     at.switch_page(page)
     return at.run()
 
@@ -92,4 +97,6 @@ def test_signing_out_shows_the_login_again(fake_db):
     at.switch_page("views/account.py").run()
     next(b for b in at.button if b.label == "Sign out").click()
     at.run()
-    assert not shows_the_app(at) and [t.label for t in at.text_input] == ["Email", "Password"]
+    # the login starts again at step 1: the two role cards
+    cards = [b.key for b in at.button if (b.key or "").startswith("choose_")]
+    assert not shows_the_app(at) and cards == ["choose_home", "choose_business"]

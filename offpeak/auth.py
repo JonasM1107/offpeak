@@ -24,6 +24,8 @@ import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 
+from offpeak.roles import normal_role
+
 ROUNDS = 200_000
 SESSION_HOURS = 24
 MAX_ATTEMPTS = 5  # wrong logins per browser session before a pause
@@ -92,28 +94,45 @@ def _sign(text: str, secret: str) -> str:
     return hmac.new(secret.encode(), text.encode(), hashlib.sha256).hexdigest()
 
 
-def make_token(email: str, now: datetime, secret: str, hours: int = SESSION_HOURS) -> str:
-    """A token that proves the login until `now + hours`."""
+def make_token(
+    email: str, now: datetime, secret: str, hours: int = SESSION_HOURS, role: str | None = None
+) -> str:
+    """A token that proves the login until `now + hours`. With a role ("home" or
+    "business") the token also proves which portal the account belongs to: the role is part
+    of what is signed, so it cannot be changed in the browser."""
     expires = int((now + timedelta(hours=hours)).timestamp())
-    body = f"{normal_email(email)}|{expires}"
+    body = f"{normal_email(email)}|{expires}" + (f"|{role}" if role else "")
     raw = f"{body}|{_sign(body, secret)}"
     return base64.urlsafe_b64encode(raw.encode()).decode()
 
 
-def read_token(token, now: datetime, secret: str | None, allowed: set[str]) -> str | None:
-    """The editor's email if the token is genuine, not expired and still allowed."""
+def read_session(
+    token, now: datetime, secret: str | None, allowed: set[str]
+) -> tuple[str, str | None] | None:
+    """(email, role) if the token is genuine, not expired and the email still allowed; role
+    is None for a token made without one. None for anything else."""
     if not token or not secret:
         return None
     try:
-        email, expires, signature = base64.urlsafe_b64decode(str(token)).decode().split("|")
+        *body, signature = base64.urlsafe_b64decode(str(token)).decode().split("|")
+        email, expires, *rest = body
         expires = int(expires)
     except (ValueError, UnicodeDecodeError):
         return None
-    if not hmac.compare_digest(signature, _sign(f"{email}|{expires}", secret)):
+    if len(rest) > 1 or not hmac.compare_digest(signature, _sign("|".join(body), secret)):
         return None
     if now.timestamp() >= expires or email not in allowed:
         return None
-    return email
+    role = normal_role(rest[0]) if rest else None
+    if rest and role is None:  # a signed but unknown role: not ours
+        return None
+    return email, role
+
+
+def read_token(token, now: datetime, secret: str | None, allowed: set[str]) -> str | None:
+    """The editor's email if the token is genuine, not expired and still allowed."""
+    session = read_session(token, now, secret, allowed)
+    return session[0] if session else None
 
 
 def may_try(failures: list[datetime], now: datetime) -> bool:
@@ -124,7 +143,7 @@ def may_try(failures: list[datetime], now: datetime) -> bool:
 def expires_at(token) -> datetime | None:
     """When a (genuine) token stops working; for showing "signed in until"."""
     try:
-        _, expires, _ = base64.urlsafe_b64decode(str(token)).decode().split("|")
+        expires = base64.urlsafe_b64decode(str(token)).decode().split("|")[1]
         return datetime.fromtimestamp(int(expires), UTC)
-    except (ValueError, UnicodeDecodeError):
+    except (IndexError, ValueError, UnicodeDecodeError):
         return None
