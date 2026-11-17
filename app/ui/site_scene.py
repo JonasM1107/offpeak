@@ -6,6 +6,7 @@ the browser without a rerun.
 """
 
 import base64
+import gzip
 import json
 from functools import cache
 from pathlib import Path
@@ -22,9 +23,13 @@ MODELS = Path(__file__).with_name("models")  # GLB files built by scripts/blende
 
 @cache
 def models() -> dict[str, str]:
-    """The detailed 3D models, base64-encoded, by file name without .glb. They travel inside
-    the page's data, so the page needs no file server. Read once per app process."""
-    return {p.stem: base64.b64encode(p.read_bytes()).decode() for p in sorted(MODELS.glob("*.glb"))}
+    """The detailed 3D models by file name without .glb, gzip-compressed (about a third of
+    the size) and base64-encoded. They travel inside the page's data, so the page needs no
+    file server; the browser unpacks them. Read once per app process."""
+    return {
+        p.stem: base64.b64encode(gzip.compress(p.read_bytes(), mtime=0)).decode()
+        for p in sorted(MODELS.glob("*.glb"))
+    }
 
 
 def payload(

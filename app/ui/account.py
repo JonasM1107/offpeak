@@ -100,8 +100,7 @@ def login_screen(back: Callable[[], None] | None = None) -> None:
     if not browser_answered():  # a moment while the browser looks for a stored sign-in
         st.html('<div class="op-login-wait">offpeak</div>')
         return
-    _, middle, _ = st.columns([1, 1.1, 1])
-    with middle, st.container(border=True, key="card_login"):
+    with st.container(border=True, key="card_login"):  # centred by its CSS (components.py)
         st.html(
             '<div class="op-login-head"><div class="op-login-logo">off<b>peak</b></div>'
             "<h2>Sign in</h2><p>When to use electricity, and what that saves.</p></div>"
@@ -123,3 +122,10 @@ def login_screen(back: Callable[[], None] | None = None) -> None:
         st.caption(f"You stay signed in on this browser for {auth.SESSION_HOURS} hours.")
         if back and st.button("← Back to the homepage", key="login_back", type="tertiary"):
             back()
+    # Coming from the landing page's Login, a drawing of this card covers the page while it is
+    # built (landing.html: portal). Sent last, so it fades only once the card is complete.
+    st.html(
+        "<style>#op-portal { display: block !important;"
+        " animation: op-portal-out .3s ease .2s forwards; }"
+        "@keyframes op-portal-out { to { opacity: 0; visibility: hidden; } }</style>"
+    )

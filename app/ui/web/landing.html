@@ -189,6 +189,50 @@
   .step p { color: var(--muted); line-height: 1.6; margin: 0; }
   .step .n { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: var(--faint); }
 
+  /* ── a look inside: real screenshots of the app, one step at a time ── */
+  .tour { display: grid; grid-template-columns: .8fr 1.2fr; gap: 44px; margin-top: 110px; align-items: center; }
+  .tour-head { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  .tour-head h3 { font-family: var(--display); font-size: clamp(28px, 3.2vw, 42px); line-height: 1.05; letter-spacing: -.035em; margin: 14px 0 0; font-weight: 600; }
+  .tour-list { display: flex; flex-direction: column; gap: 10px; }
+  .tour-item { text-align: left; border: 1px solid transparent; background: transparent; border-radius: 22px; padding: 20px 22px 22px; cursor: pointer; position: relative; overflow: hidden;
+    display: grid; grid-template-columns: 34px 1fr; gap: 0 12px; transition: background .4s, border-color .4s, box-shadow .4s; }
+  .tour-item:hover { background: rgba(255,255,255,.45); }
+  .tour-item .n { font-family: var(--mono); font-size: 12px; color: var(--faint); padding-top: 6px; transition: color .3s; }
+  .tour-item b { font-family: var(--display); font-size: 21px; letter-spacing: -.02em; font-weight: 600; color: var(--muted); transition: color .3s; }
+  .tour-item p { grid-column: 2; margin: 0; color: var(--muted); line-height: 1.55; font-size: 15px; max-height: 0; opacity: 0; overflow: hidden;
+    transition: max-height .5s var(--ease), opacity .4s, margin .4s; }
+  .tour-item.on { background: rgba(255,255,255,.78); border-color: rgba(255,255,255,.95); box-shadow: 0 16px 44px rgba(28,27,25,.08); }
+  .tour-item.on b { color: var(--ink); } .tour-item.on .n { color: var(--accent); }
+  .tour-item.on p { max-height: 140px; opacity: 1; margin-top: 8px; }
+  .tour-item .bar { position: absolute; left: 22px; right: 22px; bottom: 0; height: 2px; background: var(--line); opacity: 0; transition: opacity .3s; }
+  .tour-item.on .bar { opacity: 1; }
+  .tour-item .bar i { display: block; height: 100%; transform-origin: left; transform: scaleX(0); background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .stage { position: relative; }
+  .stage::before { content: ''; position: absolute; inset: 12% 8% -6%; background: radial-gradient(closest-side, rgba(255,95,0,.28), transparent); filter: blur(40px); z-index: -1; }
+  .browser { border-radius: 16px; background: #fff; overflow: hidden; box-shadow: 0 40px 100px rgba(28,27,25,.18), 0 0 0 1px rgba(28,27,25,.07);
+    transform: perspective(1600px) rotateY(var(--ry, -5deg)) rotateX(var(--rx, 2deg)); transition: transform .7s var(--ease); }
+  .chrome { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: #F1EFEB; border-bottom: 1px solid var(--line); }
+  .chrome > i { width: 10px; height: 10px; border-radius: 50%; background: #DDD8D0; flex: none; }
+  .url { margin: 0 auto; width: min(380px, 70%); font-family: var(--mono); font-size: 11.5px; color: var(--muted); background: #fff; border-radius: 8px; padding: 6px 12px;
+    display: flex; gap: 7px; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+  .url b { color: var(--ink); font-weight: 500; }
+  .url svg { width: 11px; height: 11px; flex: none; }
+  .shots { position: relative; aspect-ratio: 16 / 10; background: var(--bg); }
+  .shots img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top left; opacity: 0; transform: scale(1.025);
+    transition: opacity .7s var(--ease), transform 1.4s var(--ease); }
+  .shots img.on { opacity: 1; transform: none; }
+  .pin { position: absolute; left: var(--x); top: var(--y); width: 0; height: 0; opacity: 0; transition: opacity .4s; pointer-events: none; }
+  .pin.on { opacity: 1; transition-delay: .6s; }
+  .pin i { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: 3px solid #fff;
+    box-shadow: 0 0 0 0 rgba(255,95,0,.5); animation: hotping 1.8s infinite; }
+  @keyframes hotping { 70% { box-shadow: 0 0 0 14px rgba(255,95,0,0); } 100% { box-shadow: 0 0 0 0 rgba(255,95,0,0); } }
+  .pin span { position: absolute; bottom: 18px; left: 0; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 600;
+    padding: 8px 12px; border-radius: 10px; box-shadow: 0 10px 30px rgba(28,27,25,.25); }
+  .pin span::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; margin-left: -5px; background: var(--ink); transform: rotate(45deg); border-radius: 2px; }
+
+  body { animation: page-in .5s var(--ease) both; }
+  @keyframes page-in { from { opacity: 0; } }
+
   /* ── product bento ── */
   .bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 260px; gap: 16px; margin-top: 56px; }
   .tile { position: relative; overflow: hidden; padding: 24px; border-radius: 28px; background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.9);
@@ -299,9 +343,10 @@
   .foot nav a:hover { color: var(--accent); }
   .mono { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--faint); text-transform: uppercase; }
 
-  body.leaving main, body.leaving footer, body.leaving .nav { transition: opacity .3s, filter .3s; opacity: 0; filter: blur(6px); }
 
   @media (max-width: 1000px) {
+    .tour { grid-template-columns: 1fr; gap: 26px; margin-top: 80px; }
+    .browser { --ry: 0deg; --rx: 0deg; }
     .hero-grid { grid-template-columns: 1fr; gap: 40px; }
     .nav-links { display: none; }
     .bento { grid-template-columns: repeat(2, 1fr); }
@@ -329,6 +374,10 @@
     .chart { height: 170px; }
     .ytick { display: none; }
     .tabs button { padding: 9px 14px; font-size: 13.5px; }
+    .tour-item { padding: 16px 16px 18px; grid-template-columns: 28px 1fr; }
+    .tour-item b { font-size: 18px; }
+    .pin span { font-size: 11px; padding: 6px 9px; }
+    .chrome .url { font-size: 10.5px; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
@@ -444,6 +493,37 @@
         <div class="step reveal" style="--d:.24s">
           <div class="node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 8.5a3.5 3.5 0 1 0 0 7M7 11h6M7 13.5h6"/></svg></div>
           <h3>Savings</h3><p>Your week plan says which machine, when, and what it saves. The savings replay checks it against real prices of the last 30 days.</p>
+        </div>
+      </div>
+
+      <!-- A look inside: screenshots of the real app with demo data (app/static/tour/) -->
+      <div class="tour" id="tour">
+        <div class="tour-head reveal">
+          <div><div class="eyebrow">A look inside</div><h3>This is what you see<br>after you log in.</h3></div>
+          <a class="btn btn-ghost mag" data-login href="https://offpeak.streamlit.app/?login" target="_top">Open the app <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
+        </div>
+        <div class="tour-list reveal" role="tablist" aria-label="Pages of the app">
+          <button class="tour-item on" role="tab" aria-selected="true"><span class="n">01</span><b>Every quarter-hour of tomorrow</b>
+            <p>The Power page: tomorrow's market prices, 15 minutes at a time. The cheapest block for each job length, and the hours to avoid.</p><i class="bar"><i></i></i></button>
+          <button class="tour-item" role="tab" aria-selected="false"><span class="n">02</span><b>Plan any machine</b>
+            <p>The simulation cockpit: set power, length and the hours it may run. offpeak finds the cheapest start in the next seven days, using your own sun and wind first.</p><i class="bar"><i></i></i></button>
+          <button class="tour-item" role="tab" aria-selected="false"><span class="n">03</span><b>Your week, in one answer</b>
+            <p>The dashboard: every machine at its best time, what that saves this week, and what the last 30 days saved with real prices.</p><i class="bar"><i></i></i></button>
+        </div>
+        <div class="stage reveal" style="--d:.15s">
+          <div class="browser" id="browser">
+            <div class="chrome"><i></i><i></i><i></i>
+              <div class="url"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>offpeak.streamlit.app/<b id="tour-path">analytics</b></div>
+            </div>
+            <div class="shots">
+              <img class="on" src="app/static/tour/power.jpg" width="1600" height="1000" alt="The Power page of offpeak: tomorrow's prices per quarter-hour and the best time for each job length" decoding="async">
+              <img src="app/static/tour/cockpit.jpg" width="1600" height="1000" alt="The simulation cockpit: a machine's settings and its best start in the next seven days" decoding="async">
+              <img src="app/static/tour/dashboard.jpg" width="1600" height="1000" alt="The dashboard: the price right now and the week plan for every machine" decoding="async">
+              <div class="pin on" style="--x:34%;--y:49%"><i></i><span>The cheapest 3 hours, in orange</span></div>
+              <div class="pin" style="--x:62%;--y:62%"><i></i><span>Best start in the next 7 days</span></div>
+              <div class="pin" style="--x:52%;--y:64%"><i></i><span>Which machine, when, what it saves</span></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1036,6 +1116,47 @@
     tick(); setInterval(tick, 1000);
   }
 
+  // ── A look inside: the three screenshots take turns; a click picks one ──
+  function tour() {
+    const box = $('#tour');
+    const items = $$('.tour-item'), shots = $$('.shots img'), pins = $$('.pin'), path = $('#tour-path');
+    const PATHS = ['analytics', 'cockpit', ''];   // the address of each page in the app
+    const DUR = 6500;                             // ms per screenshot
+    let at = 0, prog = 0, visible = false, paused = false, last = performance.now();
+    shots.forEach(img => img.addEventListener('error', () => { img.style.display = 'none'; }));  // never a broken-image icon
+    function show(n) {
+      at = n; prog = 0;
+      items.forEach((it, k) => { it.classList.toggle('on', k === n); it.setAttribute('aria-selected', k === n); it.querySelector('.bar i').style.transform = 'scaleX(0)'; });
+      shots.forEach((s, k) => s.classList.toggle('on', k === n));
+      pins.forEach((h, k) => h.classList.toggle('on', k === n));
+      path.textContent = PATHS[n];
+    }
+    items.forEach((it, k) => it.addEventListener('click', () => show(k)));
+    // pause while the visitor looks at it closely
+    box.addEventListener('pointerenter', () => { paused = true; });
+    box.addEventListener('pointerleave', () => { paused = false; });
+    new IntersectionObserver(es => { visible = es[0].isIntersecting; }, { threshold: .35 }).observe(box);
+    (function loop(now) {
+      const dt = now - last; last = now;
+      if (visible && !paused && !calm) {
+        prog += dt / DUR;
+        if (prog >= 1) show((at + 1) % items.length);
+        items[at].querySelector('.bar i').style.transform = `scaleX(${prog.toFixed(3)})`;
+      }
+      requestAnimationFrame(loop);
+    })(last);
+    // the browser window turns slightly towards the cursor
+    const b = $('#browser');
+    if (finePointer && !calm && innerWidth > 1000) {
+      b.addEventListener('pointermove', e => {
+        const r = b.getBoundingClientRect();
+        b.style.setProperty('--ry', ((e.clientX - r.left) / r.width - .5) * 6 + 'deg');
+        b.style.setProperty('--rx', (.5 - (e.clientY - r.top) / r.height) * 4 + 'deg');
+      });
+      b.addEventListener('pointerleave', () => { b.style.removeProperty('--ry'); b.style.removeProperty('--rx'); });
+    }
+  }
+
   // ── Login: press the hidden "Login" button of the Streamlit page around this frame.
   //    Opened on its own (not inside the app), the link goes to the sign-in page instead.
   function login() {
@@ -1048,10 +1169,69 @@
         if (!button) return;
         e.preventDefault();
         surge = 2;
-        document.body.classList.add('leaving');
-        setTimeout(() => button.click(), calm ? 0 : 280);
+        const r = a.getBoundingClientRect();
+        portal(r.left + r.width / 2, r.top + r.height / 2);
+        // the app starts loading the sign-in while the lens is still opening
+        setTimeout(() => button.click(), calm ? 0 : 420);
       });
     });
+  }
+
+  // The sign-in page, drawn as the app will show it, opening like a lens from (x, y).
+  // It is added to the app's page, not to this frame: this frame disappears as soon as the app
+  // starts building the sign-in page, the drawing must stay until the page is complete. The
+  // app's CSS then fades it out (app/ui/account.py) or hides it (app/ui/components.py).
+  // Sizes and places match the real card: centred, 420 px wide, 12 % of the height + 80 px down.
+  const PORTAL_CSS = `
+    #op-portal { position: fixed; inset: 0; z-index: 999995; pointer-events: none; clip-path: circle(0px at var(--x) var(--y));
+      transition: clip-path .7s cubic-bezier(.7,0,.2,1); font-family: Inter, sans-serif; color: #1C1B19;
+      background: radial-gradient(900px 520px at 50% 0%, rgba(255,95,0,.08), transparent 70%),
+        linear-gradient(rgba(28,27,25,.045) 1px, transparent 1px) 0 0 / 64px 64px,
+        linear-gradient(90deg, rgba(28,27,25,.045) 1px, transparent 1px) 0 0 / 64px 64px, #F6F5F2; }
+    #op-portal.open { clip-path: circle(150vmax at var(--x) var(--y)); }
+    #op-portal .corner { position: absolute; left: 16px; top: 15px; font-weight: 700; font-size: 26px; letter-spacing: -.04em; }
+    #op-portal .corner span, #op-portal .g-logo { color: #FF5F00; }
+    #op-portal .ghost { position: absolute; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #ECE9E4; border-radius: 20px;
+      padding: 20.8px 22.4px; box-shadow: 0 30px 80px rgba(28,27,25,.10); box-sizing: border-box; }
+    #op-portal .g-logo { text-align: center; font-size: 30.4px; font-weight: 700; letter-spacing: -.03em; margin-top: 5px; line-height: 49px; }
+    #op-portal .g-logo b { color: #1C1B19; }
+    #op-portal h4 { text-align: center; font-size: 21.6px; font-weight: 650; margin: 13px 0 4px; line-height: 35px; }
+    #op-portal .g-sub { text-align: center; font-size: 14.08px; color: #77726A; line-height: 23px; margin: 0 0 26px; }
+    #op-portal label { display: block; font-size: 14px; line-height: 24px; margin-bottom: 4px; }
+    #op-portal .g-in { height: 40px; border: 1px solid #D9D5CE; border-radius: 8px; background: #fff; margin-bottom: 14px; position: relative; }
+    #op-portal .g-btn { height: 40px; border-radius: 8px; background: #FF5F00; color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; margin-bottom: 16px; }
+    #op-portal .g-cap { font-size: 14px; line-height: 22px; color: rgba(28,27,25,.6); padding-bottom: 16px; }
+    #op-portal .g-back { font-size: 15px; line-height: 40px; }`;
+
+  function portal(x, y) {
+    let doc = document;
+    try { if (window.parent !== window && window.parent.document.body) doc = window.parent.document; } catch (e) { /* not inside the app */ }
+    const old = doc.getElementById('op-portal');
+    if (old) old.remove();
+    const p = doc.createElement('div');
+    p.id = 'op-portal'; p.setAttribute('aria-hidden', 'true');
+    // once the sign-in page has faded it out, it removes itself (this frame is gone by then)
+    p.setAttribute('onanimationend', "if (event.animationName === 'op-portal-out') this.remove()");
+    p.style.setProperty('--x', x + 'px'); p.style.setProperty('--y', y + 'px');
+    const W = doc.defaultView.innerWidth, H = doc.defaultView.innerHeight;
+    const eye = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1C1B19" stroke-width="2" style="position:absolute;right:12px;top:11px"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const icon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg>';
+    p.innerHTML = `<style>${PORTAL_CSS}</style><div class="corner"><span>off</span>peak</div>
+      <div class="ghost" style="width:${Math.min(420, W - 70)}px;top:${Math.round(H * .12 + 80)}px">
+        <div class="g-logo">off<b>peak</b></div><h4>Sign in</h4><p class="g-sub">When to use electricity, and what that saves.</p>
+        <label>Email</label><div class="g-in"></div><label>Password</label><div class="g-in">${eye}</div>
+        <div class="g-btn">${icon}Sign in</div><div class="g-cap">You stay signed in on this browser for 24 hours.</div><div class="g-back">← Back to the homepage</div>
+      </div>`;
+    doc.body.appendChild(p);
+    p.getBoundingClientRect();   // start from the closed lens, then open it
+    p.classList.add('open');
+    // if the app never shows the sign-in (this frame is still here after 8 s), take it away again
+    setTimeout(() => { p.remove(); }, 8000);
+  }
+
+  // A drawing left over from an earlier Login (after "Back to the homepage") goes away.
+  function clearPortal() {
+    try { const old = window.parent.document.getElementById('op-portal'); if (old) old.remove(); } catch (e) { /* not inside the app */ }
   }
 
   // ── links to a section of this page (#product, #pricing, ...): scroll there ourselves.
@@ -1069,7 +1249,7 @@
   }
 
   const ready = () => { headline(0); typewriter(); };
-  field(); cursor(); scrolling(); shift(); marquee(); statement(); counters(); steps(); tiles(); who(); pricing(); clock(); login(); sectionLinks();
+  field(); cursor(); scrolling(); shift(); marquee(); statement(); counters(); steps(); tiles(); who(); pricing(); clock(); tour(); login(); sectionLinks(); clearPortal();
   intro(ready);
 })();
 </script>

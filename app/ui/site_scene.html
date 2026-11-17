@@ -393,6 +393,47 @@ function spinner(parent, x, y, z, build) {
   const prev = current; current = g; build(); current = prev; return g;
 }
 
+// Detailed models built in Blender (scripts/blender/build_models.py), sent inside the
+// page's data as gzip-compressed, base64 GLB files. A model that is missing or broken
+// falls back to the simple shapes.
+async function loadModels(models) {
+  const loader = new GLTFLoader(), out = {};
+  for (const [name, b64] of Object.entries(models || {})) {
+    try {
+      const packed = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+      const glb = await new Response(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+      out[name] = (await loader.parseAsync(glb, '')).scene;
+    } catch (err) { console.warn(`offpeak: model ${name} not loaded, drawing the simple shape`, err); }
+  }
+  return out;
+}
+const MODELS = await loadModels(D.models);
+// Put a copy of a model into the current group. Every mesh keeps its part (from Blender)
+// and gets the scene's own material of the same name, or one passed in `own`.
+// Returns the meshes by material name.
+function placeModel(model, own = {}) {
+  const copy = model.clone(true); copy.updateMatrixWorld(true);
+  const meshes = []; copy.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const byMat = {};
+  for (const m of meshes) {
+    const name = m.material.name;
+    m.matrixWorld.decompose(m.position, m.quaternion, m.scale);
+    m.material = own[name] || M[name] || M.white;
+    tag(m, m.userData.part || null);
+    (byMat[name] ||= []).push(m);
+  }
+  return byMat;
+}
+// A model at (x, y, z) in the current group, turned by ry about the vertical axis.
+// Returns its meshes by material name, or null if the model is not there.
+function placeAt(name, x, y, z, own = {}, ry = 0) {
+  if (!MODELS[name]) return null;
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; current.add(g);
+  const prev = current; current = g;
+  const parts = placeModel(MODELS[name], own);
+  current = prev; return parts;
+}
+
 // ── The island and fixed scenery ───────────────────────────────────────────
 current = scene;
 cyl(62, 60, 3, matte(0xE7E2DA), 0, -1.5, 0, null, 128).castShadow = false;
@@ -407,24 +448,28 @@ for (let i = 0; i < 5; i++) box(0.25, 0.07, 2, M.line, 26, 0.13, 38 + i * 4, nul
 
 // production hall: sawtooth roof with skylights, windows, a roller door
 const hallGroup = new THREE.Group(); hallGroup.position.set(18, 0, -8); scene.add(hallGroup); current = hallGroup;
+const windowsMat = matte(0x2E2C29, { emissive: 0xFFC48A, emissiveIntensity: 0 });
+if (!placeAt('main_hall', 0, 0, 0, { windows: windowsMat })) {
 rbox(22, 8, 14, M.white, 0, 4, 0, null, 0.6);
 for (let i = 0; i < 4; i++) {
   rbox(5.2, 2.4, 13.6, M.roof, -7.8 + i * 5.2, 9, 0, null, 0.3).rotation.z = 0.32;
   box(0.6, 1.9, 13, M.glassDark, -5.6 + i * 5.2, 9.2, 0, null).rotation.z = 0.32;
 }
-const windowsMat = matte(0x2E2C29, { emissive: 0xFFC48A, emissiveIntensity: 0 });
 for (let i = 0; i < 5; i++) rbox(2.4, 1.6, 0.2, windowsMat, -8 + i * 4, 5.2, 7.02, null, 0.08);
 rbox(4.4, 5, 0.3, M.roof, -6, 2.5, 7.05, null, 0.1);
 for (let i = 0; i < 7; i++) box(4.2, 0.08, 0.32, M.frame, -6, 0.6 + i * 0.65, 7.1, null);
+}
 
 // grid connection: transformer with radiator fins, bushings, fence, pylon
 const gridGroup = new THREE.Group(); gridGroup.position.set(2, 0, -36); scene.add(gridGroup); current = gridGroup;
+if (!placeAt('transformer', 0, 0, 0)) {
 rbox(8, 0.3, 7, M.concrete, 2, 0.15, 3, null, 0.1);
 rbox(3.6, 3.2, 2.6, M.clay, 2, 1.9, 3, null, 0.3);
 for (let i = 0; i < 7; i++) box(0.12, 2.4, 1.2, M.steel, 0.4 + i * 0.55, 1.8, 4.9, null);
 for (let i = 0; i < 3; i++) cyl(0.18, 0.28, 1.4, M.ink, 1 + i, 4.2, 3, null, 10);
 const gposts = []; for (let i = 0; i <= 8; i++) { gposts.push(mx(-2 + i, 0.9, -0.6), mx(-2 + i, 0.9, 6.6)); }
 instanced(new THREE.CylinderGeometry(0.06, 0.06, 1.8, 6), M.frame, gposts, null);
+}
 const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
 pylon.position.set(-5, 9, -4); pylon.rotation.y = Math.PI / 4; gridGroup.add(pylon);
 rbox(9, 0.3, 0.3, M.ink, -5, 16.5, -4, null, 0.1);
@@ -447,35 +492,6 @@ const treeMat = matte(0xE3DED5);
 // ── One builder per kind; each returns where its cable starts and its label height ─
 const animated = { rotors: [], fans: [], glow: [], plugs: [], soc: [] };
 
-// Detailed models built in Blender (scripts/blender/), sent inside the page's data as
-// base64 GLB files. A model that is missing or broken falls back to the simple shapes.
-async function loadModels(models) {
-  const loader = new GLTFLoader(), out = {};
-  for (const [name, b64] of Object.entries(models || {})) {
-    try {
-      const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
-      out[name] = (await loader.parseAsync(bytes.buffer, '')).scene;
-    } catch (err) { console.warn(`offpeak: model ${name} not loaded, drawing the simple shape`, err); }
-  }
-  return out;
-}
-const MODELS = await loadModels(D.models);
-// Put a copy of a model into the current group. Every mesh keeps its part (from Blender)
-// and gets the scene's own material of the same name, or one passed in `own`.
-// Returns the meshes by material name.
-function placeModel(model, own = {}) {
-  const copy = model.clone(true); copy.updateMatrixWorld(true);
-  const meshes = []; copy.traverse(o => { if (o.isMesh) meshes.push(o); });
-  const byMat = {};
-  for (const m of meshes) {
-    const name = m.material.name;
-    m.matrixWorld.decompose(m.position, m.quaternion, m.scale);
-    m.material = own[name] || M[name] || M.white;
-    tag(m, m.userData.part || null);
-    (byMat[name] ||= []).push(m);
-  }
-  return byMat;
-}
 const BUILD = {
   pv_field(c) {
     // racks with two modules on top of each other (portrait), 12 columns per rack
@@ -547,6 +563,7 @@ const BUILD = {
     rbox(15, 0.2, n * 3.6 + 2, M.concrete, 0, 0.1, (n - 1) * 1.8, null, 0.1).castShadow = false;
     for (let j = 0; j < n; j++) {
       const z = j * 3.6;
+      if (placeAt('battery_container', 0, 0.05, z)) continue;
       rbox(9, 2.6, 2.4, M.white, 0, 1.5, z, 'container', 0.12);
       const ribs = []; for (let i = 0; i < 22; i++) ribs.push(mx(-4.2 + i * 0.4, 1.5, z + 1.22));
       instanced(new THREE.BoxGeometry(0.12, 2.3, 0.06), M.clay, ribs, 'container');
@@ -554,9 +571,11 @@ const BUILD = {
       const rack = []; for (let i = 0; i < 6; i++) rack.push(mx(-3.4 + i * 1.3, 1.5, z - 1.22));
       instanced(new THREE.BoxGeometry(1.0, 2.0, 0.05), M.ink, rack, 'cells');
     }
-    rbox(1.4, 1.2, 1.6, M.clay, -5.6, 1.3, 0, 'hvac', 0.15);
-    cyl(0.45, 0.45, 0.08, M.ink, -6.35, 1.4, 0, 'hvac', 20).rotation.z = Math.PI / 2;
-    rbox(1.6, 2.2, 1.2, M.clay, 5.8, 1.3, 0, 'pcs', 0.15);
+    if (!placeAt('battery_hvac', -5.6, 0.1, 0)) {
+      rbox(1.4, 1.2, 1.6, M.clay, -5.6, 1.3, 0, 'hvac', 0.15);
+      cyl(0.45, 0.45, 0.08, M.ink, -6.35, 1.4, 0, 'hvac', 20).rotation.z = Math.PI / 2;
+    }
+    if (!placeAt('battery_pcs', 5.8, 0.1, 0)) rbox(1.6, 2.2, 1.2, M.clay, 5.8, 1.3, 0, 'pcs', 0.15);
     const track = rbox(6, 0.35, 0.08, matte(0xEFEAE3), 0, 2.4, 1.3, 'racks', 0.08);
     const bar = rbox(6, 0.35, 0.12, M.orange, 0, 2.4, 1.33, 'racks', 0.08);
     track.castShadow = bar.castShadow = false;
@@ -568,15 +587,18 @@ const BUILD = {
     rbox(n * 2.8 + 4, 0.2, 4.4, M.concrete, n * 1.4, 0.1, 0, null, 0.1).castShadow = false;
     for (let i = 0; i < n; i++) {
       const x = i * 2.8;
-      rbox(2.4, 1.6, 1.1, M.white, x, 0.95, 0, 'unit', 0.15);
+      const model = placeAt('heat_pump_unit', x, 0.15, 0);  // includes the fan shrouds
+      if (!model) rbox(2.4, 1.6, 1.1, M.white, x, 0.95, 0, 'unit', 0.15);
       for (let k = 0; k < 2; k++) {
-        cyl(0.42, 0.42, 0.06, M.ink, x - 0.55 + k * 1.1, 1.0, 0.58, 'fans', 20).rotation.x = Math.PI / 2;
+        if (!model) cyl(0.42, 0.42, 0.06, M.ink, x - 0.55 + k * 1.1, 1.0, 0.58, 'fans', 20).rotation.x = Math.PI / 2;
         animated.fans.push({ g: spinner(current, x - 0.55 + k * 1.1, 1.0, 0.63, () => { for (let b = 0; b < 3; b++) box(0.7, 0.14, 0.03, M.steel, 0, 0, 0, 'fans').rotation.z = b * Math.PI / 3; }), axis: 'z', id: c.id });
       }
     }
     const tx = n * 2.8 + 0.6;
-    cyl(0.8, 0.8, 3, M.white, tx, 1.7, 0, 'tank', 28);
-    cyl(0.84, 0.84, 0.4, M.clay, tx, 2.6, 0, 'tank', 28);
+    if (!placeAt('heat_tank', tx, 0.1, 0)) {
+      cyl(0.8, 0.8, 3, M.white, tx, 1.7, 0, 'tank', 28);
+      cyl(0.84, 0.84, 0.4, M.clay, tx, 2.6, 0, 'tank', 28);
+    }
     tube([[0.9, 0.6, -0.5], [tx - 1.6, 0.6, -0.8], [tx - 0.4, 0.8, -0.6]], 0.08, M.orange, 'pipes');
     tube([[tx + 0.6, 2.8, 0], [tx + 2, 3.2, 0], [tx + 3.5, 3.2, 0]], 0.09, M.steel, 'pipes');
     cyl(0.12, 0.12, 0.3, M.orange, tx - 1.2, 0.5, 0.6, 'refrigerant', 10);
@@ -587,8 +609,16 @@ const BUILD = {
     rbox(n * 4.2 + 2, 0.08, 8, M.asphalt, (n - 1) * 2.1, 0.06, 1, null, 0.1).castShadow = false;
     const lines = []; for (let i = 0; i <= n; i++) lines.push(mx(-2.1 + i * 4.2, 0.12, 1.4));
     instanced(new THREE.BoxGeometry(0.12, 0.04, 5.6), M.line, lines, null);
+    const screenMat = () => matte(0xD9D3CA, { emissive: 0xFF5F00, emissiveIntensity: 0 });
     for (let i = 0; i < n; i++) {
       const x = i * 4.2;
+      const charger = placeAt('ev_charger', x - 1.1, 0, -2.5, { screen: screenMat() });
+      if (charger) {
+        (charger.screen || []).forEach(m => animated.plugs.push({ m, id: c.id }));
+        tube([[x - 1.1, 1.1, -2.2], [x - 0.9, 0.3, -1.4], [x - 0.6, 0.7, -0.6]], 0.05, M.ink, 'cables');
+        placeAt('e_car', x, 0, 0);
+        continue;
+      }
       rbox(0.7, 1.9, 0.5, M.white, x - 1.1, 0.95, -2.5, 'chargers', 0.15);
       const screen = rbox(0.4, 0.3, 0.06, matte(0xD9D3CA, { emissive: 0xFF5F00, emissiveIntensity: 0 }), x - 1.1, 1.45, -2.22, 'chargers', 0.04);
       animated.plugs.push({ m: screen, id: c.id });
@@ -598,13 +628,26 @@ const BUILD = {
       for (const [dx, dz] of [[-0.95, 0], [0.95, 0], [-0.95, 2.8], [0.95, 2.8]]) cyl(0.36, 0.36, 0.26, M.ink, x + dx, 0.36, dz, null, 14).rotation.z = Math.PI / 2;
     }
     rbox(1.2, 1.6, 0.8, M.clay, -2.6, 0.8, -2.6, 'feeder', 0.12);
+    if (MODELS.e_truck) {
+      // two electric trucks of the fleet on their own bays, with a charger each
+      const bx = n * 4.2 + 3.4;
+      rbox(10, 0.08, 14, M.asphalt, bx, 0.06, 1.8, null, 0.1).castShadow = false;
+      const bay = []; for (let k = 0; k <= 2; k++) bay.push(mx(bx - 4.6 + k * 4.6, 0.12, 2.2));
+      instanced(new THREE.BoxGeometry(0.12, 0.04, 10.5), M.line, bay, null);
+      for (let k = 0; k < 2; k++) {
+        const x = bx - 2.3 + k * 4.6;
+        const charger = placeAt('ev_charger', x + 1.5, 0, -4.4, { screen: screenMat() });
+        (charger.screen || []).forEach(m => animated.plugs.push({ m, id: c.id }));
+        placeAt('e_truck', x, 0, 2.0);
+      }
+    }
     return { anchor: [-2.6, -2.6], label: 3.6 };
   },
   furnace(c) {
     if (MODELS.furnace_hall) {
       // the Blender model (scripts/blender/furnace_hall.py): same footprint and parts
       const glow = matte(0x3A3733, { emissive: 0xFF5F00, emissiveIntensity: 0 });
-      const parts = placeModel(MODELS.furnace_hall, { door: glow, windows: windowsMat });
+      const parts = placeAt('furnace_hall', 0, 0, 0, { door: glow, windows: windowsMat });
       (parts.door || []).forEach(m => animated.glow.push({ m, id: c.id }));
       return { anchor: [-3.2, 4.7], label: 9.5 };
     }
@@ -621,6 +664,10 @@ const BUILD = {
     return { anchor: [-3.2, 4.7], label: 9.5 };
   },
   cold_store(c) {
+    if (placeAt('cold_store', 0, 0, 0)) {
+      for (const x of [-2.8, 2.8]) animated.fans.push({ g: spinner(current, x, 6.85, 0, () => { for (let b = 0; b < 3; b++) box(1.6, 0.04, 0.3, M.steel, 0, 0, 0, 'condensers').rotation.y = b * Math.PI / 3; }), axis: 'y', id: c.id });
+      return { anchor: [-6, 3], label: 8.6 };
+    }
     rbox(12, 5.5, 9, M.white, 0, 2.75, 0, 'panels', 0.5);
     const seams = []; for (let i = 1; i < 10; i++) seams.push(mx(-6 + i * 1.2, 2.75, 4.51));
     instanced(new THREE.BoxGeometry(0.04, 5.3, 0.04), M.frame, seams, 'panels');

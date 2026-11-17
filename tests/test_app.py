@@ -118,13 +118,16 @@ def test_site_scene_payload_is_embedded_safely():
 
 def test_site_scene_carries_the_blender_models():
     import base64
+    import gzip
     import sys
 
     sys.path.insert(0, str(APP.parent))
     from ui import site_scene
 
     models = site_scene.models()
-    assert "furnace_hall" in models
-    glb = base64.b64decode(models["furnace_hall"])
-    assert glb[:4] == b"glTF"  # a binary glTF file
-    assert len(glb) < 500_000  # small enough to send with every Site view
+    for name in ("furnace_hall", "main_hall", "cold_store", "battery_container", "e_truck"):
+        assert name in models
+    for packed in models.values():
+        assert gzip.decompress(base64.b64decode(packed))[:4] == b"glTF"  # binary glTF
+    # all models together stay small enough to send with every Site view
+    assert sum(len(v) for v in models.values()) < 600_000
