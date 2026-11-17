@@ -59,7 +59,10 @@ CSS = f"""
 
 /* Ask Ollie: the robot and its chat window float at the bottom right, above Streamlit
    Cloud's own badge; the frame sizes itself (app/ui/web/ollie/index.html) */
-.st-key-ollie {{ position: fixed; right: 14px; bottom: 54px; z-index: 999990; width: 392px !important; }}
+.st-key-ollie {{ position: fixed; right: 14px; bottom: 54px; z-index: 999990; width: 432px !important; }}
+/* While Ollie answers, Streamlit fades the elements it is about to redraw ("stale"); the
+   chat would turn see-through over the page. Keep it fully visible. */
+.st-key-ollie, .st-key-ollie * {{ opacity: 1 !important; }}
 .st-key-ollie iframe {{ background: transparent; color-scheme: normal; }}
 
 /* the signed-in name at the very bottom of the sidebar */

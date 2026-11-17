@@ -18,7 +18,7 @@ import data
 import streamlit as st
 import streamlit.components.v1 as components
 
-from offpeak.assistant import agent, claude, llm
+from offpeak.assistant import agent, claude, llm, topics
 from offpeak.assistant.tools import Context
 from offpeak.settings import lookup
 from offpeak.timeutils import market_today
@@ -29,6 +29,15 @@ EXAMPLES = [
     "Which day this week has the cheapest power?",
     "What does my plan for this week save?",
 ]
+# the page file behind each topic Ollie can point to (offpeak/assistant/topics.py)
+PAGES = {
+    "savings": "views/savings.py",
+    "cockpit": "views/cockpit.py",
+    "outlook": "views/outlook.py",
+    "weather": "views/weather.py",
+    "analytics": "views/analytics.py",
+    "site": "views/site.py",
+}
 BUSY = (
     "Ollie can't answer right now. Please try again in a moment; the plan on the dashboard "
     "and the Simulation cockpit work as usual."
@@ -101,8 +110,17 @@ def widget() -> None:
     sent = st.session_state.get("ollie_chat")
     if isinstance(sent, dict) and sent.get("id") != st.session_state.get("ollie_seen"):
         st.session_state["ollie_seen"] = sent.get("id")
-        question = str(sent.get("question") or "")[: agent.MAX_QUESTION_CHARS]
-        answer = _reply(question, history)
-        history += [{"role": "user", "content": question}, {"role": "assistant", "content": answer}]
+        goto = sent.get("goto")
+        if goto is not None:  # a topic button under an answer: open that page
+            if goto in PAGES:  # only our own pages, whatever the browser sends
+                st.switch_page(PAGES[goto])
+        else:
+            question = str(sent.get("question") or "")[: agent.MAX_QUESTION_CHARS]
+            answer = _reply(question, history)
+            history += [
+                {"role": "user", "content": question},
+                # the pages the answer talks about, shown as buttons under it
+                {"role": "assistant", "content": answer, "topics": topics.topics_in(answer)},
+            ]
     with st.container(key="ollie"):
         _window(history=history[-20:], examples=EXAMPLES, key="ollie_chat", default=None)
