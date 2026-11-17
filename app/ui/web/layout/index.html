@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  The "Edit site" layout designer (app/ui/layout_designer.py).
+
+  Draws the site as an isometric grid with the parts on the left. Drag a part onto a square
+  to add it, drag a placed part to move it, drop it back on the parts list to remove it, tap
+  it to change its size and hours below. Every action is sent to Python as one event
+  ({n, action, kind | id, col, row}); offpeak/layout.py decides whether it is allowed and
+  Python draws the result. The checks here only colour the squares while dragging.
+-->
+<style>
+  :root {
+    --bg: #F6F5F2; --card: #FFFFFF; --line: #ECE9E4; --ink: #1C1B19; --muted: #77726A;
+    --orange: #FF5F00; --orange-soft: #FFE9DC; --orange-mid: #FFC4A0; --ok: #2E9E5B; --bad: #D64545;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; color: var(--ink); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; user-select: none; }
+  .wrap { display: grid; grid-template-columns: 210px 1fr; gap: 12px; height: 600px; }
+  .parts { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px 12px; overflow-y: auto; transition: background .15s, border-color .15s; }
+  .parts h4 { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+  .parts .hint { font-size: 11.5px; color: var(--muted); margin-bottom: 8px; line-height: 1.4; }
+  .parts .group { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 12px 4px 6px; }
+  .part { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); margin-bottom: 6px; cursor: grab; touch-action: none; font: inherit; color: inherit; text-align: left; }
+  .part:hover { border-color: var(--orange-mid); background: #fff; }
+  .part svg { width: 34px; height: 30px; flex: none; }
+  .part b { display: block; font-size: 12.5px; font-weight: 500; }
+  .part small { display: block; font-size: 11px; color: var(--muted); }
+  .parts.trash { background: #FDECEC; border-color: var(--bad); }
+  .parts .bin { display: none; text-align: center; color: var(--bad); font-weight: 600; font-size: 13px; padding: 40px 8px; }
+  .parts.trash .bin { display: block; }
+  .parts.trash .list { display: none; }
+  .board { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+  .board svg { width: 100%; height: 100%; display: block; touch-action: none; }
+  .tag { position: absolute; left: 14px; top: 12px; font-size: 12px; color: var(--muted); background: rgba(255,255,255,.9); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; pointer-events: none; }
+  .item { cursor: grab; }
+  .item.sel .outline { stroke: var(--orange); stroke-width: 2.5; }
+  .label { font-size: 11px; font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: rgba(255,255,255,.95); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+  .label.dim { font-weight: 500; fill: var(--muted); }
+  .ghost { pointer-events: none; opacity: .75; }
+  .float { position: fixed; pointer-events: none; z-index: 9; display: none; background: var(--ink); color: #fff; border-radius: 9px; padding: 5px 9px; font-size: 12px; font-weight: 500; transform: translate(14px, 14px); white-space: nowrap; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .rotor { animation: spin 3.5s linear infinite; transform-box: fill-box; transform-origin: center; }
+  @media (prefers-reduced-motion: reduce) { .rotor { animation: none; } }
+  @media (max-width: 640px) {
+    .wrap { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 760px; }
+    .parts { max-height: 190px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="parts" id="parts">
+    <h4>Parts</h4>
+    <div class="hint">Drag a part onto a square. Drag it back here to remove it.</div>
+    <div class="list" id="list"></div>
+    <div class="bin">Drop here to remove</div>
+  </div>
+  <div class="board" id="board">
+    <svg id="svg" aria-label="Site layout"></svg>
+    <div class="tag" id="tag">Tap a part on the site to change its size and hours</div>
+  </div>
+</div>
+<div class="float" id="float"></div>
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const TW = 64, TH = 32;  // size of one square on screen (width, height of the diamond)
+const send = (type, extra) => window.parent.postMessage({ isStreamlitMessage: true, type, ...extra }, '*');
+const $ = id => document.getElementById(id);
+
+// How each kind looks: colours of the top, left and right faces, and its height on screen
+const LOOK = {
+  pv_field:   { top: '#2C3E5C', left: '#22314A', right: '#1B2740', h: 5 },
+  pv_roof:    { top: '#2C3E5C', left: '#22314A', right: '#1B2740', h: 5 },
+  wind:       { top: '#E9E5DE', left: '#D6D1C8', right: '#C9C3B9', h: 4 },
+  battery:    { top: '#5A5550', left: '#46423D', right: '#3A3733', h: 22 },
+  heat_pump:  { top: '#F1EEE9', left: '#DCD7CF', right: '#CFC9BF', h: 15 },
+  ev_charger: { top: '#4A4743', left: '#3A3733', right: '#2E2C29', h: 4 },
+  furnace:    { top: '#D8B89A', left: '#C29F80', right: '#B08E70', h: 30 },
+  cold_store: { top: '#F6F8FA', left: '#DCE4EC', right: '#C9D5E1', h: 24 },
+  hall:       { top: '#F4F2EE', left: '#DEDAD3', right: '#D0CBC2', h: 40 },
+  grid:       { top: '#B8B2A8', left: '#A39D93', right: '#958F85', h: 14 },
+  road:       { top: '#5B5853', left: '#4A4743', right: '#3E3B37', h: 1 },
+};
+
+let A = null;           // the arguments from Python (see layout_designer.py)
+let items = [];         // what stands on the site, kept locally so a drop shows at once
+let selected = null;
+let drag = null;        // { mode: 'new' | 'move', kind, id, start, moved, cell }
+
+// ── Isometric maths: square (col, row) <-> screen ─────────────────────────────
+const iso = (x, y) => [(x - y) * TW / 2, (x + y) * TH / 2];
+function footprintCorners(col, row, w, h, lift = 0) {
+  const t = iso(col - .5, row - .5), r = iso(col + w - .5, row - .5), b = iso(col + w - .5, row + h - .5), l = iso(col - .5, row + h - .5);
+  return [t, r, b, l].map(([x, y]) => [x, y - lift]);
+}
+const pts = list => list.map(p => p.join(',')).join(' ');
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function svgPoint(evt) {
+  const svg = $('svg'), p = svg.createSVGPoint(); p.x = evt.clientX; p.y = evt.clientY;
+  return p.matrixTransform($('stage').getScreenCTM().inverse());
+}
+function cellAt(evt) {
+  const { x, y } = svgPoint(evt);
+  const gx = (x / (TW / 2) + y / (TH / 2)) / 2, gy = (y / (TH / 2) - x / (TW / 2)) / 2;
+  return [Math.round(gx), Math.round(gy)];
+}
+
+// ── The same rules as offpeak/layout.py, only to colour squares while dragging ─
+const key = (c, r) => c + ',' + r;
+function covers(kind, col, row) {
+  const [w, h] = A.footprint[kind] || [1, 1], out = [];
+  for (let dc = 0; dc < w; dc++) for (let dr = 0; dr < h; dr++) out.push(key(col + dc, row + dr));
+  return out;
+}
+function fits(kind, col, row, ignore) {
+  if (A.roof_kinds.includes(kind)) return A.fixed.hall.cells.some(([c, r]) => c === col && r === row);
+  const ground = new Set(A.ground.map(([c, r]) => key(c, r)));
+  const taken = new Set();
+  items.forEach(it => { if (it.id !== ignore && it.col != null && !A.roof_kinds.includes(it.kind)) covers(it.kind, it.col, it.row).forEach(k => taken.add(k)); });
+  return covers(kind, col, row).every(k => ground.has(k) && !taken.has(k));
+}
+
+// ── Drawing ────────────────────────────────────────────────────────────────
+function box(g, col, row, w, h, look, cls) {
+  const lift = look.h, base = footprintCorners(col, row, w, h), top = footprintCorners(col, row, w, h, lift);
+  el('polygon', { points: pts([base[3], base[2], top[2], top[3]]), fill: look.left }, g);
+  el('polygon', { points: pts([base[2], base[1], top[1], top[2]]), fill: look.right }, g);
+  el('polygon', { points: pts(top), fill: look.top, class: cls || '', stroke: 'rgba(0,0,0,.06)' }, g);
+  return top;
+}
+function decorate(g, kind, col, row, w, h, top) {
+  const cx = (top[0][0] + top[2][0]) / 2, cy = (top[0][1] + top[2][1]) / 2;
+  if (kind === 'pv_field' || kind === 'pv_roof') {  // panel rows
+    for (let i = 1; i < 4; i++) {
+      const a = iso(col - .5 + (w * i) / 4, row - .5), b = iso(col - .5 + (w * i) / 4, row + h - .5);
+      el('line', { x1: a[0], y1: a[1] - 5, x2: b[0], y2: b[1] - 5, stroke: '#6F8BB8', 'stroke-width': 1 }, g);
+    }
+  } else if (kind === 'wind') {  // mast and rotor
+    el('line', { x1: cx, y1: cy, x2: cx, y2: cy - 72, stroke: '#CFC9BF', 'stroke-width': 3, 'stroke-linecap': 'round' }, g);
+    const rot = el('g', { class: 'rotor' }, g);
+    for (let k = 0; k < 3; k++) {
+      const a = (k * 120 - 90) * Math.PI / 180;
+      el('line', { x1: cx, y1: cy - 72, x2: cx + Math.cos(a) * 26, y2: cy - 72 + Math.sin(a) * 26, stroke: '#E9E5DE', 'stroke-width': 3.5, 'stroke-linecap': 'round' }, rot);
+    }
+    el('circle', { cx, cy: cy - 72, r: 3.5, fill: '#FF5F00' }, g);
+  } else if (kind === 'heat_pump') {
+    el('ellipse', { cx, cy, rx: 9, ry: 4.5, fill: '#3A3733' }, g);
+  } else if (kind === 'ev_charger') {
+    for (let k = -1; k <= 1; k++) el('rect', { x: cx + k * 11 - 2, y: cy - 14 + Math.abs(k) * 3, width: 4, height: 12, rx: 1.5, fill: '#FF5F00' }, g);
+  } else if (kind === 'furnace') {
+    el('rect', { x: cx + 8, y: cy - 26, width: 6, height: 26, fill: '#9C8065' }, g);
+  } else if (kind === 'battery') {
+    el('line', { x1: top[3][0] + 6, y1: top[3][1] + 4, x2: top[2][0] - 2, y2: top[2][1] + 1, stroke: '#FF5F00', 'stroke-width': 2 }, g);
+  } else if (kind === 'cold_store') {
+    el('ellipse', { cx: cx - 6, cy, rx: 6, ry: 3, fill: '#9BB7CF' }, g);
+  } else if (kind === 'hall') {  // sawtooth roof
+    for (let i = 0; i < 4; i++) {
+      const a = iso(col - .5 + (w * (i + .5)) / 4, row - .5), b = iso(col - .5 + (w * (i + .5)) / 4, row + h - .5);
+      el('line', { x1: a[0], y1: a[1] - look('hall'), x2: b[0], y2: b[1] - look('hall'), stroke: '#CFC9BF', 'stroke-width': 4 }, g);
+    }
+  } else if (kind === 'grid') {
+    el('line', { x1: cx - 10, y1: cy, x2: cx - 10, y2: cy - 46, stroke: '#9C968D', 'stroke-width': 2 }, g);
+    el('line', { x1: cx - 22, y1: cy - 40, x2: cx + 2, y2: cy - 40, stroke: '#9C968D', 'stroke-width': 2 }, g);
+  }
+  return [cx, cy];
+}
+const look = k => LOOK[k].h;
+
+function draw() {
+  const svg = $('svg'); svg.innerHTML = '';
+  const n = A.grid, pad = 16;
+  const [minX] = iso(-.5, n - .5), [maxX] = iso(n - .5, -.5);
+  const [, minY] = iso(-.5, -.5), [, maxY] = iso(n - .5, n - .5);
+  svg.setAttribute('viewBox', `${minX - pad} ${minY - 110} ${maxX - minX + 2 * pad} ${maxY - minY + 110 + pad}`);
+  const stage = el('g', { id: 'stage' }, svg);
+
+  // the island and its squares
+  const ground = new Set(A.ground.map(([c, r]) => key(c, r)));
+  const [ix, iy] = iso(A.centre, A.centre);
+  el('ellipse', { cx: ix, cy: iy + 4, rx: (n / 2 + .15) * TW / Math.SQRT2 * 1.02, ry: (n / 2 + .15) * TH / Math.SQRT2 * 1.02, fill: '#E7E2DA' }, stage);
+  el('ellipse', { cx: ix, cy: iy, rx: (n / 2 + .15) * TW / Math.SQRT2, ry: (n / 2 + .15) * TH / Math.SQRT2, fill: '#F7F5F1', stroke: '#DDD8D0' }, stage);
+  const tiles = el('g', {}, stage);
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    if (!ground.has(key(c, r))) continue;
+    el('polygon', { points: pts(footprintCorners(c, r, 1, 1)), fill: (c + r) % 2 ? '#EFEBE4' : '#F3F0EA', stroke: '#E2DDD4', 'stroke-width': 1, 'data-cell': key(c, r) }, tiles);
+  }
+
+  // drop preview under everything that stands
+  const preview = el('g', { id: 'preview' }, stage);
+
+  // fixed things and components, back to front
+  const things = [];
+  for (const k of ['hall', 'grid', 'road']) {
+    const f = A.fixed[k], cs = f.cells.map(([c]) => c), rs = f.cells.map(([, r]) => r);
+    things.push({ fixed: k, label: f.label, col: Math.min(...cs), row: Math.min(...rs), w: Math.max(...cs) - Math.min(...cs) + 1, h: Math.max(...rs) - Math.min(...rs) + 1 });
+  }
+  items.forEach(it => { if (it.col != null && !A.roof_kinds.includes(it.kind)) { const [w, h] = A.footprint[it.kind] || [1, 1]; things.push({ ...it, w, h }); } });
+  things.sort((a, b) => (a.col + a.w + a.row + a.h) - (b.col + b.w + b.row + b.h));
+  const labels = el('g', {}, svg);  // labels on top of everything
+  for (const t of things) {
+    const kind = t.fixed || t.kind;
+    const g = el('g', { class: t.fixed ? 'fixed' : 'item' + (t.id === selected ? ' sel' : '') }, stage);
+    if (drag && drag.mode === 'move' && drag.moved && drag.id === t.id) g.setAttribute('opacity', '.35');
+    const top = box(g, t.col, t.row, t.w, t.h, LOOK[kind], 'outline');
+    const [cx, cy] = decorate(g, kind, t.col, t.row, t.w, t.h, top);
+    if (kind === 'hall' && A.roof_count) {  // rooftop solar on the hall roof
+      const p = footprintCorners(t.col + .2, t.row + .2, t.w - .4, t.h - .4, LOOK.hall.h + 1);
+      el('polygon', { points: pts(p), fill: '#2C3E5C', opacity: .9 }, g);
+    }
+    if (!t.fixed) {
+      g.dataset.id = t.id;
+      g.addEventListener('pointerdown', e => startDrag(e, { mode: 'move', id: t.id, kind: t.kind }));
+    }
+    // parts: label just above their top (cy is already on the top face); fixed things:
+    // label on the ground in front, so it never covers a part
+    const front = footprintCorners(t.col, t.row, t.w, t.h)[2];
+    // (the grid connection stands behind the hall, so its label goes up by its pylon)
+    const ly = kind === 'grid' ? cy - 52 : t.fixed ? front[1] + 16 : (kind === 'wind' ? cy - 86 : cy - 12);
+    const name = t.fixed ? (kind === 'hall' && A.roof_count ? `${t.label} · ${A.roof_count} roof solar` : t.label) : t.name;
+    if (kind !== 'road') {
+      const text = el('text', { x: t.fixed && kind !== 'grid' ? front[0] : cx, y: ly, 'text-anchor': 'middle', class: 'label' + (t.fixed ? ' dim' : '') }, labels);
+      text.textContent = name;
+    }
+  }
+  labels.setAttribute('transform', stage.getAttribute('transform') || '');
+  stage.appendChild(labels);
+  drawPreview();
+  const unplaced = items.filter(it => it.col == null && !A.roof_kinds.includes(it.kind)).length;
+  $('tag').textContent = unplaced ? `${unplaced} part(s) did not fit and are not on the plan` : 'Tap a part on the site to change its size and hours';
+}
+
+function drawPreview() {
+  const g = $('preview'); if (!g) return; g.innerHTML = '';
+  if (!drag || !drag.moved || !drag.cell) return;
+  const [col, row] = drag.cell, ok = fits(drag.kind, col, row, drag.id);
+  const [w, h] = A.roof_kinds.includes(drag.kind) ? [1, 1] : (A.footprint[drag.kind] || [1, 1]);
+  el('polygon', { points: pts(footprintCorners(col, row, w, h)), fill: ok ? 'rgba(46,158,91,.28)' : 'rgba(214,69,69,.25)', stroke: ok ? '#2E9E5B' : '#D64545', 'stroke-width': 2 }, g);
+  if (ok && !A.roof_kinds.includes(drag.kind)) {
+    const gg = el('g', { class: 'ghost' }, g);
+    const top = box(gg, col, row, w, h, LOOK[drag.kind]);
+    decorate(gg, drag.kind, col, row, w, h, top);
+  }
+}
+
+// ── The parts list ─────────────────────────────────────────────────────────
+function icon(kind) {
+  const s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '-36 -38 72 60');
+  const L = LOOK[kind], h = Math.min(L.h, 22);
+  const t = [[0, -16 - h], [28, -2 - h], [0, 12 - h], [-28, -2 - h]], b = [[0, -16], [28, -2], [0, 12], [-28, -2]];
+  el('polygon', { points: pts([b[3], b[2], t[2], t[3]]), fill: L.left }, s);
+  el('polygon', { points: pts([b[2], b[1], t[1], t[2]]), fill: L.right }, s);
+  el('polygon', { points: pts(t), fill: L.top }, s);
+  if (kind === 'wind') el('line', { x1: 0, y1: -4, x2: 0, y2: -36, stroke: '#9C968D', 'stroke-width': 3 }, s);
+  if (kind === 'ev_charger') el('rect', { x: -2, y: -16, width: 4, height: 12, fill: '#FF5F00' }, s);
+  return s;
+}
+function drawParts() {
+  const list = $('list'); list.innerHTML = '';
+  const count = k => items.filter(it => it.kind === k).length;
+  for (const [role, title] of A.roles) {
+    const kinds = A.kinds.filter(k => k.role === role); if (!kinds.length) continue;
+    const head = document.createElement('div'); head.className = 'group'; head.textContent = title; list.appendChild(head);
+    for (const k of kinds) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'part'; b.title = k.description;
+      b.appendChild(icon(k.key));
+      const txt = document.createElement('span');
+      txt.innerHTML = '<b></b><small></small>';
+      txt.querySelector('b').textContent = k.label;
+      txt.querySelector('small').textContent = A.roof_kinds.includes(k.key) ? `on the hall roof · ${count(k.key)} placed` : `${count(k.key)} placed`;
+      b.appendChild(txt);
+      b.addEventListener('pointerdown', e => startDrag(e, { mode: 'new', kind: k.key }));
+      list.appendChild(b);
+    }
+  }
+}
+
+// ── Drag and drop (mouse, pen and touch) ───────────────────────────────────
+function startDrag(e, d) {
+  if (e.button > 0) return;
+  e.preventDefault();
+  drag = { ...d, start: [e.clientX, e.clientY], moved: false, cell: null };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp, { once: true });
+}
+function overParts(e) { const r = $('parts').getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; }
+function onMove(e) {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.start[0], e.clientY - drag.start[1]) < 6) return;
+  if (!drag.moved) { drag.moved = true; if (drag.mode === 'move') draw(); }
+  const f = $('float'); f.style.display = 'block'; f.style.left = e.clientX + 'px'; f.style.top = e.clientY + 'px';
+  const label = A.kinds.find(k => k.key === drag.kind).label;
+  const removing = drag.mode === 'move' && overParts(e);
+  $('parts').classList.toggle('trash', removing);
+  if (removing) { drag.cell = null; f.textContent = 'Remove'; drawPreview(); return; }
+  const r = $('board').getBoundingClientRect();
+  const onBoard = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  drag.cell = onBoard ? cellAt(e) : null;
+  f.textContent = drag.cell ? (fits(drag.kind, ...drag.cell, drag.id) ? label : 'Not here') : label;
+  drawPreview();
+}
+function onUp(e) {
+  window.removeEventListener('pointermove', onMove);
+  const d = drag; drag = null;
+  $('float').style.display = 'none'; $('parts').classList.remove('trash');
+  if (!d) return;
+  if (!d.moved) {  // a tap
+    if (d.mode === 'new') emit({ action: 'add', kind: d.kind });
+    else { selected = d.id; draw(); emit({ action: 'select', id: d.id }); }
+    return;
+  }
+  if (d.mode === 'move' && overParts(e)) {
+    items = items.filter(it => it.id !== d.id); if (selected === d.id) selected = null;
+    draw(); drawParts(); emit({ action: 'remove', id: d.id }); return;
+  }
+  if (!d.cell) { draw(); return; }
+  const [col, row] = d.cell, ok = fits(d.kind, col, row, d.id);
+  if (d.mode === 'new') {
+    emit(A.roof_kinds.includes(d.kind) ? { action: 'add', kind: d.kind, target: ok ? 'hall' : 'ground' } : { action: 'add', kind: d.kind, col, row });
+  } else {
+    if (ok) { const it = items.find(x => x.id === d.id); if (it) { it.col = col; it.row = row; } }
+    selected = d.id;
+    emit({ action: 'move', id: d.id, col, row });
+  }
+  draw();
+}
+
+// ── Talking to Streamlit ───────────────────────────────────────────────────
+function emit(event) {
+  // n makes every event new: Streamlit keeps returning the last value on every rerun
+  send('streamlit:setComponentValue', { value: { ...event, n: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }, dataType: 'json' });
+}
+window.addEventListener('message', e => {
+  if (e.source !== window.parent || !e.data || e.data.type !== 'streamlit:render') return;
+  A = e.data.args.layout;
+  items = A.items.map(it => ({ ...it }));
+  selected = A.selected;
+  if (!drag) { draw(); drawParts(); }
+  send('streamlit:setFrameHeight', { height: document.body.scrollHeight });
+});
+send('streamlit:componentReady', { apiVersion: 1 });
+</script>
+</body>
+</html>

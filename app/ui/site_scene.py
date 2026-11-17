@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from offpeak import components as site_components
+from offpeak import layout
 from offpeak.tariffs import Tariff
 
 TEMPLATE = Path(__file__).with_name("site_scene.html")
@@ -47,6 +48,10 @@ def payload(
     has its all-in price. `compact` shows only the 3D stage (the preview in "Edit site")."""
     comps = list(comps if comps is not None else site_components.DEFAULT_COMPONENTS)
     day = site_components.site_day(inputs, comps, tariff)
+    # where the layout designer put each component (metres east, south); None = automatic
+    positions = layout.world_positions(comps)
+    for c in day["components"]:
+        c["pos"] = positions.get(c["id"])
     return {
         "site": site,
         "compact": compact,

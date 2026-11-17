@@ -10,10 +10,10 @@ from dataclasses import replace
 
 import data
 import streamlit as st
-from ui import site_scene
+from ui import layout_designer, site_scene
 from ui.components import card_title, header
 
-from offpeak import components, demo_site
+from offpeak import components, demo_site, layout
 from offpeak.config import MARKET_TZ
 from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY, DEMO_SITE
@@ -21,6 +21,9 @@ from offpeak.tariffs import germany_2026
 from offpeak.timeutils import market_today
 
 DRAFT = "site_draft"  # the site being edited; only in this browser tab until it is saved
+PICK = "draft_pick"  # the part whose size and hours are shown below the designer
+SEEN = "designer_seen"  # the last designer action already handled
+MESSAGE = "designer_message"  # why the last action was refused
 
 ROLES = {
     "generation": "Generation",
@@ -76,8 +79,11 @@ def start_editing(start_from) -> None:
     # again from the current site brings back the same ids
     for key in [k for k in st.session_state if str(k).startswith("draft_")]:
         del st.session_state[key]
-    # copies, so editing the draft never changes the site that is shown until it is saved
-    st.session_state[DRAFT] = [replace(c, params=dict(c.params)) for c in start_from]
+    # copies, so editing the draft never changes the site that is shown until it is saved;
+    # parts without a square (the demo site) get their usual spot on the grid
+    st.session_state[DRAFT] = layout.auto_place(
+        [replace(c, params=dict(c.params)) for c in start_from]
+    )
 
 
 def component_card(c: components.Component, draft: list) -> None:
@@ -96,7 +102,7 @@ def component_card(c: components.Component, draft: list) -> None:
         if rm.button(
             "", key=f"draft_{c.id}_rm", icon=":material/delete:", help="Remove from the site"
         ):
-            draft.remove(c)
+            draft.remove(c)  # the part list below resets the pick on the next run
             st.rerun()
         size = [p for p in spec.params if p.key not in SCHEDULE_KEYS]
         when = [p for p in spec.params if p.key in SCHEDULE_KEYS]
@@ -125,9 +131,9 @@ def editor() -> None:
     draft = st.session_state[DRAFT]
     header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Edit site", live=True)
     st.caption(
-        "Build the site to match your own facility. Add what you have from the palette, "
-        "set sizes and hours, and watch the model change. Nothing is saved until you press "
-        "Save site."
+        "Lay out your site like it really is: drag parts from the left onto the squares, "
+        "drag them around, tap one to set its size and hours. Nothing is saved until you "
+        "press Save site."
     )
     bar = st.columns([1.3, 1.6, 1, 1, 2.5])
     if bar[0].button("Start empty", icon=":material/crop_free:"):
@@ -141,38 +147,68 @@ def editor() -> None:
         del st.session_state[DRAFT]
         st.rerun()
     status = st.container()  # "saved" or what stops the save, right under the buttons
+    if MESSAGE in st.session_state:  # what the last drag or drop could not do
+        status.warning(st.session_state.pop(MESSAGE), icon=":material/info:")
 
-    with st.container(border=True, key="card_palette"):
-        card_title("Add to your site", "Tap a component to add it with typical values")
+    # The layout designer reports one action at a time; offpeak/layout.py decides if it is
+    # allowed. Streamlit returns the last action on every rerun, so each is handled once.
+    event = layout_designer.show(draft, st.session_state.get(PICK), key="designer")
+    if event and event.get("n") != st.session_state.get(SEEN):
+        st.session_state[SEEN] = event.get("n")
+        st.session_state[DRAFT], picked, problem = layout.apply(draft, event)
+        st.session_state[PICK] = picked
+        if problem:
+            st.session_state[MESSAGE] = problem
+        st.rerun()
+
+    with st.expander("Add without dragging", icon=":material/keyboard:"):
+        st.caption("Each part goes on the next free square; drag it to its place later.")
         for col, (role, label) in zip(st.columns(4), ROLES.items(), strict=True):
             col.caption(label)
             for kind in (k for k in components.CATALOGUE.values() if k.role == role):
-                full = len(draft) >= components.MAX_COMPONENTS
                 if col.button(
                     kind.label,
                     key=f"add_{kind.key}",
                     icon=f":material/{ICONS.get(kind.key, 'bolt')}:",
                     width="stretch",
-                    disabled=full,
+                    disabled=len(draft) >= components.MAX_COMPONENTS,
                     help=kind.description,
                 ):
-                    draft.append(
-                        components.new_component(kind.key, components.next_name(kind.key, draft))
+                    st.session_state[DRAFT], picked, problem = layout.apply(
+                        draft, {"action": "add", "kind": kind.key}
                     )
+                    st.session_state[PICK] = picked
+                    if problem:
+                        st.session_state[MESSAGE] = problem
                     st.rerun()
 
-    preview, edit = st.columns([3, 2], gap="medium")
-    with edit:
-        card_title(
-            "On your site",
-            f"{len(draft)} of at most {components.MAX_COMPONENTS} components",
-        )
+    settings, preview = st.columns([2, 3], gap="medium")
+    with settings:
+        card_title("Size and hours", f"{len(draft)} of at most {components.MAX_COMPONENTS} parts")
         if not draft:
-            st.info("Your site is empty. Add what you have on site from the palette above.")
-        for c in list(draft):
-            component_card(c, draft)
+            st.info("Your site is empty. Drag what you have on site from the parts list.")
+        else:
+            names = {
+                c.id: c.name if c.name == c.spec.label else f"{c.name} · {c.spec.label}"
+                for c in draft
+            }
+            if st.session_state.get(PICK) not in names:
+                st.session_state[PICK] = None
+            picked = st.selectbox(
+                "Part",
+                list(names),
+                format_func=names.get,
+                index=None,
+                placeholder="Tap a part on the site, or pick it here",
+                key=PICK,
+                label_visibility="collapsed",
+            )
+            chosen = next((c for c in draft if c.id == picked), None)
+            if chosen is not None:
+                component_card(chosen, draft)
     with preview:
-        scene(draft, compact=True)
+        if st.toggle("Show the 3D preview", key="draft_3d"):
+            scene(draft, compact=True)
 
     if save:
         where, problems = data.replace_site(draft)

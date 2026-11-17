@@ -14,7 +14,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import Engine
 
-from offpeak import components, db, http
+from offpeak import components, db, http, layout
 from offpeak.analysis import covers_days
 from offpeak.markets import energy_charts
 from offpeak.settings import lookup
@@ -237,10 +237,13 @@ def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]
     Checked here again, not only on the page: this is where the data is stored. Like adding
     and removing, only a signed-in editor changes the shared site; anyone else keeps the
     new site in this browser tab."""
-    problems = components.validate_site(new)
+    # every ground component gets a square (those added elsewhere have none yet), then the
+    # site rules and the layout rules are checked together
+    new = layout.auto_place([replace(c, params=dict(c.params)) for c in new])
+    problems = components.validate_site(new) + layout.layout_problems(new)
     if problems:
         return None, problems
-    new = [replace(c, name=c.name.strip(), params=dict(c.params)) for c in new]
+    new = [replace(c, name=c.name.strip()) for c in new]
     if not can_share():
         st.session_state[LOCAL_COMPONENTS] = new
         return ("local" if engine() else "session"), []
