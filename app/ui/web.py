@@ -17,6 +17,12 @@ ECHARTS = "https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"
 _bridge = components.declare_component("offpeak_view", path=str(WEB / "bridge"))
 
 
+def with_field(page: str) -> str:
+    """A page with the power lines (web/field.js) put in where it says <!--FIELD-->: the
+    landing page and the sign-in page's background share them."""
+    return page.replace("<!--FIELD-->", f"<script>{(WEB / 'field.js').read_text()}</script>")
+
+
 def render_html(view: str, data: dict) -> str:
     page = (WEB / f"{view}.html").read_text()
     head = (
