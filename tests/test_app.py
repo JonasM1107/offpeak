@@ -125,7 +125,7 @@ def test_site_scene_carries_the_blender_models():
     from ui import site_scene
 
     models = site_scene.models()
-    for name in ("furnace_hall", "main_hall", "cold_store", "battery_container", "e_truck"):
+    for name in ("furnace_hall", "main_hall", "cold_store", "e_truck", "wind_blade", "pv_module"):
         assert name in models
     for packed in models.values():
         assert gzip.decompress(base64.b64decode(packed))[:4] == b"glTF"  # binary glTF
