@@ -11,7 +11,7 @@ from ui.components import card_title, header, kpi, legend
 
 from offpeak import demo_site
 from offpeak.markets.energy_charts import PriceSourceError
-from offpeak.sites import DEMO_CITY, DEMO_SITE
+from offpeak.sites import DEMO_CITY
 from offpeak.tariffs import germany_2026, slot_prices
 from offpeak.timeutils import market_today
 
@@ -87,7 +87,7 @@ else:  # hourly demo curve
     )
 
 with title.container():
-    header(f"{DEMO_SITE.name} · {DEMO_CITY} · {dynamic.name}", "Tariff calculator", live=live)
+    header(f"{data.site().name} · {DEMO_CITY} · {dynamic.name}", "Tariff calculator", live=live)
 if not live:
     st.info(
         "Live prices could not be loaded right now, so the page uses Offpeak's demo price "

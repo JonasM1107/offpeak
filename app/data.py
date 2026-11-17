@@ -18,7 +18,7 @@ from offpeak import components, db, http
 from offpeak.analysis import covers_days
 from offpeak.markets import energy_charts
 from offpeak.settings import lookup
-from offpeak.sites import DEMO_SITE
+from offpeak.sites import DEMO_SITE, site_for
 from offpeak.timeutils import day_slots, market_today
 from offpeak.weather import open_meteo
 
@@ -179,27 +179,53 @@ def can_share() -> bool:
     return engine() is not None and editor() is not None
 
 
+# ── The signed-in role and its site ─────────────────────────────────────────
+# Prices and weather are the same for both roles (Köln, DE-LU). Everything that depends on
+# what is used (components, cockpit machines, the savings replay) takes the site and the
+# catalogue of the signed-in account's role, read from its signed token, never from the
+# page or the address.
+
+
+def role() -> str:
+    """The signed-in account's role; "business" before signing in (no page shows then)."""
+    from ui.account import role as signed_role
+
+    return signed_role() or "business"
+
+
+def site():
+    """The site of the signed-in account's role (offpeak/sites.py)."""
+    return site_for(role())
+
+
+def _local_key(profile: str) -> str:
+    return f"{LOCAL_COMPONENTS}_{profile}"  # one list per role, kept apart in the tab too
+
+
 # ── Site components ──────────────────────────────────────────────────────────
 
 
 def site_components() -> tuple[list[components.Component], str]:
-    """The demo site's components and where they come from: 'local' (changed in this tab
-    by someone not signed in), 'database', 'demo' (database connected but no components
+    """The signed-in role's components and where they come from: 'local' (changed in this
+    tab by someone not signed in), 'database', 'demo' (database connected but no components
     saved yet) or 'session' (no database: kept until reload)."""
-    if LOCAL_COMPONENTS in st.session_state:
-        return st.session_state[LOCAL_COMPONENTS], "local" if engine() else "session"
+    profile, here = role(), site()
+    key = _local_key(profile)
+    if key in st.session_state:
+        return st.session_state[key], "local" if engine() else "session"
+    demo = [replace(c) for c in components.DEFAULTS[profile]]
     eng = engine()
     if eng is not None:
         try:
-            rows = db.read_components(eng, DEMO_SITE.id)
-        except Exception as err:  # e.g. migration 002 not applied yet
+            rows = db.read_components(eng, here.id, profile)
+        except Exception as err:  # e.g. migration 002 or 006 not applied yet
             print(f"offpeak: cannot read site_components, keeping them in the session: {err}")
         else:
             if rows:
                 return [components.Component(**r) for r in rows], "database"
-            return [replace(c) for c in components.DEFAULT_COMPONENTS], "demo"
-    st.session_state[LOCAL_COMPONENTS] = [replace(c) for c in components.DEFAULT_COMPONENTS]
-    return st.session_state[LOCAL_COMPONENTS], "session"
+            return demo, "demo"
+    st.session_state[key] = demo
+    return st.session_state[key], "session"
 
 
 def _as_row(c: components.Component) -> dict:
@@ -209,24 +235,28 @@ def _as_row(c: components.Component) -> dict:
 def add_component(new: components.Component) -> str:
     """Add a component; returns where it went. For an editor it is stored for everyone (the
     first change saves the demo components too, so they stay); for anyone else it is kept
-    in this tab only."""
+    in this tab only. Raises ValueError if it does not belong to the signed-in role
+    (a household device for a business, or the other way round), whatever the page sent."""
+    profile, here = role(), site()
+    components.check_profile([new], profile)
     current, source = site_components()
     if not can_share():
-        st.session_state[LOCAL_COMPONENTS] = [*current, new]
+        st.session_state[_local_key(profile)] = [*current, new]
         return "local" if engine() else "session"
     rows = [_as_row(c) for c in current] if source == "demo" else []
-    db.save_components(engine(), DEMO_SITE.id, rows + [_as_row(new)])
+    db.save_components(engine(), here.id, rows + [_as_row(new)], profile)
     return "database"
 
 
 def remove_component(component_id: str) -> str:
+    profile, here = role(), site()
     current, source = site_components()
     if not can_share():
-        st.session_state[LOCAL_COMPONENTS] = [c for c in current if c.id != component_id]
+        st.session_state[_local_key(profile)] = [c for c in current if c.id != component_id]
         return "local" if engine() else "session"
     if source == "demo":
-        db.save_components(engine(), DEMO_SITE.id, [_as_row(c) for c in current])
-    db.delete_component(engine(), component_id)
+        db.save_components(engine(), here.id, [_as_row(c) for c in current], profile)
+    db.delete_component(engine(), component_id, here.id, profile)  # only from this site
     return "database"
 
 
@@ -237,14 +267,14 @@ def cockpit_machines() -> tuple[list[dict] | None, str]:
     """The cockpit machines (None if never saved) and where changes go: 'database' (signed
     in), 'local' (not signed in: this tab only) or 'session' (no database)."""
     eng = engine()
-    local = st.session_state.get("cockpit_machines")
+    local = st.session_state.get(_machines_key())
     if eng is None:
         return local, "session"
     where = "database" if can_share() else "local"
     if local is not None and where == "local":
         return local, where
     try:
-        return db.read_machines(eng, DEMO_SITE.id), where
+        return db.read_machines(eng, site().id, role()), where
     except Exception as err:  # e.g. migration 003 not applied yet
         print(f"offpeak: cannot read cockpit_machines, keeping them in the session: {err}")
         return local, "session"
@@ -254,12 +284,17 @@ def save_cockpit_machines(machines: list[dict]) -> str:
     """Keep the cockpit machines: for everyone if signed in, else in this tab only."""
     if can_share():
         try:
-            db.save_machines(engine(), DEMO_SITE.id, machines)
-            return "database"
+            if db.save_machines(engine(), site().id, machines, role()):
+                return "database"
+            print("offpeak: cockpit_machines of this site belong to another role, kept here")
         except Exception as err:
             print(f"offpeak: cannot save cockpit_machines, keeping them in the session: {err}")
-    st.session_state["cockpit_machines"] = machines
+    st.session_state[_machines_key()] = machines
     return "local" if engine() else "session"
+
+
+def _machines_key() -> str:
+    return f"cockpit_machines_{role()}"  # one list per role, kept apart in the tab too
 
 
 @st.cache_data(ttl=3 * 3600, show_spinner=False)
@@ -402,7 +437,7 @@ _LOCK = threading.Lock()
 
 def setup_key(comps) -> tuple:
     """The components as a hashable key: a new machine means a fresh replay."""
-    return tuple((c.id, c.kind, c.name, tuple(sorted(c.params.items()))) for c in comps)
+    return tuple((c.id, c.kind, c.name, tuple(sorted(c.params.items())), c.profile) for c in comps)
 
 
 @st.cache_data(ttl=12 * 3600, show_spinner=False)
@@ -412,7 +447,7 @@ def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     from offpeak import savings
     from offpeak.tariffs import germany_2026
 
-    comps = [components.Component(i, k, n, dict(p)) for i, k, n, p in setup]
+    comps = [components.Component(i, k, n, dict(p), prof) for i, k, n, p, prof in setup]
     start = end - timedelta(days=n_days - 1)
     loaded, _, _ = past_prices(start, end)
     past = archive_weather(start, end)

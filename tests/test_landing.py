@@ -38,7 +38,10 @@ def landing_shown(at: AppTest) -> bool:
 
 
 def login_shown(at: AppTest) -> bool:
-    return [t.label for t in at.text_input] == ["Email", "Password"]
+    """The login screen: step 1 (the two role cards) or step 2 (email and password)."""
+    cards = [b.key for b in at.button if (b.key or "").startswith("choose_")]
+    form = [t.label for t in at.text_input] == ["Email", "Password"]
+    return cards == ["choose_home", "choose_business"] or form
 
 
 def press(at: AppTest, key: str) -> AppTest:
@@ -78,7 +81,7 @@ def test_back_also_clears_login_from_the_address():
 
 
 def test_signing_in_after_the_landing_page_opens_the_app():
-    at = press(visitor(), "landing_login")
+    at = press(press(visitor(), "landing_login"), "choose_business")  # the Business card
     at.text_input[0].input("ann@example.com")
     at.text_input[1].input("pw")
     at = press(at, "FormSubmitter:sign_in-Sign in")

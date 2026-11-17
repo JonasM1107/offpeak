@@ -1,19 +1,24 @@
-"""Site & components: the machines on the demo site, with a form to add or remove them.
-Every change shows up in the site view's 3D model, day plan and fact sheets."""
+"""Site & components (business) or Home & devices (homeowner): what is on the signed-in
+role's site, with a form to add or remove it. Each role picks from its own catalogue
+(offpeak/components.py); app/data.py checks again where it is saved. Every change shows up in
+the site or home view's 3D model, day plan and fact sheets."""
 
 import data
 import pandas as pd
 import streamlit as st
 from ui.components import card_title, header
 
-from offpeak import components
-from offpeak.sites import DEMO_CITY, DEMO_SITE
+from offpeak import components, roles
+from offpeak.sites import DEMO_CITY
 
-header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Site & components", live=True)
+profile, here = data.role(), data.site()
+w = roles.words(profile)
+catalogue = components.CATALOGUES[profile]
+header(f"{here.name} · {DEMO_CITY} · {here.zone}", w["setup"], live=True)
 comps, source = data.site_components()
 
 with st.container(border=True, key="card_list"):
-    card_title("On this site", f"{len(comps)} components, grouped by what they do")
+    card_title(f"In this {w['site']}", f"{len(comps)} {w['machines']}, grouped by what they do")
     ROLES = {
         "generation": "Generation",
         "storage": "Storage",
@@ -41,11 +46,13 @@ with st.container(border=True, key="card_list"):
         ]
     )
     st.dataframe(table, hide_index=True, width="stretch")
-    st.page_link("views/site.py", label="See them in the site view", icon=":material/view_in_ar:")
+    st.page_link(
+        "views/site.py", label=f"See them in the {w['view'].lower()}", icon=":material/view_in_ar:"
+    )
 
 st.write("")
 SAVED = {
-    "database": "Changes are saved for everyone using this site.",
+    "database": f"Changes are saved for everyone using this {w['site']}.",
     "demo": "Showing the demo components. Your first change saves them together with it.",
     "session": "No database connected: changes last until you reload the page.",
     "local": "You're not signed in: changes stay in this browser tab. Sign in under "
@@ -54,11 +61,14 @@ SAVED = {
 add, remove = st.columns([2, 1], gap="medium")
 with add, st.container(border=True, key="card_add"):
     card_title(
-        "Add a component", "New solar, a second turbine, a heat pump: it appears in the model"
+        f"Add to the {w['site']}",
+        "A heat pump, a second wallbox, a dishwasher: it appears in the model"
+        if profile == "home"
+        else "New solar, a second turbine, a heat pump: it appears in the model",
     )
-    labels = {k.label: k.key for k in components.CATALOGUE.values()}
+    labels = {k.label: k.key for k in catalogue.values()}
     kind = labels[st.selectbox("Type", list(labels))]
-    spec = components.CATALOGUE[kind]
+    spec = catalogue[kind]
     with st.form("add_component", clear_on_submit=True, border=False):
         name = st.text_input("Name", placeholder=f"e.g. {spec.label} north")
         cols = st.columns(3)
@@ -70,23 +80,27 @@ with add, st.container(border=True, key="card_add"):
                     min_value=float(p.min),
                     max_value=float(p.max),
                     value=float(p.default),
-                    step=1.0,
+                    # 0.1 kW steps for small devices; counts and hours stay whole numbers
+                    step=0.1 if p.unit == "kW" and p.max <= 5 else 1.0,
                     key=f"{kind}_{p.key}",
                 )
         st.caption(spec.description)
-        if st.form_submit_button("Add to site", type="primary"):
-            problems = components.validate(kind, params)
+        if st.form_submit_button(f"Add to {w['site']}", type="primary"):
+            problems = components.validate(kind, params, profile)
             if problems:
                 st.error(" · ".join(problems))
             else:
-                data.add_component(
-                    components.new_component(kind, name.strip() or spec.label, params)
-                )
-                st.rerun()
+                new = components.new_component(kind, name.strip() or spec.label, params, profile)
+                try:
+                    data.add_component(new)
+                except ValueError:  # not part of this role's catalogue: refused where saved
+                    st.error(f"This cannot be added to a {roles.LABELS[profile]} account.")
+                else:
+                    st.rerun()
     st.caption(SAVED[source])
 
 with remove, st.container(border=True, key="card_remove"):
-    card_title("Remove a component", f"{len(comps)} on this site")
+    card_title(f"Remove from the {w['site']}", f"{len(comps)} {w['machines']}")
     names = {f"{c.name} · {c.spec.label}": c.id for c in comps}
     picked = st.selectbox("Component", list(names), label_visibility="collapsed")
     if st.button("Remove", disabled=not names):

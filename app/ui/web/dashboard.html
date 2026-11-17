@@ -88,9 +88,9 @@
 
   <div class="row c21 reveal">
     <div class="card">
-      <div class="head"><div><h3>Your next steps</h3><div class="sub">Each machine at its best time in the coming days. Tick a step off when it is done.</div></div></div>
+      <div class="head"><div><h3>Your next steps</h3><div class="sub" id="steps-sub">Each machine at its best time in the coming days. Tick a step off when it is done.</div></div></div>
       <div class="steps" id="steps"></div>
-      <a class="more" href="/cockpit" target="_top">Change machines and times in the cockpit →</a>
+      <a class="more" id="steps-more" href="/cockpit" target="_top">Change machines and times in the cockpit →</a>
     </div>
     <div class="card shift">
       <div class="head"><div><h3>Shift &amp; save</h3><div class="sub">How much energy could you move each day to the cheapest hours?</div></div></div>
@@ -118,6 +118,10 @@
 // Everything is computed in Python (offpeak/dashboard.py); this page draws it and adds the
 // interactions: live countdowns, ticking steps off, the shift slider and the clickable hours.
 const D = window.OFFPEAK, N = D.now, R = D.ribbon, A = D.actions;
+// the words of the signed-in role (offpeak/roles.py: WORDS)
+const W = D.words;
+document.getElementById('steps-sub').textContent = `Each ${W.machine} at its best time in the coming days. Tick a step off when it is done.`;
+document.getElementById('steps-more').textContent = `Change ${W.machines} and times in the ${W.planner.toLowerCase()} →`;
 const { nf } = OP;
 const eur = (v, d = 2) => '€' + nf(v, d);
 const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: '2-digit', minute: '2-digit' });
@@ -132,7 +136,7 @@ function until(t) {  // "in 2 h 14 min"
 const box = document.getElementById('now');
 box.classList.add(N.level);
 document.getElementById('headline').textContent = {
-  cheap: 'Power is cheap right now. Run flexible machines.',
+  cheap: `Power is cheap right now. Run flexible ${W.machines}.`,
   normal: 'Prices are average right now.',
   expensive: 'Power is expensive right now. Wait if you can.',
 }[N.level];
@@ -151,14 +155,14 @@ const tile = (label, value, note, cls = '', id = '') => `<div class="tile ${cls}
 const next = A.find(a => a.end_t > Date.now() / 1000);
 const S = D.saved;
 document.getElementById('tiles').innerHTML = [
-  tile('Your plan saves this week', eur(0), `${A.length} machine runs at their best time`, 'hero', 'c-week'),
+  tile('Your plan saves this week', eur(0), `${A.length} ${W.machine} runs at their best time`, 'hero', 'c-week'),
   tile('That is per month', eur(0), 'if every week looks like this one', '', 'c-month'),
   S ? tile('Saved in the last 30 days', eur(0), `${nf(S.share_pct, 0)} % of the bill, replayed with real prices`, '', 'c-saved')
     : D.saved_state === 'failed'
       ? tile('Saved in the last 30 days', '–', 'past prices or weather are not available right now', 'wait')
       : tile('Saved in the last 30 days', '<span class="shimmer"></span>', 'being calculated, reload in a minute', 'wait'),
   next ? tile('Next step', `<span id="c-next">${until(next.start_t)}</span>`, `${next.name} · ${next.when}`)
-       : tile('Next step', '–', 'no machine runs planned'),
+       : tile('Next step', '–', `no ${W.machine} runs planned`),
 ].join('');
 function countUp(id, target) {
   const el = document.getElementById(id); if (!el) return;
@@ -184,7 +188,7 @@ function renderSteps() {
       <div class="right">${a.saving_eur > 0.005 ? `<span class="chip">saves ${eur(a.saving_eur)}</span>` : '<span class="chip grey">best as usual</span>'}
         <div class="cd ${running ? 'live' : ''}" data-t="${a.start_t}" data-e="${a.end_t}">${running ? 'running now' : until(a.start_t)}</div></div>
     </label>`;
-  }).join('') : '<p class="insight">No machine runs planned. Add machines in the cockpit.</p>';
+  }).join('') : `<p class="insight">No ${W.machine} runs planned. Add ${W.machines} in the ${W.planner.toLowerCase()}.</p>`;
   document.querySelectorAll('.step input').forEach(el => el.addEventListener('change', () => {
     try { localStorage.setItem(doneKey(A[+el.dataset.i]), el.checked ? '1' : '0'); } catch (e) { /* private mode */ }
     renderSteps();
@@ -198,9 +202,12 @@ setInterval(() => {  // the countdowns tick every half minute
 }, 30000);
 
 // ── Shift & save ───────────────────────────────────────────────────────────
-const PRESETS = [['EV fleet', 120], ['Heat pump', 60], ['Hot water', 25], ['Cold store pre-cooling', 80]];
+const SHIFT = D.shift;  // the role's sizes (offpeak/roles.py: SHIFT)
+const PRESETS = SHIFT.presets;
 document.getElementById('presets').innerHTML = PRESETS.map(([n, k]) => `<button data-k="${k}">${n} · ${k} kWh</button>`).join('');
 const slider = document.getElementById('shift');
+slider.max = SHIFT.max; slider.step = SHIFT.step; slider.value = SHIFT.value;
+document.querySelector('.shift .val span:last-child').textContent = `${SHIFT.max} kWh`;
 function renderShift() {
   const kwh = +slider.value, month = kwh * 30 * D.shift_ct_per_kwh / 100;
   document.getElementById('shift-eur').innerHTML = `${eur(month, 0)}<small> a month</small>`;

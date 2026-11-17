@@ -182,24 +182,31 @@ def recent_job_runs(engine: Engine, limit: int = 10) -> pd.DataFrame:
 # ── Site components ──────────────────────────────────────────────────────────
 
 
-def read_components(engine: Engine, site_id: int) -> list[dict]:
-    """The site's components, oldest first: dicts with id, kind, name, params."""
+def read_components(engine: Engine, site_id: int, profile: str = "business") -> list[dict]:
+    """The site's components of this profile, oldest first: dicts with id, kind, name,
+    params, profile."""
     query = text("""
-        select id, kind, name, params from site_components
-        where site_id = :site_id order by created_at, id
+        select id, kind, name, params, profile from site_components
+        where site_id = :site_id and profile = :profile order by created_at, id
     """)
     with engine.connect() as conn:
-        rows = conn.execute(query, {"site_id": site_id}).mappings().all()
+        rows = conn.execute(query, {"site_id": site_id, "profile": profile}).mappings().all()
     return [dict(r) for r in rows]
 
 
-def save_components(engine: Engine, site_id: int, components: list[dict]) -> None:
-    """Insert or update components (dicts with id, kind, name, params)."""
+def save_components(
+    engine: Engine, site_id: int, components: list[dict], profile: str = "business"
+) -> None:
+    """Insert or update components (dicts with id, kind, name, params). An existing row is
+    only updated if it belongs to the same site and profile: an id from another site or
+    profile is never taken over."""
     query = text("""
-        insert into site_components (id, site_id, kind, name, params)
-        values (:id, :site_id, :kind, :name, cast(:params as jsonb))
+        insert into site_components (id, site_id, kind, name, params, profile)
+        values (:id, :site_id, :kind, :name, cast(:params as jsonb), :profile)
         on conflict (id) do update set
             kind = excluded.kind, name = excluded.name, params = excluded.params
+        where site_components.site_id = excluded.site_id
+          and site_components.profile = excluded.profile
     """)
     rows = [
         {
@@ -208,6 +215,7 @@ def save_components(engine: Engine, site_id: int, components: list[dict]) -> Non
             "kind": c["kind"],
             "name": c["name"],
             "params": json.dumps(c["params"]),
+            "profile": profile,
         }
         for c in components
     ]
@@ -216,32 +224,71 @@ def save_components(engine: Engine, site_id: int, components: list[dict]) -> Non
             conn.execute(query, rows)
 
 
-def delete_component(engine: Engine, component_id: str) -> None:
+def delete_component(
+    engine: Engine, component_id: str, site_id: int | None = None, profile: str | None = None
+) -> None:
+    """Delete a component; with site_id and profile, only if it belongs to them."""
+    query = "delete from site_components where id = :id"
+    if site_id is not None:
+        query += " and site_id = :site_id"
+    if profile is not None:
+        query += " and profile = :profile"
     with engine.begin() as conn:
-        conn.execute(text("delete from site_components where id = :id"), {"id": component_id})
+        conn.execute(text(query), {"id": component_id, "site_id": site_id, "profile": profile})
 
 
 # ── Simulation cockpit machines ─────────────────────────────────────────────
 
 
-def read_machines(engine: Engine, site_id: int) -> list[dict] | None:
+def read_machines(engine: Engine, site_id: int, profile: str = "business") -> list[dict] | None:
     """The cockpit machines saved for the site, or None if none were ever saved."""
-    query = text("select machines from cockpit_machines where site_id = :site_id")
+    query = text("""
+        select machines from cockpit_machines where site_id = :site_id and profile = :profile
+    """)
     with engine.connect() as conn:
-        row = conn.execute(query, {"site_id": site_id}).first()
+        row = conn.execute(query, {"site_id": site_id, "profile": profile}).first()
     return None if row is None else list(row[0])
 
 
-def save_machines(engine: Engine, site_id: int, machines: list[dict]) -> None:
-    """Replace the site's cockpit machines with this list (an empty list is kept as empty)."""
+def save_machines(
+    engine: Engine, site_id: int, machines: list[dict], profile: str = "business"
+) -> bool:
+    """Replace the site's cockpit machines with this list (an empty list is kept as empty).
+    A site saved under another profile is left alone: then False (nothing was saved)."""
     query = text("""
-        insert into cockpit_machines (site_id, machines, updated_at)
-        values (:site_id, cast(:machines as jsonb), now())
+        insert into cockpit_machines (site_id, machines, updated_at, profile)
+        values (:site_id, cast(:machines as jsonb), now(), :profile)
         on conflict (site_id) do update set
             machines = excluded.machines, updated_at = excluded.updated_at
+        where cockpit_machines.profile = excluded.profile
+    """)
+    params = {"site_id": site_id, "machines": json.dumps(machines), "profile": profile}
+    with engine.begin() as conn:
+        return conn.execute(query, params).rowcount > 0
+
+
+# ── Accounts: the role of each account ──────────────────────────────────────
+
+
+def read_role(engine: Engine, email: str) -> str | None:
+    """The role stored for this account ("home" or "business"), or None if it has none."""
+    query = text("select role from accounts where email = :email")
+    with engine.connect() as conn:
+        row = conn.execute(query, {"email": email}).first()
+    return None if row is None else row[0]
+
+
+def claim_role(engine: Engine, email: str, role: str) -> str:
+    """Store the role for an account that has none yet, and return the account's role. An
+    account that already has a role keeps it (the database decides, so two sign-ins at
+    the same moment cannot give one account two roles)."""
+    query = text("""
+        insert into accounts (email, role) values (:email, :role)
+        on conflict (email) do nothing
     """)
     with engine.begin() as conn:
-        conn.execute(query, {"site_id": site_id, "machines": json.dumps(machines)})
+        conn.execute(query, {"email": email, "role": role})
+    return read_role(engine, email)
 
 
 # ── Weather drivers for the price model ─────────────────────────────────────
