@@ -440,6 +440,20 @@ def setup_key(comps) -> tuple:
     return tuple((c.id, c.kind, c.name, tuple(sorted(c.params.items())), c.profile) for c in comps)
 
 
+@st.cache_data(ttl=3600, show_spinner=False, max_entries=8)
+def site_day(inputs: pd.DataFrame, setup: tuple) -> dict:
+    """Today's plan for the site view (offpeak/components.py: site_day), kept while the
+    hourly inputs (prices, weather, tariff) and the components stay the same. Planning the day
+    tries every start for every machine and takes about half a second; without this, every
+    visit to the site view paid it again. Same tariff as the page: germany_2026 for the
+    site's solar."""
+    from offpeak.tariffs import germany_2026
+
+    comps = [components.Component(i, k, n, dict(p), prof) for i, k, n, p, prof in setup]
+    assets, _ = components.site_model(comps)
+    return components.site_day(inputs, comps, germany_2026(pv_kwp=assets.pv_kwp))
+
+
 @st.cache_data(ttl=12 * 3600, show_spinner=False)
 def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     """Replay the last `n_days` days up to `end` with the real prices and measured weather:
@@ -483,6 +497,13 @@ def saved_recently(n_days: int = 30) -> tuple[dict | None, str]:
         finally:
             with _LOCK:
                 _RUNNING.discard(key)
+        if n_days == 30 and key not in _FAILED:
+            # then the 90 days the Savings page also offers, so that click does not wait
+            # half a minute: it reuses the cache savings_replay fills
+            try:
+                savings_replay(end, 90, key[2])
+            except Exception as err:
+                print(f"offpeak: background 90-day savings replay failed: {err}")
 
     threading.Thread(target=work, daemon=True).start()
     return None, "running"

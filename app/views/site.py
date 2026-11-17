@@ -36,7 +36,8 @@ site = {
     "date": market_today().isoformat(),
 }
 hour_now = data.now_utc().tz_convert(MARKET_TZ).hour
-site_scene.show(site_scene.payload(inputs, site, hour_now, tariff, comps))
+day = data.site_day(inputs, data.setup_key(comps))  # planned once per inputs and components
+site_scene.show(site_scene.payload(inputs, site, hour_now, tariff, comps, day))
 
 st.page_link(
     "views/components.py",

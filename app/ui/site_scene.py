@@ -33,15 +33,22 @@ def models() -> dict[str, str]:
 
 
 def payload(
-    inputs: pd.DataFrame, site: dict, hour_now: int, tariff: Tariff | None = None, comps=None
+    inputs: pd.DataFrame,
+    site: dict,
+    hour_now: int,
+    tariff: Tariff | None = None,
+    comps=None,
+    day: dict | None = None,
 ) -> dict:
     """Everything the page needs: both plans for all 24 hours, per component and for the
     whole site, each plan's bill under the tariff, and every component's fact sheet.
 
     `inputs` comes from demo_site.apply_tariff() when a tariff is given, so every hour
-    has its all-in price."""
+    has its all-in price. `day` is site_components.site_day() for these inputs if it was
+    already worked out (app/data.py keeps it, so a second visit does not plan again)."""
     comps = list(comps if comps is not None else site_components.DEFAULT_COMPONENTS)
-    day = site_components.site_day(inputs, comps, tariff)
+    if day is None:
+        day = site_components.site_day(inputs, comps, tariff)
     return {
         "site": site,
         "hour_now": hour_now,
