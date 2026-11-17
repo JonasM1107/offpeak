@@ -78,6 +78,7 @@ class Tariff:
     fixed: tuple[FixedCharge, ...] = ()
     export: Export = field(default_factory=Export)
     period_of: Callable[[pd.Timestamp], str] | None = None  # local time -> period name
-    vat: float = 0.0  # shown for information only
+    vat: float = 0.0  # a business deducts it: shown for information only
+    gross: bool = False  # a household cannot deduct VAT: every price it pays includes it
     valid_from: date | None = None
     notes: tuple[str, ...] = ()

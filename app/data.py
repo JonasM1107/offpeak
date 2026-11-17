@@ -384,7 +384,7 @@ def hours_ahead() -> tuple[dict, int] | None:
     says so in "weather_missing"."""
     from offpeak.cockpit import horizon
     from offpeak.markets.energy_charts import PriceSourceError
-    from offpeak.tariffs import germany_2026
+    from offpeak.tariffs import tariff_for
     from offpeak.weather.outlook import generation
 
     try:
@@ -406,7 +406,7 @@ def hours_ahead() -> tuple[dict, int] | None:
         forecast,
         gen,
         base_kw=assets.cold_store_kw,
-        tariff=germany_2026(pv_kwp=assets.pv_kwp),
+        tariff=tariff_for(role(), site_components()[0]),
         tz=MARKET_TZ,
         today=market_today(),
     )
@@ -445,7 +445,7 @@ def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     """Replay the last `n_days` days up to `end` with the real prices and measured weather:
     what the usual times cost and what the plan would have cost. About 0.3 s a day."""
     from offpeak import savings
-    from offpeak.tariffs import germany_2026
+    from offpeak.tariffs import tariff_for
 
     comps = [components.Component(i, k, n, dict(p), prof) for i, k, n, p, prof in setup]
     start = end - timedelta(days=n_days - 1)
@@ -453,7 +453,8 @@ def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     past = archive_weather(start, end)
     assets, _ = components.site_model(comps)
     days = [start + timedelta(days=i) for i in range(n_days)]
-    out = savings.replay(loaded, past, comps, germany_2026(pv_kwp=assets.pv_kwp), MARKET_TZ, days)
+    tariff = tariff_for(comps[0].profile if comps else "business", comps)
+    out = savings.replay(loaded, past, comps, tariff, MARKET_TZ, days)
     _REPLAYED[(end, n_days, setup)] = savings.summary(out)
     return out
 

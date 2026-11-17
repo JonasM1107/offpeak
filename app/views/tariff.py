@@ -15,6 +15,12 @@ from offpeak.sites import DEMO_CITY
 from offpeak.tariffs import germany_2026, slot_prices
 from offpeak.timeutils import market_today
 
+if data.role() == "home":  # a household's tariffs: fixed, dynamic, or with § 14a
+    from ui import tariff_home
+
+    tariff_home.show()
+    st.stop()
+
 today = market_today()
 title = st.empty()  # filled once the tariff and data source are known
 

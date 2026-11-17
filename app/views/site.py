@@ -9,7 +9,7 @@ from offpeak import components, demo_site, roles
 from offpeak.config import MARKET_TZ
 from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY
-from offpeak.tariffs import germany_2026
+from offpeak.tariffs import tariff_for
 from offpeak.timeutils import market_today
 
 header(
@@ -26,7 +26,7 @@ weather, _, _, _ = data.weather()
 comps, source = data.site_components()
 
 assets, _ = components.site_model(comps)
-tariff = germany_2026(pv_kwp=assets.pv_kwp)
+tariff = tariff_for(data.role(), comps)  # a household's tariff for a home
 inputs = demo_site.hourly_inputs(today_prices, weather, MARKET_TZ, assets)
 inputs = demo_site.apply_tariff(inputs, tariff, market_today())
 site = {
