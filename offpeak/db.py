@@ -382,6 +382,83 @@ def read_outlook(engine: Engine) -> pd.DataFrame:
     return df
 
 
+MEASURED = (
+    "pv_kw",
+    "load_kw",
+    "grid_in_kw",
+    "grid_out_kw",
+    "battery_in_kw",
+    "battery_out_kw",
+    "soc_pct",
+)
+
+
+def _profile(profile: str) -> str:
+    """Measurements are only ever read or written for one profile: a household's never reach a
+    business's models, and the other way round."""
+    from offpeak.roles import normal_role
+
+    checked = normal_role(profile)
+    if checked is None:
+        raise ValueError(f"Unknown profile: {profile!r}")
+    return checked
+
+
+def save_measurements(
+    engine: Engine, site_id: int, profile: str, slots: pd.DataFrame, source: str = "import"
+) -> int:
+    """Upsert 15-minute measurements (offpeak/load: ts and the MEASURED columns) of one site.
+    A slot already stored for this site is replaced. Refuses to write over another profile's
+    rows of the same site. Returns the number of rows."""
+    profile = _profile(profile)
+    with engine.connect() as conn:
+        other = conn.execute(
+            text("select 1 from site_measurements where site_id = :s and profile <> :p limit 1"),
+            {"s": site_id, "p": profile},
+        ).first()
+    if other:
+        raise ValueError(f"Site {site_id} already has measurements of another profile")
+    rows = [
+        {
+            "site_id": site_id,
+            "profile": profile,
+            "ts": r.ts.to_pydatetime(),
+            "source": source,
+            **{c: _clean(getattr(r, c, None)) for c in MEASURED},
+        }
+        for r in slots.itertuples()
+    ]
+    cols = ", ".join(MEASURED)
+    query = text(f"""
+        insert into site_measurements (site_id, profile, ts, source, {cols})
+        values (:site_id, :profile, :ts, :source, {", ".join(":" + c for c in MEASURED)})
+        on conflict (site_id, ts) do update set source = excluded.source,
+            {", ".join(f"{c} = excluded.{c}" for c in MEASURED)}
+    """)
+    if rows:
+        with engine.begin() as conn:
+            conn.execute(query, rows)
+    return len(rows)
+
+
+def read_measurements(
+    engine: Engine, site_id: int, profile: str, start: datetime, end: datetime
+) -> pd.DataFrame:
+    """One site's measurements with start <= ts < end, only rows of `profile`."""
+    profile = _profile(profile)
+    query = text(f"""
+        select ts, {", ".join(MEASURED)} from site_measurements
+        where profile = :profile and site_id = :site_id and ts >= :start and ts < :end
+        order by ts
+    """)
+    with engine.connect() as conn:
+        out = pd.read_sql(
+            query, conn, params={"profile": profile, "site_id": site_id, "start": start, "end": end}
+        )
+    out["ts"] = pd.to_datetime(out["ts"], utc=True)
+    return out
+
+
 TABLES = (
     "prices_da",
     "weather_fc",
@@ -390,6 +467,7 @@ TABLES = (
     "cockpit_machines",
     "weather_drivers",
     "price_outlook",
+    "site_measurements",
 )
 
 
