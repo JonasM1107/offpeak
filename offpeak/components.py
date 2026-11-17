@@ -222,12 +222,14 @@ def validate(kind: str, params: dict) -> list[str]:
 # about this many; it also keeps one browser from storing an endless list.
 MAX_COMPONENTS = 20
 MAX_NAME = 60
+# parameters the energy model only uses as whole numbers
+WHOLE = ("hours", "earliest", "latest_end", "usual_start", "count")
 
 
 def next_name(kind: str, components) -> str:
     """A name for a new component that is not taken yet: "Heat pump", then "Heat pump 2"."""
     label = CATALOGUE[kind].label
-    taken = {c.name.casefold() for c in components}
+    taken = {c.name.strip().casefold() for c in components}  # as validate_site compares
     if label.casefold() not in taken:
         return label
     n = 2
@@ -241,8 +243,8 @@ def validate_site(components) -> list[str]:
 
     Checks every component like `validate` does for one, plus what only shows up across
     the whole list: missing or duplicate names, unknown kinds, too many components. Called
-    by the page for quick feedback and again where the site is saved, because a page is not
-    a safe place to check things (anything can be sent to it)."""
+    where the site is saved (app/data.py), not only on the page, because a page is not a
+    safe place to check things; the page shows the per-component `validate` while typing."""
     components = list(components)
     problems = []
     if not components:
@@ -270,6 +272,11 @@ def validate_site(components) -> list[str]:
             problems.append(f"{who}: every size and hour must be a number")
             continue
         problems += [f"{who}: {p}" for p in validate(c.kind, values)]
+        # the energy model plans in whole hours (and whole chargers): 2.5 h would quietly
+        # become 2 h, so say so instead
+        fractions = [p.label for p in c.spec.params if p.key in WHOLE and values.get(p.key, 0) % 1]
+        if fractions:
+            problems.append(f"{who}: {', '.join(fractions)} must be whole numbers")
     return problems
 
 

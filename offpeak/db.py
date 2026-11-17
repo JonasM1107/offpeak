@@ -239,6 +239,7 @@ def replace_components(engine: Engine, site_id: int, components: list[dict]) -> 
                     values (:id, :site_id, :kind, :name, cast(:params as jsonb))
                     on conflict (id) do update set
                         kind = excluded.kind, name = excluded.name, params = excluded.params
+                        where site_components.site_id = excluded.site_id
                 """),
                 [
                     {

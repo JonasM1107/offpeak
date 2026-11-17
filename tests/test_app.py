@@ -131,3 +131,28 @@ def test_site_scene_carries_the_blender_models():
         assert gzip.decompress(base64.b64decode(packed))[:4] == b"glTF"  # binary glTF
     # all models together stay small enough to send with every Site view
     assert sum(len(v) for v in models.values()) < 600_000
+
+
+def test_compact_scene_is_only_the_3d_stage():
+    """The preview in "Edit site": the page hides everything below the stage."""
+    import sys
+    from datetime import date
+
+    sys.path.insert(0, str(APP.parent))
+
+    from ui import site_scene
+
+    from offpeak import demo_site
+    from offpeak.tariffs import germany_2026
+
+    tariff = germany_2026(pv_kwp=60)
+    inputs = demo_site.apply_tariff(
+        demo_site.hourly_inputs(None, None, "Europe/Berlin"), tariff, date(2026, 11, 11)
+    )
+    site = {"name": "Demo", "city": "Köln", "zone": "DE-LU", "date": "2026-11-11"}
+    full = site_scene.payload(inputs, site, 12, tariff)
+    compact = site_scene.payload(inputs, site, 12, tariff, [], compact=True)
+    assert full["compact"] is False and compact["compact"] is True
+    assert site_scene.height_for(compact) < site_scene.height_for(full)
+    html = site_scene.render_html(compact)
+    assert 'id="edit-site"' in html and "body.compact section" in html

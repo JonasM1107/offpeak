@@ -139,3 +139,18 @@ def test_validate_site_limits_the_number_of_components():
     assert C.validate_site(full) == []  # exactly at the limit is fine
     one_more = full + [C.new_component("ev_charger", "One too many")]
     assert C.validate_site(one_more) == ["A site can have at most 20 components"]
+
+
+def test_next_name_ignores_spaces_like_the_duplicate_check_does():
+    site = [C.new_component("heat_pump", "Heat pump ")]
+    assert C.next_name("heat_pump", site) == "Heat pump 2"
+    assert C.validate_site(site + [C.new_component("heat_pump", "Heat pump 2")]) == []
+
+
+def test_validate_site_wants_whole_hours_and_chargers():
+    half = C.new_component("ev_charger", "Chargers", {"hours": 2.5, "count": 1.5})
+    assert C.validate_site([half]) == [
+        "Chargers: Chargers, Charging time per day must be whole numbers"
+    ]
+    whole = C.new_component("ev_charger", "Chargers", {"hours": 3.0, "count": 2.0})
+    assert C.validate_site([whole]) == []

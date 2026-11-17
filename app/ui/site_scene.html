@@ -241,6 +241,24 @@
 <div class="foot" id="foot"></div>
 
 <script>window.OFFPEAK = __DATA__;</script>
+<script>
+// Compact mode and the "Edit site" tab, in a plain script of their own: they must work even
+// if three.js cannot be loaded from the CDN or the 3D drawing fails, because the tab is the
+// way into the editor.
+// "Edit site" presses the hidden "Edit site" button of the Streamlit page around this frame
+// (allowed: both come from the same server), which opens the editor. The tab only shows when
+// that button is there, so not in the editor's own preview.
+document.addEventListener('DOMContentLoaded', function () {
+  const D = window.OFFPEAK;
+  document.body.classList.toggle('compact', !!D.compact);
+  const editTab = document.getElementById('edit-site');
+  function streamlitEditButton() {
+    try { return window.parent !== window && window.parent.document.querySelector('.st-key-site_edit button'); } catch (err) { return null; }
+  }
+  editTab.hidden = !!D.compact || !streamlitEditButton();
+  editTab.addEventListener('click', () => { const b = streamlitEditButton(); if (b) b.click(); });
+});
+</script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -256,17 +274,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 // All numbers come from Python (offpeak/components.py and offpeak/demo_site.py).
 // This file only draws them.
 const D = window.OFFPEAK;
-document.body.classList.toggle('compact', !!D.compact);
-
-// "Edit site" presses the hidden "Edit site" button of the Streamlit page around this frame
-// (allowed: both come from the same server), which opens the editor. The tab only shows when
-// that button is there, so not in the editor's own preview.
-const editTab = document.getElementById('edit-site');
-function streamlitEditButton() {
-  try { return window.parent !== window && window.parent.document.querySelector('.st-key-site_edit button'); } catch (err) { return null; }
-}
-editTab.hidden = !!D.compact || !streamlitEditButton();
-editTab.addEventListener('click', () => { const b = streamlitEditButton(); if (b) b.click(); });
 const COMPS = D.components;
 const byId = Object.fromEntries(COMPS.map(c => [c.id, c]));
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
