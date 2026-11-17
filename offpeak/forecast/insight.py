@@ -22,6 +22,7 @@ GROUPS = {
     "Recent prices": ["last_day", "last_week", "profile", "trend", "spread"],
     "Hour of day": ["hour"],
     "Weekday": ["weekday"],
+    "Days off": ["day_off", "day_off_week"],
     "Days ahead": ["lead"],
 }
 

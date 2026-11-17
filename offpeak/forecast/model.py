@@ -1,10 +1,11 @@
 """The machine-learning price models (docs/PLAN.md section 9.4).
 
 What it learns: how the price of one hour, 2 to 7 days ahead, differs from the average of the
-last known week, given simple facts about that hour (hour of day, weekday, how far ahead) and
-about the last known days (what the same hour cost yesterday and last week, how the week
-went). It is one more forecaster next to the baselines in offpeak/forecast/baselines.py: the
-backtest compares them all and the outlook uses whichever was best at each lead.
+last known week, given simple facts about that hour (hour of day, weekday, public holiday,
+how far ahead) and about the last known days (what the same hour cost yesterday and last
+week, how the week went). It is one more forecaster next to the baselines in
+offpeak/forecast/baselines.py: the backtest compares them all and the outlook uses
+whichever was best at each lead.
 
 Why the difference to the weekly average and not the price itself: prices move between
 levels (a 6 ct summer, a 12 ct winter). A tree model cannot predict a level it never saw, but
@@ -30,9 +31,13 @@ Two versions, so the page can show what the weather adds:
   after it will be dearer than that week's average.
 """
 
+from datetime import date, timedelta
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
+
+from offpeak.forecast.daysoff import day_off
 
 TZ = "Europe/Berlin"
 LEADS = range(1, 7)  # days after the last known day (D+2 .. D+7 when tomorrow is published)
@@ -47,6 +52,8 @@ PRICE_FEATURES = [
     "profile",  # same hour, averaged over the last 7 days, minus the average
     "spread",  # how much prices moved within the last 7 days (standard deviation)
     "trend",  # last known day's average minus the week's average
+    "day_off",  # how much of Germany is off work on the target day (offpeak/forecast/daysoff)
+    "day_off_week",  # the same for the day one week before it (where last_week comes from)
 ]
 FEATURES = PRICE_FEATURES  # kept for the tests and the page
 WEATHER_FEATURES = [
@@ -110,10 +117,10 @@ def weather_features(w: dict[str, np.ndarray], d0: int, lead: int) -> dict:
 
 
 def features(
-    matrix: np.ndarray, d0: int, lead: int, weekday: int, weather: dict | None = None
+    matrix: np.ndarray, d0: int, lead: int, target: date, weather: dict | None = None
 ) -> pd.DataFrame:
     """The 24 rows (one per hour) for guessing day d0 + lead, standing at the end of day d0.
-    `weekday` is the target day's weekday; `weather` (from weather_days) adds the forecast."""
+    `target` is that day's date; `weather` (from weather_days) adds the forecast."""
     week = matrix[d0 - 6 : d0 + 1]
     level = week.mean()
     extra = weather_features(weather, d0, lead) if weather is not None else {}
@@ -121,7 +128,9 @@ def features(
         {
             "lead": lead,
             "hour": np.arange(24),
-            "weekday": weekday,
+            "weekday": target.weekday(),
+            "day_off": day_off(target),
+            "day_off_week": day_off(target - timedelta(days=7)),
             "last_day": matrix[d0] - level,
             "last_week": matrix[d0 + lead - 7] - level,
             "profile": week.mean(axis=0) - level,
@@ -139,14 +148,14 @@ def training_set(
     from the week's average."""
     m = table.to_numpy()
     weather = weather_days(tables, table.index) if tables is not None else None
-    weekdays = [pd.Timestamp(d).day_of_week for d in table.index]
+    days = [pd.Timestamp(d).date() for d in table.index]
     xs, ys = [], []
     for d0 in range(6, len(m) - 1):
         level = m[d0 - 6 : d0 + 1].mean()
         for lead in LEADS:
             if d0 + lead >= len(m):
                 break
-            xs.append(features(m, d0, lead, weekdays[d0 + lead], weather))
+            xs.append(features(m, d0, lead, days[d0 + lead], weather))
             ys.append(m[d0 + lead] - level)
     return pd.concat(xs, ignore_index=True), np.concatenate(ys)
 
@@ -201,7 +210,7 @@ class PriceModel:
             lead = (day - last_day).days
             if lead not in LEADS:
                 continue
-            x = features(m, d0, lead, pd.Timestamp(day).day_of_week, weather)
+            x = features(m, d0, lead, pd.Timestamp(day).date(), weather)
             by_hour = level + model.predict(x[self.columns])
             here = local.date == day
             out[here] = by_hour[local.hour[here]]
