@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- The sign-in page's background (app/ui/account.py: login_screen): the landing page's power
+     lines on a full-screen frame behind the sign-in card. When the page opens, the lines burst
+     out of the glowing core the landing page's Login left in the card's place; afterwards they
+     react to the cursor and to typing in the card. Static: no data, nothing is sent anywhere. -->
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="field" aria-hidden="true"></canvas>
+<!--FIELD-->
+<script>
+(() => {
+  'use strict';
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The card and the cursor live in the app's page around this frame (same server, so it may
+  // be reached). This frame itself lets every click through to the page (pointer-events: none).
+  let app = null;
+  try { if (window.parent !== window && window.parent.document) app = window.parent; } catch (e) { /* on its own */ }
+
+  const field = PowerField(document.getElementById('field'), { calm, energy: () => 0, pointer: app || window });
+
+  // Arrival: the lines start in the core at the middle of the card and spread out over 1.4 s.
+  // (The same place as the landing page's core: 12 % of the height + 80 px + half the card.)
+  field.coreX = innerWidth / 2;
+  field.coreY = Math.round(innerHeight * .12 + 80 + (innerWidth < 640 ? 273 : 251));
+  if (!calm) {
+    field.pull = 1; field.kick(2.5);
+    const t0 = performance.now();
+    (function spread(now) {
+      const p = Math.min(1, (now - t0) / 1400);
+      field.pull = Math.pow(1 - p, 3);
+      if (p < 1) requestAnimationFrame(spread);
+    })(t0);
+  }
+
+  if (!app) return;
+  // Listeners on the app's page; removed again when this frame goes (after signing in).
+  const stop = new AbortController(), on = { signal: stop.signal, passive: true };
+  addEventListener('pagehide', () => stop.abort());
+  const doc = app.document;
+  const inCard = el => el && el.closest && el.closest('.st-key-card_login');
+  // typing charges the lines a little, a field in focus a bit more, "Sign in" most
+  doc.addEventListener('keydown', e => { if (inCard(e.target)) field.kick(.35); }, on);
+  doc.addEventListener('focusin', e => { if (inCard(e.target)) field.kick(.6); }, on);
+  doc.addEventListener('pointerdown', e => { if (inCard(e.target) && e.target.closest('button')) field.kick(1.6); }, on);
+  // a soft light on the card follows the cursor (CSS: --mx, --my in app/ui/components.py)
+  app.addEventListener('pointermove', e => {
+    const card = doc.querySelector('.st-key-card_login');
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+    card.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
+  }, on);
+})();
+</script>
+</body>
+</html>

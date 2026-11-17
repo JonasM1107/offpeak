@@ -431,6 +431,24 @@ function placeModel(model, own = {}) {
   }
   return byMat;
 }
+// Many copies of a small model (solar modules) as one InstancedMesh per material: one
+// draw call each instead of one per module. `pre` reshapes the model first (optional).
+function instancedModel(name, matrices, own = {}, pre = null) {
+  if (!MODELS[name]) return false;
+  MODELS[name].updateMatrixWorld(true);
+  MODELS[name].traverse(m => {
+    if (!m.isMesh) return;
+    const geo = m.geometry.clone().applyMatrix4(m.matrixWorld);
+    if (pre) geo.applyMatrix4(pre);
+    instanced(geo, own[m.material.name] || M[m.material.name] || M.white, matrices, m.userData.part || null);
+  });
+  return true;
+}
+// A model inside its own group in the current group, for turning or scaling it.
+function modelGroup(name, x, y, z, setup, own = {}) {
+  const g = new THREE.Group(); g.position.set(x, y, z); if (setup) setup(g); current.add(g);
+  const prev = current; current = g; placeModel(MODELS[name], own); current = prev; return g;
+}
 // A model at (x, y, z) in the current group, turned by ry about the vertical axis.
 // Returns its meshes by material name, or null if the model is not there.
 function placeAt(name, x, y, z, own = {}, ry = 0) {
@@ -447,9 +465,13 @@ cyl(62, 60, 3, matte(0xE7E2DA), 0, -1.5, 0, null, 128).castShadow = false;
 cyl(61.2, 61.2, 0.08, matte(0xF7F5F1), 0, 0.04, 0, null, 128).castShadow = false;
 const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.ShadowMaterial({ opacity: 0.06 }));
 shadowFloor.rotation.x = -Math.PI / 2; shadowFloor.position.y = -3.01; shadowFloor.receiveShadow = true; scene.add(shadowFloor);
-const posts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 70) posts.push(mx(Math.cos(a) * 58.5, 0.8, Math.sin(a) * 58.5));
-instanced(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6), M.frame, posts, null).castShadow = false;
-const fenceRail = new THREE.Mesh(new THREE.TorusGeometry(58.5, 0.05, 6, 160), M.frame); fenceRail.rotation.x = Math.PI / 2; fenceRail.position.y = 1.5; scene.add(fenceRail);
+// the fence: 140 segments (a post and its rails to the next post) round the island
+const fence = []; for (let i = 0; i < 140; i++) { const a = i * Math.PI / 70; fence.push(mx(Math.cos(a) * 58.5, 0, Math.sin(a) * 58.5, 0, -a - Math.PI / 2, 0)); }
+if (!instancedModel('fence_segment', fence)) {
+  const posts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 70) posts.push(mx(Math.cos(a) * 58.5, 0.8, Math.sin(a) * 58.5));
+  instanced(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6), M.frame, posts, null).castShadow = false;
+  const fenceRail = new THREE.Mesh(new THREE.TorusGeometry(58.5, 0.05, 6, 160), M.frame); fenceRail.rotation.x = Math.PI / 2; fenceRail.position.y = 1.5; scene.add(fenceRail);
+}
 box(7, 0.06, 22, M.asphalt, 26, 0.09, 46, null).castShadow = false;
 for (let i = 0; i < 5; i++) box(0.25, 0.07, 2, M.line, 26, 0.13, 38 + i * 4, null).castShadow = false;
 
@@ -477,14 +499,18 @@ for (let i = 0; i < 3; i++) cyl(0.18, 0.28, 1.4, M.ink, 1 + i, 4.2, 3, null, 10)
 const gposts = []; for (let i = 0; i <= 8; i++) { gposts.push(mx(-2 + i, 0.9, -0.6), mx(-2 + i, 0.9, 6.6)); }
 instanced(new THREE.CylinderGeometry(0.06, 0.06, 1.8, 6), M.frame, gposts, null);
 }
-const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
-pylon.position.set(-5, 9, -4); pylon.rotation.y = Math.PI / 4; gridGroup.add(pylon);
-rbox(9, 0.3, 0.3, M.ink, -5, 16.5, -4, null, 0.1);
+if (!placeAt('pylon', -5, 0, -4)) {
+  const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
+  pylon.position.set(-5, 9, -4); pylon.rotation.y = Math.PI / 4; gridGroup.add(pylon);
+  rbox(9, 0.3, 0.3, M.ink, -5, 16.5, -4, null, 0.1);
+}
 
 // the site meter in the middle, where every flow meets
 const hubGroup = new THREE.Group(); scene.add(hubGroup); current = hubGroup;
-cyl(3, 3, 0.4, M.white, 0, 0.2, 0, null, 48);
-cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, null, 32);
+if (!placeAt('site_meter', 0, 0, 0)) {
+  cyl(3, 3, 0.4, M.white, 0, 0.2, 0, null, 48);
+  cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, null, 32);
+}
 const hubRing = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.12, 12, 64), M.orange);
 hubRing.rotation.x = Math.PI / 2; hubRing.position.y = 0.45; hubGroup.add(hubRing);
 
@@ -495,7 +521,8 @@ const PLACED = COMPS.filter(c => c.pos).map(c => c.pos);
 const nearPlaced = (x, z, d) => PLACED.some(([px, pz]) => Math.hypot(px - x, pz - z) < d);
 [[-48, -32], [-54, 30], [46, -34], [52, -10], [-6, 46], [40, 42], [-30, 48], [54, 22], [-20, -48], [10, 52], [-54, 2]].forEach(([x, z], i) => {
   if (nearPlaced(x, z, 9)) return;  // a placed component stands here
-  const s = 0.8 + (i % 3) * 0.25;
+  const s = 0.8 + (i % 3) * 0.25, kind = i % 4 === 1 ? 'tree_tall' : 'tree_round';
+  if (MODELS[kind]) { modelGroup(kind, x, 0, z, g => { g.scale.setScalar(s); g.rotation.y = i * 1.3; }, { tree: treeMat }); return; }
   cyl(0.25, 0.3, 2 * s, M.frame, x, s, z, null, 8);
   const top = new THREE.Mesh(new THREE.SphereGeometry(2.2 * s, 20, 16), treeMat); top.position.set(x, 2.6 * s + 1.4, z); top.castShadow = true; scene.add(top);
 });
@@ -521,11 +548,17 @@ const BUILD = {
       for (const d of [-0.6, 0.6]) rails.push(mx(0, 1.65 + up[1] * d, z + up[2] * d, 0.5, 0, 0));
     }
     rbox(25, 0.12, rows * 4.2 + 2, M.gravel, 0, 0.06, zRow(0) + (rows - 1) * 2.1, null, 0.1).castShadow = false;
-    instanced(new THREE.BoxGeometry(1.75, 0.05, 1.04), PANEL, mods, 'modules');
-    instanced(new THREE.CylinderGeometry(0.07, 0.07, 1.4, 6), M.steel, legs, 'mounting');
-    instanced(new THREE.BoxGeometry(22.4, 0.08, 0.1), M.steel, rails, 'mounting');
+    if (!instancedModel('pv_module', mods, { panel: PANEL })) instanced(new THREE.BoxGeometry(1.75, 0.05, 1.04), PANEL, mods, 'modules');
+    if (MODELS.pv_rack) { for (let r = 0; r < rows; r++) placeAt('pv_rack', 0, 0, zRow(r)); }
+    else {
+      instanced(new THREE.CylinderGeometry(0.07, 0.07, 1.4, 6), M.steel, legs, 'mounting');
+      instanced(new THREE.BoxGeometry(22.4, 0.08, 0.1), M.steel, rails, 'mounting');
+    }
     const inv = Math.min(4, Math.max(1, Math.round(c.params.kwp / 25)));
-    for (let i = 0; i < inv; i++) { cyl(0.08, 0.08, 1.2, M.steel, 13.4, 0.6, -2 + i * 1.6, 'inverter', 6); rbox(0.9, 0.7, 0.35, M.white, 13.4, 1.4, -2 + i * 1.6, 'inverter', 0.08); }
+    for (let i = 0; i < inv; i++) {
+      if (placeAt('pv_inverter', 13.4, 0, -2 + i * 1.6)) continue;
+      cyl(0.08, 0.08, 1.2, M.steel, 13.4, 0.6, -2 + i * 1.6, 'inverter', 6); rbox(0.9, 0.7, 0.35, M.white, 13.4, 1.4, -2 + i * 1.6, 'inverter', 0.08);
+    }
     box(0.5, 0.08, rows * 4.2, M.ink, 12.4, 0.1, zRow(0) + (rows - 1) * 2.1, 'cabling');
     return { anchor: [13.4, -1.4], label: 4 };
   },
@@ -536,7 +569,9 @@ const BUILD = {
       const t = Math.floor(i / per), k = i % per, row = Math.floor(k / 7), col = k % 7;
       mods.push(mx(-7.8 + t * 5.2 - 0.4 + row * 0.9, 10.25 + row * 0.3, -5.6 + col * 1.85, 0, 0, 0.32));
     }
-    instanced(new THREE.BoxGeometry(0.95, 0.05, 1.75), PANEL, mods, 'modules');
+    // the module model lies across; on the roof it runs up the slope, a little narrower
+    const across = new THREE.Matrix4().makeScale(0.9, 1, 1).multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2));
+    if (!instancedModel('pv_module', mods, { panel: PANEL }, across)) instanced(new THREE.BoxGeometry(0.95, 0.05, 1.75), PANEL, mods, 'modules');
     const rails = []; for (let t = 0; t < 4; t++) rails.push(mx(-7.8 + t * 5.2, 10.1, 0, 0, 0, 0.32));
     instanced(new THREE.BoxGeometry(2.2, 0.06, 13), M.steel, rails, 'mounting');
     rbox(0.9, 0.7, 0.35, M.white, -11.3, 3, 4, 'inverter', 0.08);
@@ -545,17 +580,27 @@ const BUILD = {
   },
   wind(c) {
     const hub = Math.max(14, Math.min(40, c.params.hub_m)), blade = 3.2 + Math.sqrt(c.params.kw) * 0.55;
-    cyl(2.4, 2.6, 0.6, M.concrete, 0, 0.3, 0, 'foundation', 32);
+    const models = MODELS.wind_base && MODELS.wind_nacelle && MODELS.wind_blade && MODELS.wind_hub;
+    if (models) placeAt('wind_base', 0, 0, 0); else cyl(2.4, 2.6, 0.6, M.concrete, 0, 0.3, 0, 'foundation', 32);
     const sec = hub / 3;
     for (let i = 0; i < 3; i++) {
       const r0 = 0.85 - i * 0.17;
       cyl(r0 - 0.17, r0, sec, M.white, 0, 0.6 + sec * (i + 0.5), 0, 'tower', 24);
       cyl(r0 + 0.06, r0 + 0.06, 0.12, M.steel, 0, 0.6 + sec * i + 0.06, 0, 'tower', 24);
     }
-    rbox(0.5, 1.6, 0.1, M.frame, 0, 1.6, 0.86, 'tower', 0.05);
-    rbox(1.5, 1.5, 3.8, M.white, 0, hub + 0.6, 0.3, 'nacelle', 0.55);
-    for (let i = 0; i < 4; i++) box(1.2, 0.06, 0.06, M.steel, 0, hub + 1.1, -1.2 + i * 0.3, 'nacelle');
+    if (models) placeAt('wind_nacelle', 0, hub + 0.6, 0.3);
+    else {
+      rbox(0.5, 1.6, 0.1, M.frame, 0, 1.6, 0.86, 'tower', 0.05);
+      rbox(1.5, 1.5, 3.8, M.white, 0, hub + 0.6, 0.3, 'nacelle', 0.55);
+      for (let i = 0; i < 4; i++) box(1.2, 0.06, 0.06, M.steel, 0, hub + 1.1, -1.2 + i * 0.3, 'nacelle');
+    }
     const rotor = spinner(current, 0, hub + 0.6, 2.3, () => {
+      if (models) {
+        // the Blender blade is 5 m long: scale it to this turbine
+        for (let k = 0; k < 3; k++) modelGroup('wind_blade', 0, 0, 0, g => { g.rotation.z = k * 2 * Math.PI / 3; g.scale.setScalar(blade / 5); });
+        placeModel(MODELS.wind_hub);
+        return;
+      }
       for (let k = 0; k < 3; k++) {
         const g = new THREE.BoxGeometry(0.75, blade, 0.18, 1, 6, 1), pos = g.attributes.position;
         for (let v = 0; v < pos.count; v++) { const y = pos.getY(v) + blade / 2; pos.setX(v, pos.getX(v) * (1 - 0.65 * y / blade)); }
@@ -566,7 +611,7 @@ const BUILD = {
     });
     rotor.rotation.z = Math.random() * 2;
     animated.rotors.push({ rotor, id: c.id });
-    rbox(1.4, 1.8, 1, M.clay, 2.4, 0.9, 1.4, 'converter', 0.15);
+    if (!models) rbox(1.4, 1.8, 1, M.clay, 2.4, 0.9, 1.4, 'converter', 0.15);
     return { anchor: [2.4, 1.4], label: hub + blade + 2 };
   },
   battery(c) {
@@ -714,15 +759,38 @@ function slotFor(kind) {
 }
 
 const units = {}, flows = {};
-const DOT = new THREE.SphereGeometry(0.42, 14, 10);
-const DOT_ORANGE = matte(0xFF5F00, { emissive: 0xFF5F00, emissiveIntensity: 0.35 });
-const DOT_INK = matte(0x3A3733);
+// Power flows as a glowing line on top of each cable path, with pulses running along it:
+// towards a machine when it uses power, towards the hub when it generates. More power
+// makes the pulses faster and the line brighter. The pattern is drawn by a small shader,
+// so the line costs one draw call however long it is.
+const PULSE_SPACING = 7;  // metres between two pulses
+const ORANGE = new THREE.Color(0xFF5F00), INK = new THREE.Color(0x3A3733);
+function flowMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uPhase: { value: 0 }, uLen: { value: 1 }, uDir: { value: 1 }, uGlow: { value: 0 }, uColor: { value: ORANGE.clone() } },
+    transparent: true, depthWrite: false,
+    vertexShader: `varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform float uPhase, uLen, uDir, uGlow; uniform vec3 uColor; varying vec2 vUv;
+      void main() {
+        float f = fract(vUv.x * uLen / ${PULSE_SPACING.toFixed(1)} - uPhase);
+        if (uDir < 0.0) f = 1.0 - f;  // the bright head always leads, the soft tail follows
+        float pulse = smoothstep(0.35, 0.92, f) * (1.0 - smoothstep(0.92, 1.0, f));
+        gl_FragColor = vec4(uColor * (0.8 + 0.3 * pulse), (0.5 + 0.5 * pulse) * uGlow);  // brighter would turn the orange pink
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+}
 function flowPath(x, z) {
   const pts = [[Math.abs(x) > Math.abs(z) ? Math.sign(x) * 1.6 : 0, Math.abs(x) > Math.abs(z) ? 0 : Math.sign(z) * 1.6], [x * 0.5, z * 0.2], [x * 0.85, z * 0.8], [x, z]];
   const curve = new THREE.CatmullRomCurve3(pts.map(([px, pz]) => new THREE.Vector3(px, 0.32, pz)), false, 'catmullrom', 0.2);
   const t = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.3, 8), M.path); t.receiveShadow = true; scene.add(t);
-  const n = Math.max(4, Math.round(curve.getLength() / 5));
-  return { curve, kw: 0, t: Math.random(), dots: Array.from({ length: n }, () => { const m = new THREE.Mesh(DOT, DOT_ORANGE); scene.add(m); return m; }) };
+  // the glowing line sits on the top of the path
+  const top = new THREE.CatmullRomCurve3(curve.points.map(p => new THREE.Vector3(p.x, 0.48, p.z)), false, 'catmullrom', 0.2);
+  const line = new THREE.Mesh(new THREE.TubeGeometry(top, 160, 0.22, 10), flowMaterial());
+  line.material.uniforms.uLen.value = top.getLength(); line.visible = false; scene.add(line);
+  return { curve, kw: 0, t: Math.random(), line };
 }
 for (const c of COMPS) {
   if (!BUILD[c.kind]) continue;
@@ -984,7 +1052,7 @@ function update() {
 
   for (const comp of COMPS) { const f = flows[comp.id]; if (f) { const v = ser(comp.id)[hour]; f.kw = comp.role === 'generation' ? -v : v; } }
   flows.__grid.kw = -r.grid_kw;
-  flows.__grid.dots.forEach(d => { d.material = r.grid_kw > 0 ? DOT_INK : DOT_ORANGE; });
+  flows.__grid.line.material.uniforms.uColor.value.copy(r.grid_kw > 0 ? INK : ORANGE);  // dark = bought
   animated.glow.forEach(({ m, id }) => { m.material.emissiveIntensity = ser(id)[hour] > 0 ? 0.9 : 0; });
   animated.plugs.forEach(({ m, id }) => { m.material.emissiveIntensity = ser(id)[hour] > 0 ? 1 : 0; });
   animated.soc.forEach(({ bar, id }) => { const s = byId[id].analytics[plan].soc_pct[hour] / 100; bar.scale.x = Math.max(0.03, s); bar.position.x = -3 * (1 - bar.scale.x); });
@@ -1110,13 +1178,11 @@ renderer.setAnimationLoop(() => {
   }
   for (const f of Object.values(flows)) {
     const a = Math.abs(f.kw), on = a > LIVE;
-    f.t += dt * (0.05 + a / 200) * Math.sign(f.kw || 1) * (reduceMotion ? 0 : 1);
-    const size = 0.7 + Math.min(1, a / 40) * 0.7;
-    f.dots.forEach((m, i) => {
-      m.visible = on; if (!on) return;
-      const u = (((i / f.dots.length + f.t) % 1) + 1) % 1;
-      m.position.copy(f.curve.getPointAt(u)); m.position.y = 0.75; m.scale.setScalar(size);
-    });
+    f.t += dt * (0.4 + a / 50) * Math.sign(f.kw || 1) * (reduceMotion ? 0 : 1);
+    const u = f.line.material.uniforms;
+    f.line.visible = on;
+    u.uPhase.value = f.t; u.uDir.value = Math.sign(f.kw || 1);
+    u.uGlow.value = 0.6 + 0.4 * Math.min(1, a / 40);
   }
   controls.update();
   if (composer) composer.render(); else renderer.render(scene, camera);

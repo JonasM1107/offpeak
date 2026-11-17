@@ -16,6 +16,7 @@ import streamlit.components.v1 as components
 
 from offpeak import auth
 from offpeak.settings import lookup
+from ui.web import WEB, with_field
 
 _store = components.declare_component(
     "offpeak_token", path=str(Path(__file__).with_name("web") / "token")
@@ -122,10 +123,18 @@ def login_screen(back: Callable[[], None] | None = None) -> None:
         st.caption(f"You stay signed in on this browser for {auth.SESSION_HOURS} hours.")
         if back and st.button("← Back to the homepage", key="login_back", type="tertiary"):
             back()
-    # Coming from the landing page's Login, a drawing of this card covers the page while it is
-    # built (landing.html: portal). Sent last, so it fades only once the card is complete.
+    # Behind the card: the power lines of the landing page (web/login_bg.html). Our own file,
+    # never user input, so the frame may run its script. Its CSS: app/ui/components.py.
+    with st.container(key="login_bg"):
+        st.iframe(with_field((WEB / "login_bg.html").read_text()), height=10)
+    # Coming from the landing page's Login, a glowing core covers the page while it is built
+    # (landing.html: core). Sent last, so it bursts only once the card is complete.
     st.html(
         "<style>#op-portal { display: block !important;"
-        " animation: op-portal-out .3s ease .2s forwards; }"
+        " animation: op-portal-out .5s ease .12s forwards; }"
+        "#op-portal .orb { animation: op-orb-burst .6s cubic-bezier(.2,.8,.2,1) forwards"
+        " !important; }"
+        "#op-portal .ring { display: none; }"
+        "@keyframes op-orb-burst { to { transform: scale(3.4); opacity: 0; } }"
         "@keyframes op-portal-out { to { opacity: 0; visibility: hidden; } }</style>"
     )
