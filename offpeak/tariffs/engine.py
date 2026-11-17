@@ -37,6 +37,9 @@ def slot_prices(prices: pd.DataFrame, tariff: Tariff) -> pd.DataFrame:
         else:
             value = charge.ct_kwh
         out[f"{charge.group}_ct"] += value
+    if tariff.gross:  # a household pays VAT on everything it buys
+        for group in GROUPS:
+            out[f"{group}_ct"] *= 1 + tariff.vat
     out["import_ct"] = out[[f"{g}_ct" for g in GROUPS]].sum(axis=1)
 
     ex = tariff.export
@@ -106,7 +109,8 @@ def bill(grid_kw: pd.Series, prices: pd.DataFrame, tariff: Tariff) -> Bill:
     days = len(prices) * hours / 24
     lines = {g: float((bought_kwh * prices[f"{g}_ct"]).sum() / 100) for g in GROUPS}
     demand = demand_costs(kw.clip(lower=0), prices["period"], tariff, days)
-    lines["demand"] = sum(eur for _, eur, _ in demand)
-    lines["fixed"] = sum(f.eur_year for f in tariff.fixed) * days / 365
+    vat = 1 + tariff.vat if tariff.gross else 1.0
+    lines["demand"] = sum(eur for _, eur, _ in demand) * vat
+    lines["fixed"] = sum(f.eur_year for f in tariff.fixed) * days / 365 * vat
     lines["export"] = -float((sold_kwh * prices["export_ct"]).sum() / 100)
     return Bill(lines, float(bought_kwh.sum()), float(sold_kwh.sum()), float(kw.max()))

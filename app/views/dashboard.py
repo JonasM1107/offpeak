@@ -38,3 +38,8 @@ payload["words"] = roles.words(data.role())  # "machine" or "device", ...
 payload["shift"] = roles.SHIFT[data.role()]  # the Shift & save slider in household or SME sizes
 payload["credits"] = f"{ENERGY_CHARTS_ATTRIBUTION} · {OPEN_METEO_ATTRIBUTION}"
 web.show("dashboard", payload, height=1300)
+if data.role() == "home":  # a home with measurements also sees its own consumption forecast
+    from ui import home_cards
+
+    found = data.load_forecast()
+    home_cards.consumption_forecast(*(found or (None, 0)))

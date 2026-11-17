@@ -384,7 +384,7 @@ def hours_ahead() -> tuple[dict, int] | None:
     says so in "weather_missing"."""
     from offpeak.cockpit import horizon
     from offpeak.markets.energy_charts import PriceSourceError
-    from offpeak.tariffs import germany_2026
+    from offpeak.tariffs import tariff_for
     from offpeak.weather.outlook import generation
 
     try:
@@ -406,7 +406,7 @@ def hours_ahead() -> tuple[dict, int] | None:
         forecast,
         gen,
         base_kw=assets.cold_store_kw,
-        tariff=germany_2026(pv_kwp=assets.pv_kwp),
+        tariff=tariff_for(role(), site_components()[0]),
         tz=MARKET_TZ,
         today=market_today(),
     )
@@ -445,7 +445,7 @@ def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     """Replay the last `n_days` days up to `end` with the real prices and measured weather:
     what the usual times cost and what the plan would have cost. About 0.3 s a day."""
     from offpeak import savings
-    from offpeak.tariffs import germany_2026
+    from offpeak.tariffs import tariff_for
 
     comps = [components.Component(i, k, n, dict(p), prof) for i, k, n, p, prof in setup]
     start = end - timedelta(days=n_days - 1)
@@ -453,7 +453,8 @@ def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     past = archive_weather(start, end)
     assets, _ = components.site_model(comps)
     days = [start + timedelta(days=i) for i in range(n_days)]
-    out = savings.replay(loaded, past, comps, germany_2026(pv_kwp=assets.pv_kwp), MARKET_TZ, days)
+    tariff = tariff_for(comps[0].profile if comps else "business", comps)
+    out = savings.replay(loaded, past, comps, tariff, MARKET_TZ, days)
     _REPLAYED[(end, n_days, setup)] = savings.summary(out)
     return out
 
@@ -486,3 +487,120 @@ def saved_recently(n_days: int = 30) -> tuple[dict | None, str]:
 
     threading.Thread(target=work, daemon=True).start()
     return None, "running"
+
+
+# ── Measured power of the signed-in home (homeowner profile) ─────────────────
+# Stored in site_measurements with the role's profile and site (offpeak/db.py), so they
+# never reach a business's models. Without a database they live in this tab only.
+MEASURED_KEY = "measurements_{}"
+MEASURED_YEARS = 4  # how far back the pages read
+
+
+def _measured_session() -> pd.DataFrame | None:
+    return st.session_state.get(MEASURED_KEY.format(role()))
+
+
+def measurements() -> tuple[pd.DataFrame, str]:
+    """The signed-in role's own measurements (15-minute slots) and where they are kept:
+    'database', 'session' or 'none'."""
+    if role() != "home":
+        return pd.DataFrame(), "none"
+    local = _measured_session()
+    eng = engine()
+    if eng is not None:
+        end = now_utc().to_pydatetime()
+        try:
+            stored = _read_measured(site().id, role(), end.date())
+        except Exception as err:  # e.g. migration 007 not run yet
+            print(f"offpeak: cannot read site_measurements: {err}")
+            stored = None
+        if stored is not None and not stored.empty:
+            return stored, "database"
+    if local is not None and not local.empty:
+        return local, "session"
+    return pd.DataFrame(), "none"
+
+
+@st.cache_data(ttl=600, show_spinner=False, max_entries=4)
+def _read_measured(site_id: int, profile: str, today: date) -> pd.DataFrame:
+    end = datetime.combine(today + timedelta(days=1), datetime.min.time(), tzinfo=UTC)
+    return db.read_measurements(
+        engine(), site_id, profile, end - timedelta(days=365 * MEASURED_YEARS), end
+    )
+
+
+def save_measurements(slots: pd.DataFrame) -> str:
+    """Keep uploaded measurements for the signed-in home: in the database if there is one
+    (then 'database'), else in this tab ('session'). Merges with what is already there."""
+    if role() != "home":
+        raise ValueError("Only a homeowner account stores measurements here")
+    eng = engine()
+    if eng is not None:
+        try:
+            db.save_measurements(eng, site().id, role(), slots, "fronius")
+            _read_measured.clear()
+            return "database"
+        except Exception as err:
+            print(f"offpeak: cannot save site_measurements, keeping them in the session: {err}")
+    old = _measured_session()
+    merged = slots if old is None else pd.concat([old, slots]).drop_duplicates("ts", keep="last")
+    st.session_state[MEASURED_KEY.format(role())] = merged.sort_values("ts").reset_index(drop=True)
+    return "session"
+
+
+def delete_measurements() -> None:
+    """The owner's "delete my data": everywhere they are kept."""
+    st.session_state.pop(MEASURED_KEY.format(role()), None)
+    eng = engine()
+    if eng is not None and role() == "home":
+        try:
+            db.delete_measurements(eng, site().id, role())
+        except Exception as err:
+            print(f"offpeak: cannot delete site_measurements: {err}")
+        _read_measured.clear()
+
+
+def measured_scene_day(comps, tariff) -> dict | None:
+    """The newest full measured day before today, priced with that day's real prices, in
+    the shape the Home view plays ("Yesterday at home"). None without measurements."""
+    from offpeak import demo_site
+    from offpeak.load import measured
+
+    slots, _ = measurements()
+    if slots.empty:
+        return None
+    day = measured.last_full_day(slots, MARKET_TZ, market_today())
+    if day is None:
+        return None
+    try:
+        loaded, _, _ = past_prices(day, day)
+    except Exception:  # without that day's prices the scene keeps its two plans
+        return None
+    assets, _ = components.site_model(comps)
+    inputs = demo_site.hourly_inputs(loaded, None, MARKET_TZ, assets)
+    if tariff is not None:
+        inputs = demo_site.apply_tariff(inputs, tariff, day)
+    out = components.measured_day(inputs, comps, measured.hourly_day(slots, day, MARKET_TZ), tariff)
+    out["date"] = f"{day:%a %-d %b}"
+    return out
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False, max_entries=2)
+def _load_forecast(newest: pd.Timestamp, n: int, profile: str):
+    from offpeak.forecast import load_model
+
+    slots, _ = measurements()
+    history = load_model.hourly_load(slots)
+    model = load_model.LoadModel().fit(history)
+    return model.predict(history), len(load_model.daily_matrix(history))
+
+
+def load_forecast() -> tuple[pd.DataFrame, int] | None:
+    """The home's consumption for the 7 days after its last measured day (kW per hour) and
+    how many days it learned from. None with less than four weeks of measurements."""
+    from offpeak.forecast.load_model import MIN_DAYS
+
+    slots, _ = measurements()
+    if slots.empty or slots["ts"].dt.tz_convert(MARKET_TZ).dt.date.nunique() < MIN_DAYS + 1:
+        return None
+    return _load_forecast(slots["ts"].max(), len(slots), role())

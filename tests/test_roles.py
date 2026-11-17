@@ -96,8 +96,11 @@ def test_the_home_catalogue_has_household_devices_only():
 
 def test_demo_home_works_in_the_energy_model():
     assets, loads = C.site_model(C.DEFAULT_HOME_COMPONENTS)
-    assert assets.pv_kwp == 8 and assets.battery_kwh == 10 and assets.turbines == 0
-    assert assets.cold_store_kw == pytest.approx(0.35)  # the household base load
+    # the measured demo house: 8 kWp with 15 % site losses, a 9.6 kWh battery, 0.3 kW base
+    assert assets.pv_kwp == pytest.approx(8 * 0.85)
+    assert assets.battery_kwh == pytest.approx(9.6) and assets.turbines == 0
+    assert assets.cold_store_kw == pytest.approx(0.3)  # the household base load
+    assert assets.base_shape == C.HOUSEHOLD_SHAPE
     assert {f.key for f in loads} == {"home-heat-pump", "home-wallbox", "home-washer", "home-dryer"}
     wallbox = next(f for f in loads if f.key == "home-wallbox")
     assert wallbox.kw == 11  # one charger
@@ -113,7 +116,9 @@ def test_a_whole_day_for_the_demo_home():
     day = C.site_day(inputs, C.DEFAULT_HOME_COMPONENTS)
     assert set(day["series"]["offpeak"]) == {c.id for c in C.DEFAULT_HOME_COMPONENTS}
     base = day["series"]["offpeak"]["home-base"]
-    assert len(base) == 24 and base[0] == pytest.approx(0.35)
+    # the base load follows the household's day: low at night, highest in the afternoon
+    assert len(base) == 24 and sum(base) / 24 == pytest.approx(0.3, abs=0.005)
+    assert base[3] == pytest.approx(0.3 * C.HOUSEHOLD_SHAPE[3]) and base[3] < base[15]
     labels = {c["id"]: c["kind_label"] for c in day["components"]}
     assert labels["home-wallbox"] == "Wallbox" and labels["home-battery"] == "Home battery"
 
@@ -148,3 +153,29 @@ def test_validate_refuses_a_kind_from_the_other_catalogue():
 def test_new_home_component_takes_household_defaults():
     c = C.new_component("battery", "Battery", profile="home")
     assert c.profile == "home" and c.params["kwh"] == 10 and c.spec.label == "Home battery"
+
+
+def test_household_shape_keeps_the_average():
+    """The 24 factors move the base load within the day but keep its daily energy."""
+    assert len(C.HOUSEHOLD_SHAPE) == 24
+    assert sum(C.HOUSEHOLD_SHAPE) / 24 == pytest.approx(1, abs=0.005)
+    assert min(C.HOUSEHOLD_SHAPE) > 0
+
+
+def test_a_business_base_load_stays_flat():
+    assets, _ = C.site_model(C.DEFAULT_COMPONENTS)
+    assert assets.base_shape is None
+
+
+@pytest.mark.parametrize(("losses", "kwp"), [(0, 8.0), (15, 6.8), (60, 3.2)])
+def test_rooftop_losses_reduce_the_solar_power(losses, kwp):
+    pv = replace(C.DEFAULT_HOME_COMPONENTS[0], params={"kwp": 8, "losses": losses})
+    assets, _ = C.site_model([pv])
+    assert assets.pv_kwp == pytest.approx(kwp)
+
+
+def test_rooftop_losses_default_to_none_and_are_checked():
+    pv = replace(C.DEFAULT_HOME_COMPONENTS[0], params={"kwp": 8})  # saved before the setting
+    assert C.site_model([pv])[0].pv_kwp == pytest.approx(8)
+    assert C.validate("pv_roof", {"kwp": 8, "losses": 75}, "home")  # above the 60 % limit
+    assert not C.validate("pv_roof", {"kwp": 8, "losses": 15}, "home")

@@ -194,6 +194,7 @@
     <div class="seg" role="tablist" aria-label="Schedule">
       <button class="on" data-plan="offpeak" role="tab"><span class="d"></span>Offpeak plan</button>
       <button data-plan="usual" role="tab"><span class="d"></span>Usual day</button>
+      <button data-plan="measured" role="tab" id="seg-measured" hidden><span class="d"></span>Measured day</button>
     </div>
     <button class="ghost" id="reset" type="button">Reset view</button>
   </div>
@@ -432,68 +433,104 @@ function placeAt(name, x, y, z, own = {}, ry = 0) {
 }
 
 // ── The island and fixed scenery ───────────────────────────────────────────
+// A business gets the industrial site; a home (D.profile 'home') a pair of semi-detached
+// houses with a carport on a smaller plot. Both share everything else on this page.
+const HOME = D.profile === 'home';
+const R = HOME ? 30 : 58.5;  // fence radius: the plot's size
 current = scene;
-cyl(62, 60, 3, matte(0xE7E2DA), 0, -1.5, 0, null, 128).castShadow = false;
-cyl(61.2, 61.2, 0.08, matte(0xF7F5F1), 0, 0.04, 0, null, 128).castShadow = false;
+cyl(R + 3.5, R + 1.5, 3, matte(0xE7E2DA), 0, -1.5, 0, null, 128).castShadow = false;
+cyl(R + 2.7, R + 2.7, 0.08, matte(0xF7F5F1), 0, 0.04, 0, null, 128).castShadow = false;
 const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.ShadowMaterial({ opacity: 0.06 }));
 shadowFloor.rotation.x = -Math.PI / 2; shadowFloor.position.y = -3.01; shadowFloor.receiveShadow = true; scene.add(shadowFloor);
-// the fence: 140 segments (a post and its rails to the next post) round the island
-const fence = []; for (let i = 0; i < 140; i++) { const a = i * Math.PI / 70; fence.push(mx(Math.cos(a) * 58.5, 0, Math.sin(a) * 58.5, 0, -a - Math.PI / 2, 0)); }
-if (!instancedModel('fence_segment', fence)) {
-  const posts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 70) posts.push(mx(Math.cos(a) * 58.5, 0.8, Math.sin(a) * 58.5));
+// the fence: segments of 2.6 m (a post and its rails to the next post) round the plot
+const nFence = Math.round(2 * Math.PI * R / 2.625), fence = [];
+for (let i = 0; i < nFence; i++) { const a = i * 2 * Math.PI / nFence; fence.push(mx(Math.cos(a) * R, 0, Math.sin(a) * R, 0, -a - Math.PI / 2, 0)); }
+if (!instancedModel('fence_segment', fence.map((m, i) => m.clone().multiply(new THREE.Matrix4().makeScale(2 * Math.PI * R / nFence / 2.625, 1, 1))))) {
+  const posts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 70) posts.push(mx(Math.cos(a) * R, 0.8, Math.sin(a) * R));
   instanced(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6), M.frame, posts, null).castShadow = false;
-  const fenceRail = new THREE.Mesh(new THREE.TorusGeometry(58.5, 0.05, 6, 160), M.frame); fenceRail.rotation.x = Math.PI / 2; fenceRail.position.y = 1.5; scene.add(fenceRail);
+  const fenceRail = new THREE.Mesh(new THREE.TorusGeometry(R, 0.05, 6, 160), M.frame); fenceRail.rotation.x = Math.PI / 2; fenceRail.position.y = 1.5; scene.add(fenceRail);
 }
-box(7, 0.06, 22, M.asphalt, 26, 0.09, 46, null).castShadow = false;
-for (let i = 0; i < 5; i++) box(0.25, 0.07, 2, M.line, 26, 0.13, 38 + i * 4, null).castShadow = false;
-
-// production hall: sawtooth roof with skylights, windows, a roller door
-const hallGroup = new THREE.Group(); hallGroup.position.set(18, 0, -8); scene.add(hallGroup); current = hallGroup;
 const windowsMat = matte(0x2E2C29, { emissive: 0xFFC48A, emissiveIntensity: 0 });
-if (!placeAt('main_hall', 0, 0, 0, { windows: windowsMat })) {
-rbox(22, 8, 14, M.white, 0, 4, 0, null, 0.6);
-for (let i = 0; i < 4; i++) {
-  rbox(5.2, 2.4, 13.6, M.roof, -7.8 + i * 5.2, 9, 0, null, 0.3).rotation.z = 0.32;
-  box(0.6, 1.9, 13, M.glassDark, -5.6 + i * 5.2, 9.2, 0, null).rotation.z = 0.32;
-}
-for (let i = 0; i < 5; i++) rbox(2.4, 1.6, 0.2, windowsMat, -8 + i * 4, 5.2, 7.02, null, 0.08);
-rbox(4.4, 5, 0.3, M.roof, -6, 2.5, 7.05, null, 0.1);
-for (let i = 0; i < 7; i++) box(4.2, 0.08, 0.32, M.frame, -6, 0.6 + i * 0.65, 7.1, null);
-}
-
-// grid connection: transformer with radiator fins, bushings, fence, pylon
-const gridGroup = new THREE.Group(); gridGroup.position.set(2, 0, -36); scene.add(gridGroup); current = gridGroup;
-if (!placeAt('transformer', 0, 0, 0)) {
-rbox(8, 0.3, 7, M.concrete, 2, 0.15, 3, null, 0.1);
-rbox(3.6, 3.2, 2.6, M.clay, 2, 1.9, 3, null, 0.3);
-for (let i = 0; i < 7; i++) box(0.12, 2.4, 1.2, M.steel, 0.4 + i * 0.55, 1.8, 4.9, null);
-for (let i = 0; i < 3; i++) cyl(0.18, 0.28, 1.4, M.ink, 1 + i, 4.2, 3, null, 10);
-const gposts = []; for (let i = 0; i <= 8; i++) { gposts.push(mx(-2 + i, 0.9, -0.6), mx(-2 + i, 0.9, 6.6)); }
-instanced(new THREE.CylinderGeometry(0.06, 0.06, 1.8, 6), M.frame, gposts, null);
-}
-if (!placeAt('pylon', -5, 0, -4)) {
-  const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
-  pylon.position.set(-5, 9, -4); pylon.rotation.y = Math.PI / 4; gridGroup.add(pylon);
-  rbox(9, 0.3, 0.3, M.ink, -5, 16.5, -4, null, 0.1);
-}
-
-// the site meter in the middle, where every flow meets
-const hubGroup = new THREE.Group(); scene.add(hubGroup); current = hubGroup;
-if (!placeAt('site_meter', 0, 0, 0)) {
-  cyl(3, 3, 0.4, M.white, 0, 0.2, 0, null, 48);
-  cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, null, 32);
-}
-const hubRing = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.12, 12, 64), M.orange);
-hubRing.rotation.x = Math.PI / 2; hubRing.position.y = 0.45; hubGroup.add(hubRing);
-
-current = scene;
 const treeMat = matte(0xE3DED5);
-[[-48, -32], [-54, 30], [46, -34], [52, -10], [-6, 46], [40, 42], [-30, 48], [54, 22], [-20, -48], [10, 52], [-54, 2]].forEach(([x, z], i) => {
-  const s = 0.8 + (i % 3) * 0.25, kind = i % 4 === 1 ? 'tree_tall' : 'tree_round';
-  if (MODELS[kind]) { modelGroup(kind, x, 0, z, g => { g.scale.setScalar(s); g.rotation.y = i * 1.3; }, { tree: treeMat }); return; }
-  cyl(0.25, 0.3, 2 * s, M.frame, x, s, z, null, 8);
-  const top = new THREE.Mesh(new THREE.SphereGeometry(2.2 * s, 20, 16), treeMat); top.position.set(x, 2.6 * s + 1.4, z); top.castShadow = true; scene.add(top);
-});
+let hubRing, hubGroup;
+// Where the home's pieces stand (world coordinates). The houses' origin is the middle of
+// the party wall; our half spans x -3..4 and its street side faces +z at z = -1.
+const HOUSES = [-3, -6], CARPORT = [7.4, -6.6], GRID_CABINET = [10, 12.6];
+if (!HOME) {
+  box(7, 0.06, 22, M.asphalt, 26, 0.09, 46, null).castShadow = false;
+  for (let i = 0; i < 5; i++) box(0.25, 0.07, 2, M.line, 26, 0.13, 38 + i * 4, null).castShadow = false;
+
+  // production hall: sawtooth roof with skylights, windows, a roller door
+  const hallGroup = new THREE.Group(); hallGroup.position.set(18, 0, -8); scene.add(hallGroup); current = hallGroup;
+  if (!placeAt('main_hall', 0, 0, 0, { windows: windowsMat })) {
+  rbox(22, 8, 14, M.white, 0, 4, 0, null, 0.6);
+  for (let i = 0; i < 4; i++) {
+    rbox(5.2, 2.4, 13.6, M.roof, -7.8 + i * 5.2, 9, 0, null, 0.3).rotation.z = 0.32;
+    box(0.6, 1.9, 13, M.glassDark, -5.6 + i * 5.2, 9.2, 0, null).rotation.z = 0.32;
+  }
+  for (let i = 0; i < 5; i++) rbox(2.4, 1.6, 0.2, windowsMat, -8 + i * 4, 5.2, 7.02, null, 0.08);
+  rbox(4.4, 5, 0.3, M.roof, -6, 2.5, 7.05, null, 0.1);
+  for (let i = 0; i < 7; i++) box(4.2, 0.08, 0.32, M.frame, -6, 0.6 + i * 0.65, 7.1, null);
+  }
+
+  // grid connection: transformer with radiator fins, bushings, fence, pylon
+  const gridGroup = new THREE.Group(); gridGroup.position.set(2, 0, -36); scene.add(gridGroup); current = gridGroup;
+  if (!placeAt('transformer', 0, 0, 0)) {
+  rbox(8, 0.3, 7, M.concrete, 2, 0.15, 3, null, 0.1);
+  rbox(3.6, 3.2, 2.6, M.clay, 2, 1.9, 3, null, 0.3);
+  for (let i = 0; i < 7; i++) box(0.12, 2.4, 1.2, M.steel, 0.4 + i * 0.55, 1.8, 4.9, null);
+  for (let i = 0; i < 3; i++) cyl(0.18, 0.28, 1.4, M.ink, 1 + i, 4.2, 3, null, 10);
+  const gposts = []; for (let i = 0; i <= 8; i++) { gposts.push(mx(-2 + i, 0.9, -0.6), mx(-2 + i, 0.9, 6.6)); }
+  instanced(new THREE.CylinderGeometry(0.06, 0.06, 1.8, 6), M.frame, gposts, null);
+  }
+  if (!placeAt('pylon', -5, 0, -4)) {
+    const pylon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.4, 2.6, 18, 4, 5, true)), new THREE.LineBasicMaterial({ color: 0xA59E93 }));
+    pylon.position.set(-5, 9, -4); pylon.rotation.y = Math.PI / 4; gridGroup.add(pylon);
+    rbox(9, 0.3, 0.3, M.ink, -5, 16.5, -4, null, 0.1);
+  }
+
+  // the site meter in the middle, where every flow meets
+  hubGroup = new THREE.Group(); scene.add(hubGroup); current = hubGroup;
+  if (!placeAt('site_meter', 0, 0, 0)) {
+    cyl(3, 3, 0.4, M.white, 0, 0.2, 0, null, 48);
+    cyl(1.2, 1.2, 1.6, M.ink, 0, 1, 0, null, 32);
+  }
+  hubRing = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.12, 12, 64), M.orange);
+  hubRing.rotation.x = Math.PI / 2; hubRing.position.y = 0.45; hubGroup.add(hubRing);
+
+  current = scene;
+  [[-48, -32], [-54, 30], [46, -34], [52, -10], [-6, 46], [40, 42], [-30, 48], [54, 22], [-20, -48], [10, 52], [-54, 2]].forEach(([x, z], i) => {
+    const s = 0.8 + (i % 3) * 0.25, kind = i % 4 === 1 ? 'tree_tall' : 'tree_round';
+    if (MODELS[kind]) { modelGroup(kind, x, 0, z, g => { g.scale.setScalar(s); g.rotation.y = i * 1.3; }, { tree: treeMat }); return; }
+    cyl(0.25, 0.3, 2 * s, M.frame, x, s, z, null, 8);
+    const top = new THREE.Mesh(new THREE.SphereGeometry(2.2 * s, 20, 16), treeMat); top.position.set(x, 2.6 * s + 1.4, z); top.castShadow = true; scene.add(top);
+  });
+
+} else {
+  // the street in front, with a pavement and a dashed centre line
+  rbox(2 * R - 4, 0.06, 6, M.asphalt, 0, 0.07, 17, null, 0.05).castShadow = false;
+  rbox(2 * R - 6, 0.12, 1.4, M.concrete, 0, 0.1, 13.3, null, 0.05).castShadow = false;
+  const dashes = []; for (let i = 0; i < 12; i++) dashes.push(mx(-22 + i * 4, 0.11, 17));
+  instanced(new THREE.BoxGeometry(2, 0.03, 0.18), M.line, dashes, null);
+  rbox(1.4, 0.08, 12, M.path, CARPORT[0], 0.06, 1.5, null, 0.05).castShadow = false;  // driveway
+  rbox(1.2, 0.08, 4.6, M.path, 1.9 + HOUSES[0], 0.06, 1.8, null, 0.05).castShadow = false;  // garden path
+  const houses = new THREE.Group(); houses.position.set(HOUSES[0], 0, HOUSES[1]); scene.add(houses); current = houses;
+  if (!placeAt('semi_detached', 0, 0, 0, { windows: windowsMat })) rbox(14, 8, 10, M.white, 0, 4, 0, null, 0.4);
+  current = scene;
+  // hedges round the gardens and the neighbours' carport-free side
+  const hedge = matte(0xD8D2C7);  // a little darker than the ground, cut square
+  for (const [x, z, w, d] of [[-13, -6, 0.8, 12], [-8, 3.6, 10, 0.8], [12.5, -4, 0.8, 14], [-3, -15, 20, 0.8]]) rbox(w, 1.1, d, hedge, x, 0.55, z, null, 0.12);
+  hubGroup = new THREE.Group(); scene.add(hubGroup); current = hubGroup;  // the meter pillar
+  if (!placeAt('home_meter', 0, 0, 0)) rbox(0.9, 1.4, 0.45, M.white, 0, 0.7, 0, null, 0.08);
+  hubRing = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.08, 10, 48), M.orange);
+  hubRing.rotation.x = Math.PI / 2; hubRing.position.y = 0.2; hubGroup.add(hubRing);
+  current = scene;
+  placeAt('grid_cabinet', GRID_CABINET[0], 0, GRID_CABINET[1], {}, Math.PI);
+  [[-20, -14], [-22, 8], [20, -14], [22, 6], [-10, 24], [14, 24], [-26, -4]].forEach(([x, z], i) => {
+    const s = 0.7 + (i % 3) * 0.2, kind = i % 3 === 1 ? 'tree_tall' : 'tree_round';
+    if (MODELS[kind]) modelGroup(kind, x, 0, z, g => { g.scale.setScalar(s); g.rotation.y = i * 1.3; }, { tree: treeMat });
+  });
+}
 
 // ── One builder per kind; each returns where its cable starts and its label height ─
 const animated = { rotors: [], fans: [], glow: [], plugs: [], soc: [] };
@@ -708,6 +745,57 @@ const BUILD = {
 };
 
 // Where each kind goes on the island; extra components take the next free spot.
+// The home's builders. Coordinates are relative to each slot; each returns where its cable
+// starts and its label height, like BUILD.
+const ROOF = 34 * Math.PI / 180;  // the house's roof pitch (scripts/blender: ROOF_DEG)
+const HOME_BUILD = {
+  pv_roof(c) {
+    // modules on the street side of our half's roof (the slot is the houses' origin),
+    // portrait, up to 6 across and 3 up the slope
+    const n = Math.min(18, Math.max(2, Math.round(c.params.kwp / 0.42))), mods = [];
+    const portrait = new THREE.Matrix4().makeRotationY(Math.PI / 2);
+    for (let i = 0; i < n; i++) {
+      const col = i % 6, row = Math.floor(i / 6), up = 0.6 + row * 1.8;  // metres up the slope
+      mods.push(mx(-2.62 + 1.05 * col + 3.5, 5.95 + up * Math.sin(ROOF) + 0.12, 5.25 - up * Math.cos(ROOF), ROOF, 0, 0));
+    }
+    if (!instancedModel('pv_module', mods, { panel: PANEL }, portrait)) instanced(new THREE.BoxGeometry(1.0, 0.05, 1.7), PANEL, mods, 'modules');
+    placeAt('pv_inverter', 4.4, 0, -2.0, {}, Math.PI / 2);  // on the east wall, by the battery
+    return { anchor: [4.3, -1.6], label: 11.5, at: [1.5, 2] };  // label over our roof
+  },
+  battery(c) {
+    placeAt('home_battery', 0, 0, 0, {}, Math.PI / 2);  // on the east wall, facing the carport
+    const track = rbox(0.06, 0.12, 0.56, matte(0xEFEAE3), 0.36, 1.62, 0, 'battery', 0.02);
+    const bar = rbox(0.08, 0.12, 0.56, M.orange, 0.38, 1.62, 0, 'battery', 0.02);
+    track.castShadow = bar.castShadow = false;
+    animated.soc.push({ bar, id: c.id, axis: 'z', len: 0.56 });
+    return { anchor: [0.4, 0], label: 4.4, at: [0.8, 3.2] };
+  },
+  heat_pump(c) {
+    const g = new THREE.Group(); g.scale.setScalar(0.6); current.add(g);
+    const prev = current; current = g;
+    if (!placeAt('heat_pump_unit', 0, 0.15, 0, {}, Math.PI)) rbox(2.4, 1.6, 1.1, M.white, 0, 0.95, 0, 'unit', 0.15);
+    for (let k = 0; k < 2; k++) animated.fans.push({ g: spinner(current, 0.55 - k * 1.1, 1.0, -0.63, () => { for (let b = 0; b < 3; b++) box(0.7, 0.14, 0.03, M.steel, 0, 0, 0, 'fans').rotation.z = b * Math.PI / 3; }), axis: 'z', id: c.id });
+    current = prev;
+    return { anchor: [0, 0.6], label: 4.2, at: [0.5, -1] };
+  },
+  ev_charger(c) {
+    // the carport, the wallbox on its back wall and the car plugged in
+    placeAt('carport', 0, 0, 0);
+    const screen = matte(0xD9D3CA, { emissive: 0xFF5F00, emissiveIntensity: 0 });
+    const wb = placeAt('wallbox', -0.9, 1.45, -2.72, { screen });
+    (wb && wb.screen || []).forEach(m => animated.plugs.push({ m, id: c.id }));
+    placeAt('ev_car', 0.2, 0, 0.4);
+    tube([[-0.9, 0.9, -2.6], [-0.4, 0.4, -2.2], [0.95, 0.85, -1.0]], 0.04, M.ink, 'cables');
+    return { anchor: [-1.9, 2.9], label: 2.2, at: [2.6, 5.6] };
+  },
+};
+// Devices inside the house are shown as one: "House", at our half's front door.
+const HOUSE_KINDS = new Set(['household', 'appliance']);
+const HOME_SLOTS = {
+  pv_roof: [HOUSES], battery: [[4.35, -3.4]], heat_pump: [[5.4, -10.6], [-0.5, -12.8]],
+  ev_charger: [CARPORT],
+};
+const HOME_SPARE = [[-8, 8], [16, 6], [-18, -10], [18, -12], [-20, 2]];
 const SLOTS = {
   pv_field: [[-26, -18], [-30, -40], [-44, -16], [30, -40]],
   wind: [[-44, 12], [-34, 32], [-50, -4], [-18, 46], [46, -36]],
@@ -721,7 +809,9 @@ const SLOTS = {
 const SPARE = [[-2, 38], [24, 40], [-40, -32], [50, 2], [-52, 22], [40, 34], [-12, -36], [30, -26], [8, 42]];
 const taken = new Set();
 function slotFor(kind) {
-  const free = [...(SLOTS[kind] || []), ...SPARE].find(s => !taken.has(s.join(',')));
+  const free = HOME
+    ? [...(HOME_SLOTS[kind] || []), ...HOME_SPARE].find(s => !taken.has(s.join(',')))
+    : [...(SLOTS[kind] || []), ...SPARE].find(s => !taken.has(s.join(',')));
   if (free) taken.add(free.join(','));
   return free || null;
 }
@@ -760,28 +850,49 @@ function flowPath(x, z) {
   line.material.uniforms.uLen.value = top.getLength(); line.visible = false; scene.add(line);
   return { curve, kw: 0, t: Math.random(), line };
 }
+const houseMembers = [];
 for (const c of COMPS) {
-  if (!BUILD[c.kind]) continue;
+  if (HOME && HOUSE_KINDS.has(c.kind)) { houseMembers.push(c); continue; }
+  const kit = HOME ? HOME_BUILD : BUILD;
+  if (!kit[c.kind]) continue;
   const slot = slotFor(c.kind);
   if (!slot) continue;  // the island is full; the component still shows in the list
   const g = new THREE.Group(); g.position.set(slot[0], 0, slot[1]); scene.add(g); current = g;
-  // only one hall roof: a second rooftop system is drawn as a field on the ground
-  const onHall = slot[0] === 18 && slot[1] === -8;
-  const info = (c.kind === 'pv_roof' && !onHall ? BUILD.pv_field : BUILD[c.kind])(c);
+  // only one roof: a second rooftop system is drawn as a field on the ground
+  const onRoof = HOME ? slot === HOUSES : slot[0] === 18 && slot[1] === -8;
+  const info = (c.kind === 'pv_roof' && !onRoof ? BUILD.pv_field : kit[c.kind])(c);
   g.traverse(o => { if (o.isMesh) o.userData.comp = c.id; });
   const chip = document.createElement('div');
   chip.className = 'chip'; chip.innerHTML = `<i></i><b></b><span></span>`; chip.querySelector('b').textContent = c.name;
   chip.addEventListener('click', e => { e.stopPropagation(); select(c.id, true); });
   chip.addEventListener('mouseenter', () => setHover(c.id));
   chip.addEventListener('mouseleave', () => setHover(null));
-  const label = new CSS2DObject(chip); label.position.set(0, info.label, 0); g.add(label);
+  const label = new CSS2DObject(chip); label.position.set(info.at ? info.at[0] : 0, info.label, info.at ? info.at[1] : 0); g.add(label);
   units[c.id] = { g, chip, value: chip.querySelector('span') };
   flows[c.id] = flowPath(slot[0] + info.anchor[0], slot[1] + info.anchor[1]);
 }
-flows.__grid = flowPath(3, -30);
+// the home's devices inside the house: one label and one cable, carrying their total
+if (houseMembers.length) {
+  for (const p of Object.keys(D.series)) {  // every plan, the measured day too
+    D.series[p].__house = D.series[p][houseMembers[0].id].map((_, h) => houseMembers.reduce((t, m) => t + D.series[p][m.id][h], 0));
+  }
+  const g = new THREE.Group(); g.position.set(HOUSES[0], 0, HOUSES[1]); scene.add(g);
+  const houseMesh = []; scene.traverse(o => { if (o.isMesh && o.userData.part === 'house') houseMesh.push(o); });
+  houseMesh.forEach(o => { o.userData.comp = houseMembers[0].id; });
+  const chip = document.createElement('div');
+  chip.className = 'chip'; chip.innerHTML = `<i></i><b></b><span></span>`;
+  chip.querySelector('b').textContent = 'House';
+  chip.title = houseMembers.map(m => m.name).join(', ');
+  chip.addEventListener('click', e => { e.stopPropagation(); select(houseMembers[0].id, true); });
+  const label = new CSS2DObject(chip); label.position.set(2.2, 7.6, 5.4); g.add(label);  // by our front door
+  const unit = { g, chip, value: chip.querySelector('span'), house: true };
+  houseMembers.forEach(m => { units[m.id] = unit; });
+  flows.__house = flowPath(HOUSES[0] + 1.9, HOUSES[1] + 5.4);
+}
+flows.__grid = HOME ? flowPath(GRID_CABINET[0] - 0.6, GRID_CABINET[1] - 0.4) : flowPath(3, -30);
 
 // ── Camera fit and focus ───────────────────────────────────────────────────
-const HOME_TARGET = new THREE.Vector3(0, 4, 0), HOME_DIR = new THREE.Vector3(0.9, 0.95, 1.15).normalize();
+const HOME_TARGET = HOME ? new THREE.Vector3(3, 3, -3) : new THREE.Vector3(0, 4, 0), HOME_DIR = new THREE.Vector3(0.9, 0.95, 1.15).normalize();
 let homeDist = 170, placed = false;
 const goal = { target: null, dist: null };
 controls.addEventListener('start', () => { controls.autoRotate = false; goal.target = null; goal.dist = null; });
@@ -795,7 +906,8 @@ function fit() {
   camera.setViewOffset(w, h, shift, -h * 0.03, w, h);
   camera.updateProjectionMatrix();
   const vfov = THREE.MathUtils.degToRad(camera.fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * (w - 2 * shift) / h);
-  homeDist = Math.max(54 / Math.tan(vfov / 2), 60 / Math.tan(hfov / 2));
+  const k = HOME ? 0.42 : 1;  // the home's plot is smaller: come closer
+  homeDist = k * Math.max(54 / Math.tan(vfov / 2), 60 / Math.tan(hfov / 2));
   controls.minDistance = homeDist * 0.2; controls.maxDistance = homeDist * 1.4;
   if (!placed) { placed = true; camera.position.copy(HOME_TARGET).addScaledVector(HOME_DIR, homeDist); controls.target.copy(HOME_TARGET); }
 }
@@ -811,6 +923,12 @@ document.getElementById('reset').addEventListener('click', () => { goal.target =
 // ── State and small helpers ────────────────────────────────────────────────
 let plan = 'offpeak', hour = Math.min(23, Math.max(0, D.hour_now)), selected = COMPS[0] && COMPS[0].id, tab = 'today', hlPart = null;
 const rows = () => D.rows[plan];
+// "Yesterday at home": a measured day, played like a plan (app/data.measured_scene_day)
+const pclass = () => (plan === 'measured' && D.measured ? D.measured.price_class : D.price_class);
+if (D.measured) {
+  const b = document.getElementById('seg-measured');
+  b.hidden = false; b.lastChild.textContent = `${D.measured.date} at home · measured`;
+}
 const ser = (id, p = plan) => D.series[p][id];
 // all-in price per kWh bought (spot + supplier, grid fees, levies, tax) from the tariff
 const allIn = r => r.import_ct ?? r.price_ct;
@@ -820,7 +938,8 @@ const own = D.rows.offpeak.map(r => r.pv_kw + r.wind_kw);
 const ownMax = Math.max(...own, 1);
 const sunny = own.map(v => v > ownMax * 0.45);
 const hh = h => `${String(h).padStart(2, '0')}:00`;
-const kw = v => `${Math.round(Math.abs(v))} kW`;
+// a home's loads are small: one decimal there (0.3 kW), whole kW for a business
+const kw = v => HOME && Math.abs(v) < 10 ? `${Math.abs(v).toFixed(1)} kW` : `${Math.round(Math.abs(v))} kW`;
 const sum = (a, f = x => x) => a.reduce((s, x) => s + f(x), 0);
 const euro = v => `${v < -0.005 ? '−' : ''}€${Math.abs(v) >= 10 ? Math.abs(v).toFixed(0) : Math.abs(v).toFixed(2)}`;
 const mass = kg => kg >= 1000 ? `${(kg / 1000).toFixed(1)} t` : `${kg.toFixed(kg < 10 ? 1 : 0)} kg`;
@@ -996,17 +1115,23 @@ const lightGoal = { sun: 2.2, hemi: 1.2, night: 0 };
 function update() {
   const R = rows(), r = R[hour];
   document.getElementById('clock').textContent = hh(hour);
-  const cls = D.price_class[hour], t = document.getElementById('price-tag');
+  const cls = pclass()[hour], t = document.getElementById('price-tag');
   t.className = `tag ${cls}`; t.textContent = cls === 'cheap' ? 'cheap hour' : cls === 'dear' ? 'expensive hour' : 'normal hour';
   document.getElementById('price').textContent = `${allIn(r).toFixed(1)} ct/kWh all-in${sunny[hour] ? ' · strong own sun & wind' : ''}`;
   document.getElementById('rows').innerHTML = [['Spot price', `${r.price_ct.toFixed(1)} ct`], ['Fees, levies, tax', `${(allIn(r) - (r.energy_ct ?? r.price_ct)).toFixed(1)} ct`], ['Generating', kw(r.pv_kw + r.wind_kw)], ['Using', kw(r.load_kw)], [r.grid_kw >= 0 ? 'Buying' : 'Selling', kw(r.grid_kw)], ['Battery', `${Math.round(r.soc_pct)} %`]]
     .map(([a, b]) => `<div class="r"><span>${a}</span><b>${b}</b></div>`).join('');
   for (const c of COMPS) {
-    const u = units[c.id]; if (!u) continue;
+    const u = units[c.id]; if (!u || u.house) continue;  // the house is updated below
     const v = ser(c.id)[hour];
     u.value.textContent = c.role === 'storage' ? `${Math.round(c.analytics[plan].soc_pct[hour])} %` : c.role === 'flexible' && v === 0 ? 'idle' : kw(v);
     u.chip.classList.toggle('live', Math.abs(v) > LIVE);
     u.chip.classList.toggle('selected', c.id === selected);
+  }
+  if (flows.__house) {
+    const u = units[houseMembers[0].id], v = ser('__house')[hour];
+    u.value.textContent = kw(v);
+    u.chip.classList.toggle('live', Math.abs(v) > LIVE);
+    u.chip.classList.toggle('selected', houseMembers.some(m => m.id === selected));
   }
   const c = byId[selected];
   if (c) {
@@ -1015,15 +1140,19 @@ function update() {
     document.getElementById('brief').innerHTML = `<h4>${esc(c.name)}</h4><p>${c.kind_label} · now ${now}${c.role === 'flexible' ? ` · best ${c.advice.best}` : ''}</p><button class="go" type="button" id="go">Open fact sheet ↓</button>`;
     document.getElementById('go').addEventListener('click', scrollToSheet);
   }
-  [...bars.children].forEach((b, i) => { b.className = `${i === hour ? 'on' : D.price_class[i]} ${sunny[i] ? 'sun' : ''}`; });
+  [...bars.children].forEach((b, i) => { b.className = `${i === hour ? 'on' : pclass()[i]} ${sunny[i] ? 'sun' : ''}`; });
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.plan === plan));
 
   for (const comp of COMPS) { const f = flows[comp.id]; if (f) { const v = ser(comp.id)[hour]; f.kw = comp.role === 'generation' ? -v : v; } }
   flows.__grid.kw = -r.grid_kw;
+  if (flows.__house) flows.__house.kw = ser('__house')[hour];
   flows.__grid.line.material.uniforms.uColor.value.copy(r.grid_kw > 0 ? INK : ORANGE);  // dark = bought
   animated.glow.forEach(({ m, id }) => { m.material.emissiveIntensity = ser(id)[hour] > 0 ? 0.9 : 0; });
   animated.plugs.forEach(({ m, id }) => { m.material.emissiveIntensity = ser(id)[hour] > 0 ? 1 : 0; });
-  animated.soc.forEach(({ bar, id }) => { const s = byId[id].analytics[plan].soc_pct[hour] / 100; bar.scale.x = Math.max(0.03, s); bar.position.x = -3 * (1 - bar.scale.x); });
+  animated.soc.forEach(({ bar, id, axis = 'x', len = 6 }) => {
+    const s = Math.max(0.03, byId[id].analytics[plan].soc_pct[hour] / 100);
+    bar.scale[axis] = s; bar.position[axis] = -len / 2 * (1 - s);  // the bar fills from one end
+  });
 
   const a = (hour + 0.5 - 6) / 12 * Math.PI, up = Math.sin(a), night = up < 0.05 || r.pv_kw < 0.5;
   if (night) sun.position.set(25, 130, 45); else sun.position.set(-Math.cos(a) * 90, Math.max(up, 0.35) * 80 + 30, 70);  // lower sun: longer shadows show the shapes
@@ -1035,11 +1164,14 @@ function update() {
   // the bills include the day's share of the demand charge and fixed fees
   const saving = D.bill ? D.bill.usual.total - D.bill.offpeak.total : sum(D.rows.usual, x => x.cost_eur) - sum(D.rows.offpeak, x => x.cost_eur);
   const gen = sum(R, x => x.pv_kw + x.wind_kw), used = sum(R, x => Math.min(x.pv_kw + x.wind_kw, x.load_kw + Math.max(x.battery_kw, 0)));
+  const measuredDay = plan === 'measured';
   document.getElementById('kpis').innerHTML = [
-    ['Saved today vs usual', plan === 'offpeak' ? euro(saving) : '€0', true],
+    measuredDay
+      ? ['Used by the house', `${sum(R, x => x.load_kw).toFixed(1)}<small>kWh</small>`, true]
+      : ['Saved today vs usual', plan === 'offpeak' ? euro(saving) : '€0', true],
     ['Own power used', `${gen ? Math.round(used / gen * 100) : 0}<small>%</small>`],
-    ['Bought from the grid', `${Math.round(sum(R, x => Math.max(x.grid_kw, 0)))}<small>kWh</small>`],
-    ['Cost of power today', euro(D.bill ? D.bill[plan].total : sum(R, x => x.cost_eur))],
+    ['Bought from the grid', `${sum(R, x => Math.max(x.grid_kw, 0)).toFixed(HOME ? 1 : 0)}<small>kWh</small>`],
+    [measuredDay ? `Cost of power, ${D.measured.date}` : 'Cost of power today', euro(D.bill && D.bill[plan] ? D.bill[plan].total : sum(R, x => x.cost_eur))],
   ].map(([l, v, acc]) => `<div class="kpi ${acc ? 'accent' : ''}"><p>${l}</p><div class="v">${v}</div></div>`).join('');
   dayPlan();
   renderSheet();
@@ -1091,9 +1223,10 @@ renderer.domElement.addEventListener('pointerup', e => {
 
 // name tags never cover each other: keep the selected one, then the rest in list order
 function declutter() {
-  const kept = [];
+  const kept = [], seen = new Set();
   for (const id of [selected, ...COMPS.map(c => c.id).filter(x => x !== selected)]) {
-    const u = units[id]; if (!u) continue;
+    const u = units[id]; if (!u || seen.has(u)) continue;  // the house is one label for several
+    seen.add(u);
     u.chip.style.visibility = 'visible';
     const r = u.chip.getBoundingClientRect();
     if (kept.some(s => r.left < s.right + 4 && s.left < r.right + 4 && r.top < s.bottom + 3 && s.top < r.bottom + 3)) u.chip.style.visibility = 'hidden';

@@ -701,6 +701,134 @@ def fence_segment():
         t_seg((x, 0.2, 0), (x, 1.5, 0), 0.012, "frame", seg=3)
 
 
+# ── The home (homeowner profile) ────────────────────────────────────────────
+ROOF_DEG = 34.0  # the house's roof pitch (NRW solar cadastre); the page tilts its modules to match
+
+
+def t_gable(w, d, rise, y0, x, z, material, part=None, overhang=0.4):
+    """A pitched roof in page coordinates: the ridge runs along x, the slopes face +z (the
+    street side) and -z. w × d is the footprint under it, y0 the eave height."""
+    hw, hd = w / 2 + overhang, d / 2 + overhang
+    rise = rise + overhang * math.tan(math.radians(ROOF_DEG))
+    pts = [
+        (-hw, y0, hd),
+        (hw, y0, hd),
+        (hw, y0 + rise, 0),
+        (-hw, y0 + rise, 0),
+        (-hw, y0, -hd),
+        (hw, y0, -hd),
+    ]
+    verts = [(px + x, -(pz + z), py) for px, py, pz in pts]  # page -> Blender
+    faces = [(0, 1, 2, 3), (3, 2, 5, 4), (0, 3, 4), (1, 5, 2), (0, 4, 5, 1)]
+    mesh = bpy.data.meshes.new("gable")
+    mesh.from_pydata(verts, [], faces)
+    obj = bpy.data.objects.new("gable", mesh)
+    bpy.context.collection.objects.link(obj)
+    return finish(obj, material, part, 0.05)
+
+
+def semi_detached():
+    """A pair of semi-detached houses, 2 × 7 m wide and 10 m deep, two storeys and a pitched
+    roof whose street side faces +z. The right half (x 0..7) is ours: the page puts the
+    solar modules on its street-side roof and calls the whole half "House". The left half
+    is the neighbours'. Origin: middle of the party wall, at the street-side wall line minus
+    5 m (so the houses span z -5..5). Part of our half: house."""
+    W, D, EAVE = 7.0, 10.0, 5.8
+    rise = D / 2 * math.tan(math.radians(ROOF_DEG))
+    for side, part, wall in ((1, "house", "white"), (-1, None, "clay")):
+        cx = side * W / 2
+        t_box(W + 0.1, 0.5, D + 0.2, cx, 0.25, 0, "concrete", part, 0.05)  # plinth
+        t_box(W, EAVE - 0.5, D, cx, 0.25 + EAVE / 2, 0, wall, part, 0.08)
+        t_gable(W, D, rise, EAVE, cx, 0, "roof", part)
+        for z in (D / 2 + 0.38, -D / 2 - 0.38):  # gutters
+            t_cyl(0.09, 0.09, W + 0.8, cx, EAVE - 0.05, z, "steel", part, 10, axis="x")
+        t_cyl(0.07, 0.07, EAVE, cx + side * (W / 2 - 0.3), EAVE / 2, D / 2 + 0.4, "steel", part, 8)
+        for fz, face in ((D / 2 + 0.03, 1), (-D / 2 - 0.03, -1)):  # windows, two floors
+            for wx in (-1.6, 1.6):
+                for wy in (1.9, 4.4):
+                    if face == 1 and wy == 1.9 and wx == -side * 1.6:
+                        continue  # the front door goes here
+                    t_box(1.3, 1.25, 0.08, cx + wx, wy, fz, "windows", part, 0.03)
+                    t_box(1.5, 0.1, 0.25, cx + wx, wy - 0.7, fz + face * 0.1, "frame", part, 0.02)
+        dx = cx - side * 1.6  # front door with canopy and steps
+        t_box(1.1, 2.2, 0.12, dx, 1.6, D / 2 + 0.05, "ink" if part else "frame", part, 0.03)
+        t_box(1.8, 0.12, 1.0, dx, 2.95, D / 2 + 0.5, "frame", part, 0.03)
+        t_box(1.6, 0.25, 1.0, dx, 0.12, D / 2 + 0.55, "concrete", part, 0.03)
+    t_box(0.12, EAVE, D + 0.3, 0, EAVE / 2 + 0.25, 0, "frame", None, 0.02)  # party wall line
+    t_box(0.7, 1.8, 0.7, -4.8, EAVE + rise - 0.2, -1.6, "clay", None, 0.06)  # neighbours' chimney
+    t_box(0.8, 0.12, 0.8, -4.8, EAVE + rise + 0.75, -1.6, "frame", None, 0.02)
+    t_box(
+        0.5, 0.06, 0.18, W - 0.9, 3.0, D / 2 + 0.06, "orange", "house", 0.02
+    )  # house number plate
+
+
+def carport():
+    """A carport, 3.6 m × 6 m, flat roof sloping to the back, open on the street side (+z).
+    Scenery; the page adds the wallbox and the car."""
+    for x in (-1.7, 1.7):
+        for z in (-2.8, 2.8):
+            t_box(0.14, 2.6, 0.14, x, 1.3, z, "white", None, 0.03)
+    t_box(3.9, 0.18, 6.3, 0, 2.7, 0, "white", None, 0.06, rx=-0.04)
+    t_box(3.92, 0.1, 6.32, 0, 2.6, 0, "orange", None, 0.02, rx=-0.04)  # fascia stripe
+    t_box(3.5, 0.06, 5.8, 0, 0.03, 0, "concrete", None, 0.03)
+    t_box(3.6, 1.8, 0.08, 0, 1.0, -2.85, "clay", None, 0.03)  # back panel
+
+
+def wallbox():
+    """A wall-mounted car charger with a status window (the page's "screen" material) and
+    a coiled cable. Part: chargers."""
+    t_box(0.42, 0.55, 0.16, 0, 0.0, 0, "white", "chargers", 0.06)
+    t_box(0.3, 0.06, 0.02, 0, 0.12, 0.085, "screen", "chargers", 0.01)
+    t_box(0.44, 0.06, 0.18, 0, -0.25, 0, "orange", "chargers", 0.02)
+    t_cyl(0.16, 0.16, 0.05, 0, -0.55, 0.12, "ink", "chargers", 16, axis="z")  # cable coil
+    t_cyl(0.11, 0.11, 0.06, 0, -0.55, 0.12, "white", "chargers", 16, axis="z")
+
+
+def ev_car():
+    """A compact electric car, 1.85 m × 4.3 m, nose towards -z. Scenery."""
+    t_box(1.85, 0.7, 4.3, 0, 0.65, 0, "white", bevel=0.3)
+    t_box(1.6, 0.62, 2.3, 0, 1.25, 0.25, "glassDark", bevel=0.28)
+    t_box(1.62, 0.08, 2.32, 0, 1.58, 0.25, "white", bevel=0.05)  # roof
+    for side in (-1, 1):
+        t_box(0.04, 0.08, 3.4, side * 0.93, 0.62, 0, "orange", bevel=0.01)  # stripe
+        for dz in (-1.35, 1.35):
+            wheel(side * 0.86, 0.34, dz, 0.34, 0.24)
+    t_box(1.5, 0.08, 0.05, 0, 0.8, -2.16, "white", bevel=0.02)  # light bar
+    t_box(0.15, 0.15, 0.04, 0.75, 0.85, -1.4, "ink", bevel=0.02)  # charge port flap
+
+
+def home_battery():
+    """A wall-mounted home battery (stacked modules) with its inverter above. Parts:
+    battery, inverter."""
+    t_box(0.65, 0.16, 0.42, 0, 0.08, 0, "ink", "battery", 0.03)  # base
+    for k in range(4):
+        t_box(0.6, 0.3, 0.36, 0, 0.32 + k * 0.31, 0, "white", "battery", 0.04)
+        t_box(0.61, 0.03, 0.37, 0, 0.47 + k * 0.31, 0, "frame", "battery", 0.01)
+    t_box(0.62, 0.08, 0.38, 0, 1.47, 0, "orange", "battery", 0.02)
+    t_box(0.62, 0.7, 0.24, 0, 2.05, -0.06, "white", "inverter", 0.06)
+    t_box(0.2, 0.08, 0.02, 0.12, 2.2, 0.07, "ink", "inverter", 0.01)
+
+
+def home_meter():
+    """The house's meter pillar at the front garden, where every flow meets. Scenery."""
+    t_box(0.9, 1.4, 0.45, 0, 0.7, 0, "white", None, 0.08)
+    t_box(0.92, 0.1, 0.47, 0, 1.35, 0, "orange", None, 0.02)
+    t_box(0.3, 0.2, 0.03, 0, 1.0, 0.24, "ink", None, 0.01)
+    t_box(1.2, 0.12, 0.7, 0, 0.06, 0, "concrete", None, 0.03)
+
+
+def grid_cabinet():
+    """The grid operator's street cabinet, where the house's cable comes from, and a street
+    lamp. Scenery."""
+    t_box(1.1, 1.25, 0.45, 0, 0.62, 0, "clay", None, 0.08)
+    for i in range(5):
+        t_box(0.6, 0.03, 0.03, 0, 0.35 + i * 0.12, 0.24, "frame", None, 0.01)
+    t_box(0.25, 0.25, 0.03, 0.3, 0.95, 0.24, "orange", None, 0.01)
+    t_cyl(0.07, 0.05, 5.0, 1.6, 2.5, 0, "frame", None, 8)
+    t_box(0.9, 0.12, 0.25, 1.95, 5.0, 0, "frame", None, 0.03)
+    t_box(0.5, 0.05, 0.2, 2.2, 4.93, 0, "screen", None, 0.01)
+
+
 MODELS = {
     "furnace_hall": furnace_hall,
     "main_hall": main_hall,
@@ -726,6 +854,13 @@ MODELS = {
     "tree_round": tree_round,
     "tree_tall": tree_tall,
     "fence_segment": fence_segment,
+    "semi_detached": semi_detached,
+    "carport": carport,
+    "wallbox": wallbox,
+    "ev_car": ev_car,
+    "home_battery": home_battery,
+    "home_meter": home_meter,
+    "grid_cabinet": grid_cabinet,
 }
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
