@@ -47,6 +47,7 @@ COLOURS = {
     "door": (0.05, 0.05, 0.045),
     "windows": (0.03, 0.03, 0.03),
     "screen": (0.7, 0.67, 0.62),
+    "panel": (0.1, 0.12, 0.16),  # the page puts its solar cell texture on this one
 }
 MATS = {}
 
@@ -116,10 +117,10 @@ def b_prism(width, depth, rise, z0, material, part, bevel=0.06):
 
 
 # ── Page coordinates (three.js): x right, y up, z towards the camera ───────
-def t_box(w, h, d, x, y, z, material, part=None, bevel=0.04, rz=0.0, ry=0.0):
-    """A box w (x) × h (up) × d (z) centred on (x, y, z) in page coordinates; rz and ry
-    turn it about the page's z and y axes, like mesh.rotation.z / .y on the page."""
-    return b_box(w, d, h, x, -z, y, material, part, bevel, rot=(0, -rz, ry))
+def t_box(w, h, d, x, y, z, material, part=None, bevel=0.04, rz=0.0, ry=0.0, rx=0.0):
+    """A box w (x) × h (up) × d (z) centred on (x, y, z) in page coordinates; rx, ry and rz
+    turn it about the page's axes, like mesh.rotation.x / .y / .z on the page (use one)."""
+    return b_box(w, d, h, x, -z, y, material, part, bevel, rot=(rx, -rz, ry))
 
 
 def t_cyl(r_bottom, r_top, h, x, y, z, material, part=None, seg=20, axis="y"):
@@ -135,7 +136,7 @@ def wheel(x, y, z, r=0.36, width=0.26):
     t_cyl(r * 0.55, r * 0.55, width + 0.02, x, y, z, "steel", None, 12, axis="x")
 
 
-def export(name):
+def export(name, texcoords=False):
     """Apply the bevels, join objects with the same part and material, write name.glb."""
     groups = defaultdict(list)
     for obj in bpy.context.scene.objects:
@@ -162,7 +163,8 @@ def export(name):
         export_apply=True,
         export_extras=True,
         export_yup=True,
-        export_texcoords=False,  # no textures, so no texture coordinates: a smaller file
+        # only models with a texture (the solar module) need texture coordinates
+        export_texcoords=texcoords,
     )
     print("exported", path, path.stat().st_size // 1024, "KB")
 
@@ -466,6 +468,113 @@ def transformer():
         t_box(8.1, 0.05, 0.05, 2, 0.4, z, "frame", bevel=0.01)
 
 
+def wind_base():
+    """The turbine's foundation, tower door and converter cabinet (the page draws the
+    tower, whose height depends on the turbine). Parts: foundation, tower, converter."""
+    t_cyl(2.6, 2.4, 0.6, 0, 0.3, 0, "concrete", "foundation", 32)
+    t_cyl(1.05, 1.05, 0.12, 0, 0.66, 0, "steel", "foundation", 24)  # flange
+    t_box(0.6, 1.8, 0.12, 0, 1.6, 0.84, "frame", "tower", 0.05)  # door
+    t_box(0.5, 1.6, 0.06, 0, 1.6, 0.9, "clay", "tower", 0.04)
+    t_box(1.2, 0.3, 0.6, 0, 0.6, 1.2, "concrete", "tower", 0.04)  # step
+    t_box(1.4, 1.8, 1.0, 2.4, 0.9, 1.4, "clay", "converter", 0.15)
+    t_box(1.42, 0.12, 1.02, 2.4, 1.45, 1.4, "orange", "converter", 0.03)
+    for i in range(5):
+        t_box(0.9, 0.04, 0.04, 2.4, 0.4 + i * 0.12, 1.92, "ink", "converter", 0.01)
+    t_cyl(0.07, 0.07, 1.6, 1.4, 0.12, 1.0, "ink", "converter", 8, axis="x")  # cable
+
+
+def wind_nacelle():
+    """The nacelle, centred on its middle, rotor side towards +z. Part: nacelle."""
+    t_box(1.5, 1.5, 3.8, 0, 0, 0, "white", "nacelle", 0.55)
+    t_box(1.52, 0.1, 3.0, 0, -0.35, -0.2, "clay", "nacelle", 0.03)  # seam band
+    t_cyl(0.55, 0.55, 0.35, 0, -0.9, -0.2, "steel", "nacelle", 20)  # yaw bearing
+    for i in range(4):  # cooler on top at the back
+        t_box(1.2, 0.06, 0.06, 0, 0.82, -1.2 + i * 0.3, "steel", "nacelle", 0.01)
+    t_box(1.25, 0.08, 1.1, 0, 0.78, -0.75, "frame", "nacelle", 0.02)
+    t_cyl(0.03, 0.03, 0.8, 0, 1.15, -1.6, "ink", "nacelle", 6)  # anemometer mast
+    t_box(0.5, 0.05, 0.05, 0, 1.55, -1.6, "ink", "nacelle", 0.01)
+
+
+def wind_hub():
+    """The spinner (nose cone) in the rotor's centre, pointing to +z. Part: nacelle."""
+    t_cyl(0.65, 0.65, 0.4, 0, 0, 0, "white", "nacelle", 24, axis="z")
+    t_cyl(0.66, 0.08, 1.0, 0, 0, 0.7, "orange", "nacelle", 24, axis="z")
+
+
+def wind_blade():
+    """One rotor blade, 5 m from the rotor centre's hub ring outwards along +y: tapered
+    and twisted like a real blade. The page turns it and scales it to the turbine.
+    Part: blades."""
+    import bmesh  # noqa: PLC0415 (only inside Blender)
+
+    t_cyl(0.2, 0.18, 0.5, 0, 0.6, 0, "white", "blades", 16)  # root
+    mesh = bpy.data.meshes.new("blade")
+    bm = bmesh.new()
+    rings, pts = [], 12
+    for i in range(11):
+        t = i / 10
+        length = 0.8 + t * 4.2  # page y of this section
+        chord = 0.78 * (1 - 0.7 * t) * (0.75 + 0.25 * min(1, t * 5))
+        thick = chord * (0.28 - 0.16 * t)
+        twist = 0.45 * (1 - t)
+        ring = []
+        for k in range(pts):
+            a = 2 * math.pi * k / pts
+            cx, cz = math.cos(a) * chord / 2, math.sin(a) * thick / 2
+            x = cx * math.cos(twist) - cz * math.sin(twist)
+            z = cx * math.sin(twist) + cz * math.cos(twist)
+            ring.append(bm.verts.new((x, -z, length)))  # page (x, y, z) -> Blender (x, -z, y)
+        rings.append(ring)
+    for r0, r1 in zip(rings, rings[1:], strict=False):
+        for k in range(pts):
+            bm.faces.new((r0[k], r0[(k + 1) % pts], r1[(k + 1) % pts], r1[k]))
+    bm.faces.new(list(reversed(rings[-1])))
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new("blade", mesh)
+    bpy.context.collection.objects.link(obj)
+    for f in mesh.polygons:
+        f.use_smooth = True
+    finish(obj, "white", "blades", 0)
+
+
+def pv_module():
+    """One solar module, 1.75 m × 1.04 m, lying flat (the page tilts it): glass with the
+    cell texture, in an aluminium frame. Part: modules."""
+    t_box(1.71, 0.04, 1.0, 0, 0, 0, "panel", "modules", 0)
+    for z in (-0.51, 0.51):
+        t_box(1.75, 0.06, 0.03, 0, 0, z, "steel", "modules", 0.01)
+    for x in (-0.865, 0.865):
+        t_box(0.03, 0.06, 1.04, x, 0, 0, "steel", "modules", 0.01)
+
+
+def pv_rack():
+    """One rack row of the solar field, 22.4 m long, tilted 0.5 rad towards +z (south),
+    centred on the row (the page places one per row). Part: mounting."""
+    up_y, up_z = math.sin(0.5), -math.cos(0.5)
+    for k in range(5):
+        x = -10.5 + k * 5.3
+        t_cyl(0.07, 0.07, 1.19, x, 0.6, 0.85, "steel", "mounting", 8)  # front leg
+        t_cyl(0.07, 0.07, 2.52, x, 1.25, -0.85, "steel", "mounting", 8)  # back leg
+        for z in (0.85, -0.85):
+            t_box(0.3, 0.12, 0.3, x, 0.06, z, "concrete", "mounting", 0.03)  # footings
+        t_box(0.08, 0.1, 2.3, x, 1.62, 0, "steel", "mounting", 0.01, rx=0.5)  # purlin
+        t_box(0.05, 0.05, 1.9, x, 0.95, 0, "steel", "mounting", 0.01, rx=-0.75)  # brace
+    for d in (-0.6, 0.6):
+        t_box(22.4, 0.08, 0.1, 0, 1.65 + up_y * d, up_z * d, "steel", "mounting", 0.01, rx=0.5)
+    t_box(22.0, 0.08, 0.16, 0, 0.5, -0.95, "ink", "mounting", 0.02)  # cable tray
+
+
+def pv_inverter():
+    """A string inverter on its post. Part: inverter."""
+    t_cyl(0.08, 0.08, 1.2, 0, 0.6, 0, "steel", "inverter", 8)
+    t_box(0.9, 0.7, 0.35, 0, 1.4, 0.05, "white", "inverter", 0.08)
+    t_box(0.92, 0.08, 0.37, 0, 1.62, 0.05, "orange", "inverter", 0.02)
+    t_box(0.25, 0.15, 0.04, 0.2, 1.35, 0.24, "ink", "inverter", 0.01)
+    for i in range(4):
+        t_box(0.04, 0.4, 0.04, -0.3 + i * 0.12, 1.35, 0.24, "frame", "inverter", 0.01)
+
+
 MODELS = {
     "furnace_hall": furnace_hall,
     "main_hall": main_hall,
@@ -479,10 +588,17 @@ MODELS = {
     "e_car": e_car,
     "e_truck": e_truck,
     "transformer": transformer,
+    "wind_base": wind_base,
+    "wind_nacelle": wind_nacelle,
+    "wind_hub": wind_hub,
+    "wind_blade": wind_blade,
+    "pv_module": pv_module,
+    "pv_rack": pv_rack,
+    "pv_inverter": pv_inverter,
 }
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 for model_name, build in MODELS.items():
     reset()
     build()
-    export(model_name)
+    export(model_name, texcoords=model_name == "pv_module")
