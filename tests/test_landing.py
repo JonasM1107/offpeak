@@ -99,6 +99,15 @@ def test_before_the_browser_answers_neither_page_flashes_by():
     assert not landing_shown(at) and not login_shown(at)
 
 
+def test_every_menu_link_has_a_section_to_scroll_to():
+    """Product, Pricing, ... scroll to a part of the page; each needs that part to exist."""
+    html = PAGE.read_text()
+    targets = set(re.findall(r'href="#([\w-]+)"', html))
+    ids = set(re.findall(r'id="([\w-]+)"', html))
+    assert {"product", "how", "for", "pricing"} <= targets
+    assert targets <= ids
+
+
 def test_the_page_runs_no_outside_scripts_and_every_login_link_works_alone():
     """The landing page is our own file: no scripts from elsewhere, and each Login link also
     works when the page is opened outside the app (it then goes to the sign-in)."""
