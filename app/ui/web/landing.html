@@ -1054,8 +1054,22 @@
     });
   }
 
+  // ── links to a section of this page (#product, #pricing, ...): scroll there ourselves.
+  //    The page runs inside the app's frame, where "#pricing" would mean the app's own
+  //    address and load the app into the frame instead of scrolling.
+  function sectionLinks() {
+    $$('a[href^="#"]').forEach(a => a.addEventListener('click', e => {
+      e.preventDefault();
+      const id = a.getAttribute('href').slice(1);
+      const target = id === 'top' ? document.body : document.getElementById(id);
+      if (!target) return;
+      const y = id === 'top' ? 0 : target.getBoundingClientRect().top + scrollY - 70;  // 70 px: room for the menu bar
+      scrollTo({ top: y, behavior: calm ? 'auto' : 'smooth' });
+    }));
+  }
+
   const ready = () => { headline(0); typewriter(); };
-  field(); cursor(); scrolling(); shift(); marquee(); statement(); counters(); steps(); tiles(); who(); pricing(); clock(); login();
+  field(); cursor(); scrolling(); shift(); marquee(); statement(); counters(); steps(); tiles(); who(); pricing(); clock(); login(); sectionLinks();
   intro(ready);
 })();
 </script>
