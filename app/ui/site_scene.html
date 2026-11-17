@@ -241,6 +241,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // All numbers come from Python (offpeak/components.py and offpeak/demo_site.py).
 // This file only draws them.
@@ -424,6 +425,36 @@ const treeMat = matte(0xE3DED5);
 
 // ── One builder per kind; each returns where its cable starts and its label height ─
 const animated = { rotors: [], fans: [], glow: [], plugs: [], soc: [] };
+
+// Detailed models built in Blender (scripts/blender/), sent inside the page's data as
+// base64 GLB files. A model that is missing or broken falls back to the simple shapes.
+async function loadModels(models) {
+  const loader = new GLTFLoader(), out = {};
+  for (const [name, b64] of Object.entries(models || {})) {
+    try {
+      const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+      out[name] = (await loader.parseAsync(bytes.buffer, '')).scene;
+    } catch (err) { console.warn(`offpeak: model ${name} not loaded, drawing the simple shape`, err); }
+  }
+  return out;
+}
+const MODELS = await loadModels(D.models);
+// Put a copy of a model into the current group. Every mesh keeps its part (from Blender)
+// and gets the scene's own material of the same name, or one passed in `own`.
+// Returns the meshes by material name.
+function placeModel(model, own = {}) {
+  const copy = model.clone(true); copy.updateMatrixWorld(true);
+  const meshes = []; copy.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const byMat = {};
+  for (const m of meshes) {
+    const name = m.material.name;
+    m.matrixWorld.decompose(m.position, m.quaternion, m.scale);
+    m.material = own[name] || M[name] || M.white;
+    tag(m, m.userData.part || null);
+    (byMat[name] ||= []).push(m);
+  }
+  return byMat;
+}
 const BUILD = {
   pv_field(c) {
     // racks with two modules on top of each other (portrait), 12 columns per rack
@@ -549,6 +580,13 @@ const BUILD = {
     return { anchor: [-2.6, -2.6], label: 3.6 };
   },
   furnace(c) {
+    if (MODELS.furnace_hall) {
+      // the Blender model (scripts/blender/furnace_hall.py): same footprint and parts
+      const glow = matte(0x3A3733, { emissive: 0xFF5F00, emissiveIntensity: 0 });
+      const parts = placeModel(MODELS.furnace_hall, { door: glow, windows: windowsMat });
+      (parts.door || []).forEach(m => animated.glow.push({ m, id: c.id }));
+      return { anchor: [-3.2, 4.7], label: 9.5 };
+    }
     // an annex on the hall's east side, with a glowing door and a chimney
     rbox(8, 7, 9, M.white, 0, 3.5, 0, 'shell', 0.5);
     const door = rbox(3.2, 3.4, 0.2, matte(0x3A3733, { emissive: 0xFF5F00, emissiveIntensity: 0 }), 0, 1.8, 4.55, 'lining', 0.08);

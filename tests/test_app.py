@@ -114,3 +114,17 @@ def test_site_scene_payload_is_embedded_safely():
     assert "__DATA__" not in html
     assert "</script><b>" not in html  # the JSON cannot close the script tag
     assert len(site_scene.payload(inputs, site, 12, tariff)["offpeak"]) == 24
+
+
+def test_site_scene_carries_the_blender_models():
+    import base64
+    import sys
+
+    sys.path.insert(0, str(APP.parent))
+    from ui import site_scene
+
+    models = site_scene.models()
+    assert "furnace_hall" in models
+    glb = base64.b64decode(models["furnace_hall"])
+    assert glb[:4] == b"glTF"  # a binary glTF file
+    assert len(glb) < 500_000  # small enough to send with every Site view
