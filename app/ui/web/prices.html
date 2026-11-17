@@ -7,7 +7,6 @@
 <style>
   #hero { height: 340px; }
   #heat, #typical { height: 290px; }
-  #dist, #trend { height: 250px; }
   .legend-inline { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); align-items: center; }
   .legend-inline i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
   .legend-inline i.line { height: 2px; border-radius: 2px; vertical-align: 3px; width: 14px; }
@@ -67,18 +66,6 @@
     </div>
   </div>
 
-  <div class="row c2 reveal">
-    <div class="card">
-      <div class="head"><div><h3>How often is power cheap?</h3><div class="sub">Hours per price band; below zero you are paid to use power</div></div></div>
-      <div id="dist" class="chart"></div>
-      <p class="insight" id="dist-text"></p>
-    </div>
-    <div class="card">
-      <div class="head"><div><h3 id="trend-title">Week by week</h3><div class="sub">Average price (bars) and hours below zero (line)</div></div></div>
-      <div id="trend" class="chart"></div>
-      <p class="insight" id="trend-text"></p>
-    </div>
-  </div>
   <p class="insight" style="margin:0;font-size:11.5px" id="foot"></p>
 </div>
 
@@ -148,20 +135,17 @@ function stats(a, b) {
   let sum = 0, n = 0, neg = 0;
   const heat = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => [0, 0]));
   const wk = Array.from({ length: 24 }, () => [0, 0]), we = Array.from({ length: 24 }, () => [0, 0]);
-  const values = [];
   for (let i = i0; i <= i1; i++) {
     const v = P.ct[i], h = P.hour[i], w = P.wd[i];
     sum += v; n++; if (v < 0) neg++;
     heat[w][h][0] += v; heat[w][h][1]++;
     (w >= 5 ? we : wk)[h][0] += v; (w >= 5 ? we : wk)[h][1]++;
-    values.push(v);
   }
   const span = days.slice(a, b + 1);
   const spread = span.reduce((s, d) => s + d.max - d.min, 0) / span.length;
-  const cheapest = span.reduce((m, d) => (d.mean < m.mean ? d : m)), dearest = span.reduce((m, d) => (d.mean > m.mean ? d : m));
   let best = null;
   heat.forEach((row, w) => row.forEach(([s, c], h) => { if (c && (!best || s / c < best.v)) best = { w, h, v: s / c }; }));
-  return { mean: sum / n, n, neg, spread, cheapest, dearest, heat, best, values,
+  return { mean: sum / n, n, neg, spread, heat, best,
     wk: wk.map(([s, c]) => (c ? s / c : null)), we: we.map(([s, c]) => (c ? s / c : null)), span };
 }
 function previousMean(a, b) {
@@ -275,53 +259,6 @@ const typical = OP.chart(document.getElementById('typical'), c => {
     ],
   };
 });
-const dist = OP.chart(document.getElementById('dist'), c => {
-  const B = OP.base(c);
-  const lo = Math.floor(Math.min(...S.values) / 5) * 5, hi = Math.ceil(Math.max(...S.values) / 5) * 5;
-  const bins = [];
-  for (let x = lo; x < Math.max(hi, lo + 5); x += 5) bins.push([x, 0]);
-  S.values.forEach(v => { bins[Math.min(bins.length - 1, Math.floor((v - lo) / 5))][1]++; });
-  return {
-    ...B,
-    grid: { left: 40, right: 14, top: 18, bottom: 28 },
-    tooltip: { ...B.tooltip, formatter: p => `${bins[p.dataIndex][0]} to ${bins[p.dataIndex][0] + 5} ct/kWh<br><b>${p.value} hours</b> (${nf(p.value / S.n * 100, 0)} %)` },
-    xAxis: { type: 'category', data: bins.map(b => b[0]), ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, formatter: v => `${v}` } },
-    yAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} h' } },
-    series: [{ type: 'bar', barCategoryGap: '18%', data: bins.map(b => ({ value: b[1],
-      itemStyle: { color: b[0] < 0 ? c.accent : b[0] + 5 <= S.mean ? c.accentMid : c.grey, borderRadius: [5, 5, 2, 2] } })),
-      markLine: { silent: true, symbol: 'none', lineStyle: { color: c.ink, type: [4, 3] }, label: { color: c.ink, fontSize: 11, formatter: `avg ${nf(S.mean)} ct` },
-        data: [{ xAxis: Math.max(0, Math.min(bins.length - 1, Math.floor((S.mean - lo) / 5))) }] } }],
-  };
-});
-const trend = OP.chart(document.getElementById('trend'), c => {
-  const B = OP.base(c);
-  const monthly = S.span.length > 120;
-  const groups = new Map();
-  S.span.forEach(d => {
-    let key;
-    if (monthly) key = Math.floor(d.day / 100);
-    else { const dt = new Date(d.ms), wd = (dt.getUTCDay() + 6) % 7; key = d.ms - wd * 864e5; }
-    const g = groups.get(key) || { sum: 0, n: 0, neg: 0, label: monthly ? `${MONTHS[key % 100 - 1]} ${String(key / 100 | 0).slice(2)}` : (() => { const x = new Date(key); return `${x.getUTCDate()} ${MONTHS[x.getUTCMonth()]}`; })() };
-    for (let i = d.first; i <= d.last; i++) { g.sum += P.ct[i]; g.n++; if (P.ct[i] < 0) g.neg++; }
-    groups.set(key, g);
-  });
-  const G = [...groups.values()];
-  document.getElementById('trend-title').textContent = monthly ? 'Month by month' : 'Week by week';
-  return {
-    ...B,
-    grid: { left: 44, right: 40, top: 18, bottom: 28 },
-    tooltip: { ...B.tooltip, trigger: 'axis', formatter: ps => `<b>${monthly ? '' : 'Week of '}${G[ps[0].dataIndex].label}</b><br>average <b>${nf(G[ps[0].dataIndex].sum / G[ps[0].dataIndex].n)} ct</b><br>${G[ps[0].dataIndex].neg} hours below zero` },
-    xAxis: { type: 'category', data: G.map(g => g.label), ...B.axis, splitLine: { show: false } },
-    yAxis: [{ type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '{value} ct' } },
-      { type: 'value', minInterval: 1, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, formatter: '{value} h' } }],
-    series: [
-      { type: 'bar', barMaxWidth: 28, data: G.map(g => +(g.sum / g.n).toFixed(2)), itemStyle: { color: c.accentMid, borderRadius: [6, 6, 2, 2] },
-        emphasis: { itemStyle: { color: c.accent } } },
-      { type: 'line', yAxisIndex: 1, data: G.map(g => g.neg), symbol: 'circle', symbolSize: 6, lineStyle: { color: c.dark, width: 1.6 }, itemStyle: { color: c.dark } },
-    ],
-  };
-});
-
 // ── Text and tiles ─────────────────────────────────────────────────────────
 function tile(label, value, unit, note, cls = '') {
   return `<div class="tile ${cls}"><p>${label}</p><div class="v">${value}${unit ? `<small>${unit}</small>` : ''}</div><div class="n">${note}</div></div>`;
@@ -344,10 +281,7 @@ function render() {
   const lowH = S.wk.indexOf(Math.min(...wk)), highH = S.wk.indexOf(Math.max(...wk));
   document.getElementById('heat-text').innerHTML = `Cheapest on average: <b>${WD[S.best.w]} ${pad(S.best.h)}:00</b> (${nf(S.best.v)} ct). Light cells are the hours to plan flexible loads into.`;
   document.getElementById('typical-text').innerHTML = `On workdays power is cheapest around <b>${pad(lowH)}:00</b> and dearest around <b>${pad(highH)}:00</b>, a difference of ${nf(Math.max(...wk) - Math.min(...wk))} ct/kWh.`;
-  const cheapShare = S.values.filter(v => v < S.mean * 0.75).length / S.n * 100;
-  document.getElementById('dist-text').innerHTML = `<b>${nf(cheapShare, 0)} %</b> of hours cost a quarter less than the average or below${S.neg ? `, and in <b>${S.neg} hours</b> the price was negative` : ''}.`;
-  document.getElementById('trend-text').innerHTML = `Cheapest day: <b>${dayShort(S.cheapest.day)}</b> (${nf(S.cheapest.mean)} ct). Dearest: <b>${dayShort(S.dearest.day)}</b> (${nf(S.dearest.mean)} ct).`;
-  [heat, typical, dist, trend].forEach(ch => ch.update());
+  [heat, typical].forEach(ch => ch.update());
 }
 function setWindow(a, b, moveHero) {
   win = [a, b];
@@ -355,7 +289,7 @@ function setWindow(a, b, moveHero) {
   render();
 }
 
-document.getElementById('foot').textContent = `Day-ahead spot prices DE-LU without fees or taxes (those are on the Tariff calculator). Before 1 Oct 2025 the auction was hourly, since then every 15 minutes; all panels use hourly averages. Data: Energy-Charts / Bundesnetzagentur | SMARD.de, CC BY 4.0.`;
+document.getElementById('foot').textContent = `Day-ahead spot prices DE-LU without fees or taxes. Before 1 Oct 2025 the auction was hourly, since then every 15 minutes; all panels use hourly averages. Data: Energy-Charts / Bundesnetzagentur | SMARD.de, CC BY 4.0.`;
 OP.start();
 render();
 zoomHero();

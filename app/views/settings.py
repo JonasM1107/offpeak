@@ -37,7 +37,6 @@ with right, st.container(border=True, key="card_more"):
     card_title("More settings", "Planned")
     planned = {
         "Language": "English (German next)",
-        "Tariff": "Tariff calculator page",
         w["Machines"]: f"{w['setup']} page",
     }
     st.html(
