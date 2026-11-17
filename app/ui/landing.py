@@ -23,6 +23,7 @@ CSS = """<style>
 .st-key-landing iframe { position: fixed; inset: 0; width: 100vw !important;
     height: 100vh !important; height: 100dvh !important; border: 0; z-index: 999990; }
 .st-key-landing_login { display: none !important; }
+#op-portal { display: block !important; }  /* the Login lens (landing.html: portal) */
 </style>"""
 
 LOGIN_OPEN = "login_open"

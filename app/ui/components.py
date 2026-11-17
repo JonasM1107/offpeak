@@ -84,7 +84,23 @@ CSS = f"""
 .op-login-logo b {{ color: {INK}; font-weight: 700; }}
 .op-login-head h2 {{ font-size: 1.35rem; font-weight: 650; margin: 14px 0 4px; color: {INK}; }}
 .op-login-head p {{ color: {MUTED}; font-size: 0.88rem; margin: 0; }}
-.st-key-card_login {{ margin-top: 12vh; }}
+/* The sign-in card: a fixed width in the middle, gliding in. The landing page's Login
+   draws the same card at the same place while the app loads (landing.html: portal), so
+   the change from one to the other is seamless. */
+.st-key-card_login {{ width: min(420px, 100%) !important; margin: 12vh auto 0 !important;
+    background: #fff; box-shadow: 0 30px 80px rgba(28, 27, 25, 0.10);
+    animation: op-login-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }}
+@keyframes op-login-in {{ from {{ opacity: 0; transform: translateY(8px); }} }}
+/* The drawing of the sign-in page that the landing page's Login opens (landing.html: portal)
+   is hidden everywhere; the landing page shows it, the sign-in page fades it out. */
+#op-portal {{ display: none !important; }}
+/* the landing page's background: a faint grid and an orange glow at the top */
+[data-testid=stAppViewContainer]:has(.st-key-card_login) {{
+    background:
+        radial-gradient(900px 520px at 50% 0%, rgba(255, 95, 0, 0.08), transparent 70%),
+        linear-gradient(rgba(28, 27, 25, 0.045) 1px, transparent 1px) 0 0 / 64px 64px,
+        linear-gradient(90deg, rgba(28, 27, 25, 0.045) 1px, transparent 1px) 0 0 / 64px 64px,
+        #F6F5F2; }}
 .op-login-wait {{ text-align: center; margin-top: 30vh; font-size: 1.6rem; font-weight: 700;
     color: {ORANGE}; opacity: 0.5; animation: op-pulse 1.2s ease-in-out infinite alternate; }}
 @keyframes op-pulse {{ to {{ opacity: 1; }} }}

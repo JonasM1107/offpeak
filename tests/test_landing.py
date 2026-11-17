@@ -108,6 +108,19 @@ def test_every_menu_link_has_a_section_to_scroll_to():
     assert targets <= ids
 
 
+def test_every_screenshot_on_the_page_exists_and_is_served():
+    """The look inside the app shows files from app/static/, which Streamlit only serves
+    when static serving is switched on in .streamlit/config.toml."""
+    import tomllib
+
+    root = Path(__file__).parent.parent
+    images = re.findall(r'src="app/static/([^"]+)"', PAGE.read_text())
+    assert len(images) == 3
+    assert all((root / "app" / "static" / name).is_file() for name in images)
+    config = tomllib.loads((root / ".streamlit" / "config.toml").read_text())
+    assert config["server"]["enableStaticServing"] is True
+
+
 def test_the_page_runs_no_outside_scripts_and_every_login_link_works_alone():
     """The landing page is our own file: no scripts from elsewhere, and each Login link also
     works when the page is opened outside the app (it then goes to the sign-in)."""

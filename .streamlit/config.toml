@@ -11,3 +11,5 @@ toolbarMode = "minimal"
 
 [server]
 headless = true
+# Serve app/static/ at /app/static/: the screenshots on the landing page.
+enableStaticServing = true
