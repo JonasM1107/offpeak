@@ -60,6 +60,8 @@ pages = {
         page("settings", "Settings", "settings"),
     ],
 }
+if account.role() == "home":  # measurements are part of the Homeowner portal only
+    pages["Setup"].insert(1, page("my_data", "My data", "monitoring"))
 # not in the menu: reached through the name at the bottom of the sidebar
 account_page = st.Page(
     HERE / "views" / "account.py",

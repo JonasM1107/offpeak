@@ -8,9 +8,17 @@ price does not depend on who buys, and both sites are in Köln.
 from offpeak.models import Site
 
 DEMO_SITE = Site(id=1, name="Demo site", lat=50.94, lon=6.96, zone="DE-LU")
-# The demo home: Köln city centre, not a real address. Roofs face south at 35 degrees.
+# The demo home: Köln city centre, not a real address. The roof is the measured one: south-east
+# (145 degrees) at 26 degrees, found from its production (branch experiment/fronius-data).
 DEMO_HOME = Site(
-    id=2, name="Demo home", lat=50.94, lon=6.96, zone="DE-LU", tilt_deg=35.0, profile="home"
+    id=2,
+    name="Demo home",
+    lat=50.94,
+    lon=6.96,
+    zone="DE-LU",
+    tilt_deg=26.0,
+    azimuth_deg=145.0,
+    profile="home",
 )
 DEMO_CITY = "Köln"
 

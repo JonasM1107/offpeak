@@ -37,10 +37,10 @@ def test_the_kept_day_is_the_same_as_planning_again(inputs):
 
     comps = list(C.DEFAULT_COMPONENTS)
     tariff = germany_2026(pv_kwp=C.site_model(comps)[0].pv_kwp)
-    kept = data.site_day(inputs, data.setup_key(comps))
+    kept = data.site_day(inputs, data.setup_key(comps), "business")
     site = {"name": "Demo site", "city": "Köln", "zone": "DE-LU", "date": "2026-11-18"}
     fresh = site_scene.payload(inputs, site, 12, tariff, comps)
-    reused = site_scene.payload(inputs, site, 12, tariff, comps, kept)
+    reused = site_scene.payload(inputs, site, 12, tariff, comps, day=kept)
     assert reused == fresh
 
 
@@ -49,9 +49,20 @@ def test_the_day_is_planned_again_when_components_change(inputs):
 
     comps = list(C.DEFAULT_COMPONENTS)
     fewer = [c for c in comps if c.kind != "furnace"]
-    one = data.site_day(inputs, data.setup_key(comps))
-    other = data.site_day(inputs, data.setup_key(fewer))
+    one = data.site_day(inputs, data.setup_key(comps), "business")
+    other = data.site_day(inputs, data.setup_key(fewer), "business")
     assert {c["id"] for c in one["components"]} != {c["id"] for c in other["components"]}
+
+
+def test_a_home_keeps_its_day_under_the_household_tariff(inputs):
+    """The kept day uses the same tariff the page shows: a household's for a home."""
+    import data
+
+    from offpeak.tariffs import tariff_for
+
+    comps = list(C.DEFAULT_COMPONENTS)
+    kept = data.site_day(inputs, data.setup_key(comps), "home")
+    assert kept == C.site_day(inputs, comps, tariff_for("home", comps))
 
 
 def test_the_dashboards_replay_also_prepares_90_days(monkeypatch):
