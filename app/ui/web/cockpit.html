@@ -52,7 +52,7 @@
 <div class="wrap">
   <div class="cockpit reveal">
     <div class="card">
-      <div class="head"><div><h3><span class="step-no">1</span>Pick a machine</h3><div class="sub">Your flexible machines, each with its best time this week</div></div></div>
+      <div class="head"><div><h3><span class="step-no">1</span><span id="pick-title">Pick a machine</span></h3><div class="sub" id="pick-sub">Your flexible machines, each with its best time this week</div></div></div>
       <div class="list" id="list"></div>
       <div class="add"><select id="preset" aria-label="Machine type"></select><button id="add">+ Add</button></div>
       <p class="insight" style="margin:10px 0 0;font-size:12.5px" id="kept"></p>
@@ -87,6 +87,10 @@ const eur = (v, d = 2) => `€${nf(v, d)}`;
 
 // ── Machines: saved by Python; every change is sent back (app/ui/web/bridge) ──
 let machines = D.machines.map(m => ({ ...m }));
+// the words of the signed-in role (offpeak/roles.py): "device" for a home
+const W = D.words;
+document.getElementById('pick-title').textContent = `Pick a ${W.machine}`;
+document.getElementById('pick-sub').textContent = `Your flexible ${W.machines}, each with its best time this week`;
 const save = () => { try { window.parent.offpeakSend({ machines }); } catch (e) { /* outside Streamlit */ } };
 let sel = 0;
 
@@ -147,7 +151,7 @@ function renderList(res) {
     return `<button class="mach ${i === sel ? 'on' : ''}" data-i="${i}"><span class="dot" style="background:${COLORS[i % COLORS.length]}"></span>
       <span><b>${m.name}</b><small>${nf(m.kw, 0)} kW · ${m.hours} h</small>
       <small class="best">${r.best ? `${when(r.best.start, m.hours)}${r.saving > 0.005 ? ` · saves ${eur(r.saving)}` : ''}` : 'does not fit this week'}</small></span></button>`;
-  }).join('') : '<p class="empty">No machines yet. Add one below.</p>';
+  }).join('') : `<p class="empty">No ${W.machines} yet. Add one below.</p>`;
   document.querySelectorAll('.mach').forEach(b => b.addEventListener('click', () => { sel = +b.dataset.i; renderJob(); update(); }));
 }
 
@@ -187,7 +191,7 @@ function renderJob() {
 let current = null;
 function renderAnswer(res) {
   const box = document.getElementById('answer'), alts = document.getElementById('alts');
-  if (!machines.length) { box.innerHTML = '<p class="empty">Add a machine to see its best time.</p>'; alts.innerHTML = ''; current = null; return; }
+  if (!machines.length) { box.innerHTML = `<p class="empty">Add a ${W.machine} to see its best time.</p>`; alts.innerHTML = ''; current = null; return; }
   const m = machines[sel], r = res[sel]; current = { m, r };
   if (!r.best) { box.innerHTML = '<p class="empty">This job does not fit its allowed hours in the coming days. Widen the window or shorten the job.</p>'; alts.innerHTML = ''; return; }
   const b = r.best, est = estimate(b.start, m.hours);
@@ -228,11 +232,7 @@ const chart = OP.chart(document.getElementById('chart'), c => {
 });
 
 // ── Add a machine ──────────────────────────────────────────────────────────
-const PRESETS = [
-  ['EV charging (fleet)', 22, 4, 7, 24, 17], ['Compressed air', 15, 3, 6, 20, 8], ['Industrial dishwasher', 9, 2, 6, 22, 13],
-  ['Laundry (washers + dryers)', 18, 3, 6, 22, 9], ['Water heater', 6, 3, 0, 24, 6], ['Irrigation pump', 7, 2, 0, 24, 18],
-  ['Cold store pre-cooling', 12, 2, 0, 24, 14], ['Kiln / oven batch', 30, 5, 5, 22, 7], ['Forklift charging', 8, 6, 0, 24, 18],
-];
+const PRESETS = D.presets;  // the role's templates (offpeak/roles.py: PLANNER_PRESETS)
 document.getElementById('preset').innerHTML = PRESETS.map((p, i) => `<option value="${i}">${p[0]} · ${p[1]} kW, ${p[2]} h</option>`).join('');
 document.getElementById('add').addEventListener('click', () => {
   const [name, kw, hours, earliest, latest_end, usual_start] = PRESETS[+document.getElementById('preset').value];
@@ -244,7 +244,7 @@ function update() {
   renderList(res); renderAnswer(res); chart.update();
 }
 document.getElementById('kept').textContent = {
-  database: 'Changes are saved automatically for everyone on this site.',
+  database: `Changes are saved automatically for everyone using this ${W.site}.`,
   local: 'Not signed in: changes stay in this browser tab.',
   session: 'No database connected: changes stay until you close this tab.',
 }[D.storage] || '';

@@ -27,28 +27,53 @@ CSS = f"""
 .block-container {{ padding: 2.4rem 2.2rem 3rem; max-width: 1320px; }}
 [data-testid="stHeader"] {{ background: transparent; }}
 
-/* sidebar: white, quiet, one orange accent on the active page */
-[data-testid="stSidebar"] {{ background: #FFFFFF; border-right: 1px solid {LINE}; }}
+/* sidebar: white, quiet, one orange accent on the active page. Hovering a page lifts it a
+   little: a warm background, the icon turns orange and an orange bar grows on the left. */
+[data-testid="stSidebar"] {{ border-right: 1px solid {LINE};
+    background: radial-gradient(420px 260px at 0% 0%, rgba(255, 95, 0, 0.06), transparent 70%), #FFFFFF; }}
 [data-testid="stSidebarHeader"] {{ padding: 1.6rem 1.4rem 1rem; }}
 [data-testid="stSidebarNav"] {{ padding: 0 0.6rem; }}
+[data-testid="stSidebarNavSeparator"] {{ display: none; }}  /* no line under the menu */
 [data-testid="stNavSectionHeader"] {{ font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em;
     text-transform: uppercase; color: #A39E96; margin: 1.1rem 0 0.35rem 0.55rem; }}
-[data-testid="stSidebarNavLink"] {{ border-radius: 10px; padding: 0.5rem 0.7rem; margin: 1px 0; }}
-[data-testid="stSidebarNavLink"] span {{ font-size: 0.92rem; color: #4A4640; }}
-[data-testid="stSidebarNavLink"]:hover {{ background: #F6F5F2; }}
-[data-testid="stSidebarNavLink"][aria-current="page"] {{ background: {ORANGE_SOFT}; }}
+[data-testid="stSidebarNavLink"] {{ position: relative; border-radius: 12px; padding: 0.5rem 0.7rem;
+    margin: 2px 0; transition: background 0.2s, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.2s; }}
+[data-testid="stSidebarNavLink"]::before {{ content: ""; position: absolute; left: 0; top: 50%;
+    width: 3px; height: 0; border-radius: 3px; background: {ORANGE}; transform: translateY(-50%);
+    transition: height 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }}
+[data-testid="stSidebarNavLink"] span {{ font-size: 0.92rem; color: #4A4640; transition: color 0.2s; }}
+[data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"] {{ transition: color 0.2s, transform 0.2s; }}
+[data-testid="stSidebarNavLink"]:hover {{ background: #FFF4EC; transform: translateX(3px);
+    box-shadow: 0 4px 14px rgba(255, 95, 0, 0.08); }}
+[data-testid="stSidebarNavLink"]:hover::before {{ height: 45%; }}
+[data-testid="stSidebarNavLink"]:hover span {{ color: {INK}; }}
+[data-testid="stSidebarNavLink"]:hover [data-testid="stIconMaterial"] {{ color: {ORANGE}; transform: scale(1.1); }}
+[data-testid="stSidebarNavLink"]:active {{ transform: translateX(3px) scale(0.98); }}
+[data-testid="stSidebarNavLink"][aria-current="page"] {{ background: {ORANGE_SOFT};
+    box-shadow: 0 6px 18px rgba(255, 95, 0, 0.12); }}
+[data-testid="stSidebarNavLink"][aria-current="page"]::before {{ height: 60%;
+    box-shadow: 0 0 10px rgba(255, 95, 0, 0.6); }}
 [data-testid="stSidebarNavLink"][aria-current="page"] span {{ color: {INK}; font-weight: 600; }}
 [data-testid="stSidebarNavLink"][aria-current="page"] [data-testid="stIconMaterial"] {{ color: {ORANGE}; }}
 
 /* Ask Ollie: the robot and its chat window float at the bottom right, above Streamlit
    Cloud's own badge; the frame sizes itself (app/ui/web/ollie/index.html) */
-.st-key-ollie {{ position: fixed; right: 14px; bottom: 54px; z-index: 999990; width: 392px !important; }}
+.st-key-ollie {{ position: fixed; right: 14px; bottom: 54px; z-index: 999990; width: 432px !important; }}
+/* While Ollie answers, Streamlit fades the elements it is about to redraw ("stale"); the
+   chat would turn see-through over the page. Keep it fully visible. */
+.st-key-ollie, .st-key-ollie * {{ opacity: 1 !important; }}
 .st-key-ollie iframe {{ background: transparent; color-scheme: normal; }}
 
 /* the signed-in name at the very bottom of the sidebar */
 [data-testid="stSidebarContent"] {{ display: flex; flex-direction: column; }}
 [data-testid="stSidebarUserContent"] {{ margin-top: auto; padding-bottom: 1.2rem; }}
-.st-key-account_link {{ border-top: 1px solid {LINE}; padding-top: 0.8rem; }}
+.st-key-account_link {{ padding: 0 0.6rem; }}
+.st-key-account_link a {{ border-radius: 14px; background: #F6F5F2; border: 1px solid transparent;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s; }}
+.st-key-account_link a:hover {{ background: #FFF4EC; border-color: rgba(255, 95, 0, 0.35);
+    transform: translateY(-2px); box-shadow: 0 8px 20px rgba(255, 95, 0, 0.12); }}
+.st-key-account_link a:hover [data-testid="stIconMaterial"] {{ color: {ORANGE}; }}
 
 /* account page */
 .op-profile {{ display: flex; gap: 16px; align-items: center; margin-bottom: 10px; }}
@@ -91,7 +116,7 @@ CSS = f"""
 /* "\\3C angle\\3E" is the type "angle" in angle brackets, written as CSS escapes: st.html
    drops a whole style block whose text has a "less than" sign followed by a letter */
 @property --op-trace {{ syntax: "\\3C angle\\3E"; inherits: false; initial-value: 0deg; }}
-.st-key-card_login {{ width: min(420px, 100%) !important; margin: 12vh auto 0 !important;
+.st-key-card_login, .st-key-card_roles {{ margin: 12vh auto 0 !important;
     position: relative; z-index: 2; overflow: visible !important;
     background: radial-gradient(480px circle at var(--mx, 50%) var(--my, -30%),
         rgba(255, 95, 0, 0.07), transparent 45%), #fff !important;
@@ -100,7 +125,7 @@ CSS = f"""
 @keyframes op-card-in {{
     from {{ opacity: 0; transform: scale(0.86); filter: blur(14px); }}
     60% {{ filter: blur(0); }} }}
-.st-key-card_login::before {{ content: ""; position: absolute; inset: -1.5px; padding: 1.5px;
+.st-key-card_login::before, .st-key-card_roles::before {{ content: ""; position: absolute; inset: -1.5px; padding: 1.5px;
     border-radius: 21px; pointer-events: none;
     background: conic-gradient(from var(--op-trace), transparent 0 62%, #FFB27A 78%,
         {ORANGE} 88%, transparent 97%);
@@ -110,10 +135,23 @@ CSS = f"""
 @keyframes op-trace {{
     0% {{ --op-trace: 0deg; opacity: 0; }} 12% {{ opacity: 1; }} 80% {{ opacity: 1; }}
     100% {{ --op-trace: 360deg; opacity: 0; }} }}
-.st-key-card_login::after {{ content: ""; position: absolute; inset: 0; border-radius: 20px;
+.st-key-card_login::after, .st-key-card_roles::after {{ content: ""; position: absolute; inset: 0; border-radius: 20px;
     pointer-events: none; box-shadow: 0 0 70px rgba(255, 95, 0, 0.35);
     animation: op-card-glow 1.6s ease 0.2s both; }}
 @keyframes op-card-glow {{ from {{ opacity: 0; }} 30% {{ opacity: 1; }} to {{ opacity: 0; }} }}
+.st-key-card_login {{ width: min(420px, 100%) !important; }}
+/* step 1 of signing in: two cards side by side, Homeowner and Business (account.py) */
+.st-key-card_roles {{ width: min(760px, 100%) !important; }}
+.st-key-role_home, .st-key-role_business {{ border-radius: 18px !important; padding: 18px !important;
+    transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s; height: 100%; }}
+.st-key-role_home:hover, .st-key-role_business:hover {{ transform: translateY(-3px);
+    border-color: {ORANGE} !important; box-shadow: 0 18px 44px rgba(255, 95, 0, 0.14); }}
+.op-role img {{ width: 42px; height: 42px; display: block; }}
+.op-role h3 {{ font-size: 1.25rem; font-weight: 650; margin: 10px 0 6px; color: {INK}; }}
+.op-role p {{ color: {MUTED}; font-size: 0.88rem; line-height: 1.5; margin: 0 0 4px;
+    min-height: 4.4em; }}
+.op-role-chip {{ display: inline-block; padding: 4px 12px; border-radius: 999px;
+    background: {ORANGE_SOFT}; color: #B84300; font-weight: 600; font-size: 0.85rem; }}
 /* the field being typed in glows */
 .st-key-card_login [data-baseweb=input] {{ transition: box-shadow 0.25s, border-color 0.25s; }}
 .st-key-card_login [data-baseweb=input]:focus-within {{ border-color: {ORANGE} !important;
@@ -126,7 +164,8 @@ CSS = f"""
    everywhere; the landing page shows it, the sign-in page bursts it (account.py). */
 #op-portal {{ display: none !important; }}
 /* the landing page's background: a faint grid and an orange glow at the top */
-[data-testid=stAppViewContainer]:has(.st-key-card_login) {{
+[data-testid=stAppViewContainer]:has(.st-key-card_login),
+[data-testid=stAppViewContainer]:has(.st-key-card_roles) {{
     background:
         radial-gradient(900px 520px at 50% 0%, rgba(255, 95, 0, 0.08), transparent 70%),
         linear-gradient(rgba(28, 27, 25, 0.045) 1px, transparent 1px) 0 0 / 64px 64px,

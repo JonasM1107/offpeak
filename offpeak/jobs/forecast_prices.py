@@ -20,7 +20,7 @@ from offpeak.analysis import hourly
 from offpeak.config import DEFAULT_ZONE
 from offpeak.forecast.insight import what_matters
 from offpeak.forecast.model import WeatherPriceModel
-from offpeak.forecast.outlook import run_outlook
+from offpeak.forecast.outlook import plan_value, run_outlook
 from offpeak.jobs.runner import Skip, main
 from offpeak.timeutils import market_today
 
@@ -51,8 +51,12 @@ def forecast(engine: Engine) -> int:
     out, test = run_outlook(history, MARKET_TZ, drivers)
     rows = db.save_outlook(engine, out, history.index.max().to_pydatetime())
 
-    # for the team, in the job log: backtest scores and what the outlook relies on
+    # for the team, in the job log: backtest scores, what the forecasts are worth in euros
+    # (one 30 kW machine running 4 hours, planned over the next 7 days), and what the outlook
+    # relies on
     print(test.scores.round(2).to_string(index=False))
+    print("planning one 30 kW, 4 h run over the next 7 days (EUR per run, spot price):")
+    print(plan_value(test, history, MARKET_TZ).round(2).to_string(index=False))
     if drivers is not None and not drivers.empty:
         found = what_matters(history, WeatherPriceModel(drivers))
         if found:

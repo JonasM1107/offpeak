@@ -18,8 +18,12 @@ def fake_db(monkeypatch):
     saved = []
     monkeypatch.setattr(db, "database_url", lambda: "postgresql://fake")
     monkeypatch.setattr(db, "get_engine", lambda url: object())
-    monkeypatch.setattr(db, "read_components", lambda engine, site_id: [])
-    monkeypatch.setattr(db, "save_components", lambda engine, site_id, rows: saved.append(rows))
+    monkeypatch.setattr(db, "read_components", lambda engine, site_id, profile="business": [])
+    monkeypatch.setattr(
+        db,
+        "save_components",
+        lambda engine, site_id, rows, profile="business": saved.append(rows),
+    )
     monkeypatch.setenv("OFFPEAK_EDITORS", "ann@example.com")
     monkeypatch.setenv("OFFPEAK_PASSWORD_HASH", auth.hash_password("pw", salt="s"))
     monkeypatch.setenv("OFFPEAK_AUTH_SECRET", SECRET)
@@ -30,6 +34,7 @@ def visitor(page: str = "views/components.py", stored: str = "") -> AppTest:
     """A browser that is not signed in; `stored` is what its storage holds."""
     at = AppTest.from_file(str(APP), default_timeout=60)
     at.session_state["stored_token"] = stored
+    at.session_state["login_role"] = "business"  # step 1 of signing in: the Business card
     at.switch_page(page)
     return at.run()
 
@@ -92,18 +97,25 @@ def test_signing_out_shows_the_login_again(fake_db):
     at.switch_page("views/account.py").run()
     next(b for b in at.button if b.label == "Sign out").click()
     at.run()
-    assert not shows_the_app(at) and [t.label for t in at.text_input] == ["Email", "Password"]
+    # the login starts again at step 1: the two role cards
+    cards = [b.key for b in at.button if (b.key or "").startswith("choose_")]
+    assert not shows_the_app(at) and cards == ["choose_home", "choose_business"]
 
 
 # ── "Edit site" on the site view ─────────────────────────────────────────────
 
 
-def site_editor(fake_db, monkeypatch) -> tuple[AppTest, list]:
+def site_editor(fake_db, monkeypatch, role: str = "business") -> tuple[AppTest, list]:
     """A signed-in editor on the site view; returns the app and what replace_components got."""
     replaced = []
-    monkeypatch.setattr(db, "replace_components", lambda e, site_id, rows: replaced.append(rows))
+    monkeypatch.setattr(
+        db,
+        "replace_components",
+        lambda e, site_id, rows, profile="business": replaced.append((profile, rows)),
+    )
     at = AppTest.from_file(str(APP), default_timeout=60)
-    at.session_state["editor_token"] = auth.make_token("ann@example.com", datetime.now(UTC), SECRET)
+    token = auth.make_token("ann@example.com", datetime.now(UTC), SECRET, role=role)
+    at.session_state["editor_token"] = token
     at.switch_page("views/site.py").run()
     return at, replaced
 
@@ -123,7 +135,9 @@ def test_edit_site_starts_empty_and_saves_what_was_built(fake_db, monkeypatch):
     click(at, "Rooftop solar")
     click(at, "Save site")
     assert len(replaced) == 1
-    assert [r["name"] for r in replaced[0]] == ["Heat pump", "Heat pump 2", "Rooftop solar"]
+    profile, rows = replaced[0]
+    assert profile == "business"
+    assert [r["name"] for r in rows] == ["Heat pump", "Heat pump 2", "Rooftop solar"]
     assert not any(b.label == "Save site" for b in at.button)  # back in the site view
     assert "Saved for everyone" in at.success[0].value
 
@@ -157,4 +171,32 @@ def test_without_a_database_the_edited_site_is_kept_in_the_tab(fake_db, monkeypa
     click(at, "Cold store")
     click(at, "Save site")
     assert replaced == []
-    assert [c.name for c in at.session_state["components_local"]] == ["Cold store"]
+    assert [c.name for c in at.session_state["components_local_business"]] == ["Cold store"]
+
+
+def test_edit_site_is_only_for_the_business_portal(fake_db, monkeypatch):
+    at, replaced = site_editor(fake_db, monkeypatch, role="home")
+    assert not at.exception
+    assert not any(b.label == "Edit site" for b in at.button)  # no way into the editor
+    # even a draft forced into the session does not open the editor for a homeowner
+    at.session_state["site_draft"] = []
+    at.run()
+    assert not any(b.label == "Save site" for b in at.button) and replaced == []
+
+
+def test_saving_a_site_is_refused_for_a_home_account(fake_db, monkeypatch):
+    """The check sits where the site is saved (data.replace_site), not only on the page."""
+    import sys
+
+    sys.path.insert(0, str(APP.parent))
+    import data
+
+    from offpeak import components
+
+    monkeypatch.setattr(data, "role", lambda: "home")
+    replaced = []
+    monkeypatch.setattr(db, "replace_components", lambda *a, **k: replaced.append(a))
+    battery = components.new_component("battery", "Battery")
+    where, problems = data.replace_site([battery])
+    assert where is None and problems == ["Edit site is part of the Business portal."]
+    assert replaced == []

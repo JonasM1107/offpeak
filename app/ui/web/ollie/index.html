@@ -13,7 +13,7 @@
   .dock { position: fixed; right: 4px; bottom: 4px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 
   /* the chat window */
-  .panel { width: 372px; height: var(--panel-h, 540px); background: var(--card); border-radius: 24px; display: flex; flex-direction: column; overflow: hidden;
+  .panel { width: 412px; height: var(--panel-h, 600px); background: var(--card); border-radius: 24px; display: flex; flex-direction: column; overflow: hidden;
     box-shadow: 0 24px 60px rgba(28,27,25,.22), 0 4px 14px rgba(28,27,25,.08); border: 1px solid var(--line);
     transform-origin: bottom right; animation: pop .22s cubic-bezier(.2,.9,.3,1.2); }
   .panel[hidden] { display: none; }
@@ -35,6 +35,9 @@
   .chips { display: flex; flex-direction: column; gap: 8px; }
   .chip { text-align: left; border: 1px solid var(--accent-soft); background: #fff; color: var(--ink); border-radius: 12px; padding: 9px 12px; font: inherit; font-size: 12.5px; cursor: pointer; transition: border-color .15s, background .15s; }
   .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .jump { display: flex; flex-wrap: wrap; gap: 6px; align-self: flex-start; max-width: 92%; margin-top: -4px; }
+  .jump button { border: 1px solid var(--accent-soft); background: #fff; color: var(--accent); border-radius: 999px; padding: 5px 11px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .jump button:hover { border-color: var(--accent); background: var(--accent-soft); }
   .typing { align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
   .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: dot 1s infinite ease-in-out; }
   .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
@@ -126,9 +129,11 @@ function render() {
     html += `<div class="hello">Hi, I'm <b>Ollie</b> 👋 Ask me when to run a machine, which day is cheapest, or what your plan saves. I use today's prices and Offpeak Intelligence.</div>
       <div class="chips">${examples.map((e, i) => `<button class="chip" data-i="${i}">${esc(e)}</button>`).join('')}</div>`;
   }
-  html += history.map(m => `<div class="m ${m.role === 'user' ? 'user' : 'bot'}">${m.role === 'user' ? esc(m.content) : md(m.content)}</div>`).join('');
+  html += history.map(m => `<div class="m ${m.role === 'user' ? 'user' : 'bot'}">${m.role === 'user' ? esc(m.content) : md(m.content)}</div>`
+    + (m.topics && m.topics.length ? `<div class="jump">${m.topics.map(t => `<button data-goto="${esc(t.id)}">→ ${esc(t.label)}</button>`).join('')}</div>` : '')).join('');
   if (waiting) html += `<div class="m user">${esc(waiting)}</div><div class="typing"><i></i><i></i><i></i></div>`;
   box.innerHTML = html;
+  box.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => goto(b.dataset.goto)));
   box.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => ask(examples[+c.dataset.i])));
   box.scrollTop = box.scrollHeight;
   $('send').disabled = !!waiting; $('q').disabled = !!waiting;
@@ -141,12 +146,16 @@ function ask(question) {
   send('streamlit:setComponentValue', { value: { question, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` }, dataType: 'json' });
 }
 
+function goto(topic) {  // a jump button under an answer: Python opens that page
+  send('streamlit:setComponentValue', { value: { goto: topic, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` }, dataType: 'json' });
+}
+
 // The frame is only as tall as what is shown (its width is fixed by the app's CSS), so the
 // page under it stays usable when the chat is closed.
 function fit() {
   let screenH = 800;
   try { screenH = window.top.innerHeight || screenH; } catch (err) { screenH = screen.availHeight || screenH; }
-  const panelH = Math.max(340, Math.min(560, screenH - 170));
+  const panelH = Math.max(360, Math.min(620, screenH - 170));
   document.documentElement.style.setProperty('--panel-h', panelH + 'px');
   send('streamlit:setFrameHeight', { height: open ? panelH + 112 : 104 });
 }

@@ -7,6 +7,7 @@ known price.
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 from offpeak.forecast.baselines import Blend, LastDay, LastWeek
@@ -90,6 +91,64 @@ def _scores(errors: pd.DataFrame) -> pd.DataFrame:
             row[f"mae_{lead}"] = gl["error"].abs().mean()
         out.append(row)
     return pd.DataFrame(out)
+
+
+def _window_costs(prices: np.ndarray, hours: int) -> np.ndarray:
+    """For every start hour, the sum of the prices of `hours` hours in a row from there."""
+    return np.convolve(prices, np.ones(hours), mode="valid")
+
+
+def plan_value(
+    test: Backtest, history: pd.Series, tz: str, kw: float = 30.0, hours: int = 4
+) -> pd.DataFrame:
+    """What the forecasts are worth in euros, for one example machine (`kw` for `hours` hours).
+
+    For every day of the backtest, standing where the app stands (tomorrow's prices are
+    published, the 6 days after come from a forecaster), the machine is planned at the
+    cheapest start in the next 7 days, and charged what that start really cost. Compared with:
+    - "perfect": the cheapest start had all 7 days been known (nobody can do better);
+    - "tomorrow": only tomorrow's published prices, no forecast at all (the simple way).
+
+    Returns one row per way of planning: runs (days compared), cost (EUR per run, spot price
+    only: fees and taxes are the same for every hour and cancel out), extra (EUR more than
+    perfect per run) and gain (EUR saved per run against "tomorrow"; above 0 = the forecast
+    found a cheaper day after tomorrow often enough to pay off)."""
+    e = test.errors
+    # the day each forecast was made: the target day minus its lead, minus tomorrow
+    origins = [
+        day - pd.Timedelta(days=int(lead) + 1)
+        for day, lead in zip(e["day"], e["lead"], strict=True)
+    ]
+    rows = []
+    for origin, g in e.groupby(origins):
+        tomorrow = local_day_hours(origin + pd.Timedelta(days=1), tz)
+        known = history.reindex(tomorrow)
+        later = g.drop_duplicates("ts").set_index("ts")["actual"].sort_index()
+        if known.isna().any() or g["lead"].nunique() < len(LEAD_DAYS):
+            continue
+        actual = pd.concat([known, later])
+        windows = _window_costs(actual.to_numpy(), hours)  # what each start really cost
+        best = windows.min()
+        simple = _window_costs(known.to_numpy(), hours).min()  # tomorrow's cheapest start
+        chosen = {"perfect": best, "tomorrow": simple}
+        for key, gf in g.groupby("forecaster"):
+            if gf["lead"].nunique() < len(LEAD_DAYS):
+                continue
+            plan = pd.concat([known, gf.set_index("ts")["forecast"].sort_index()])
+            if not plan.index.equals(actual.index):
+                continue
+            start = int(np.argmin(_window_costs(plan.to_numpy(), hours)))  # the planned start
+            chosen[key] = windows[start]  # ... and what it really cost
+        for way, cost in chosen.items():
+            rows.append({"way": way, "cost": cost, "extra": cost - best, "gain": simple - cost})
+    if not rows:
+        return pd.DataFrame(columns=["way", "runs", "cost", "extra", "gain"])
+    df = pd.DataFrame(rows)
+    df[["cost", "extra", "gain"]] *= kw / 100  # ct/kWh x kW, summed over the hours -> EUR
+    out = df.groupby("way", sort=False).agg(
+        runs=("cost", "size"), cost=("cost", "mean"), extra=("extra", "mean"), gain=("gain", "mean")
+    )
+    return out.reset_index()
 
 
 def best_by_lead(test: Backtest) -> dict[int, str]:

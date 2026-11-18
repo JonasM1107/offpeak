@@ -1,10 +1,10 @@
 """Site view: a 3D model of the site, a day plan per machine and a fact sheet per component.
 
-"Edit site" switches the page into an editor: the user rebuilds the site to match their own
-facility (start empty or from the current site, add components from a palette, set their
-sizes and hours) with the 3D model as a live preview. Nothing is stored until "Save site";
-the rules for what may be saved are in offpeak/components.py (validate_site), and data.py
-checks them again where the site is saved."""
+Business portal only: "Edit site" switches the page into a layout designer. The 3D scene
+shows the site on a 64 x 64 grid with the Blender models; the user drags parts from the
+list onto the site, moves them, removes them and sets their size and hours. Nothing is
+stored until "Save site"; the rules are in offpeak/layout.py and offpeak/components.py,
+and data.replace_site checks them again (and the portal) where the site is saved."""
 
 from dataclasses import replace
 
@@ -13,11 +13,11 @@ import streamlit as st
 from ui import layout_designer, site_scene
 from ui.components import card_title, header
 
-from offpeak import components, demo_site, layout
+from offpeak import components, demo_site, layout, roles
 from offpeak.config import MARKET_TZ
 from offpeak.markets.energy_charts import PriceSourceError
-from offpeak.sites import DEMO_CITY, DEMO_SITE
-from offpeak.tariffs import germany_2026
+from offpeak.sites import DEMO_CITY
+from offpeak.tariffs import tariff_for
 from offpeak.timeutils import market_today
 
 DRAFT = "site_draft"  # the site being edited; only in this browser tab until it is saved
@@ -56,22 +56,30 @@ except PriceSourceError:
 weather, _, _, _ = data.weather()
 comps, source = data.site_components()
 hour_now = data.now_utc().tz_convert(MARKET_TZ).hour
+EDITABLE = data.role() == "business"  # the layout designer is for the Business portal
+
+
+def scene_inputs(site_comps):
+    """Prices, weather and tariff for every hour, for these components."""
+    assets, _ = components.site_model(site_comps)
+    tariff = tariff_for(data.role(), site_comps)  # a household's tariff for a home
+    inputs = demo_site.hourly_inputs(today_prices, weather, MARKET_TZ, assets)
+    return demo_site.apply_tariff(inputs, tariff, market_today()), tariff
+
+
+def site_info() -> dict:
+    return {
+        "name": data.site().name,
+        "city": DEMO_CITY,
+        "zone": data.site().zone,
+        "date": market_today().isoformat(),
+    }
 
 
 def scene_data(site_comps, edit: bool = False) -> dict:
-    """The 3D scene's data for a list of components (the saved site or the draft);
-    `edit` makes it the layout designer."""
-    assets, _ = components.site_model(site_comps)
-    tariff = germany_2026(pv_kwp=assets.pv_kwp)
-    inputs = demo_site.hourly_inputs(today_prices, weather, MARKET_TZ, assets)
-    inputs = demo_site.apply_tariff(inputs, tariff, market_today())
-    site = {
-        "name": DEMO_SITE.name,
-        "city": DEMO_CITY,
-        "zone": DEMO_SITE.zone,
-        "date": market_today().isoformat(),
-    }
-    return site_scene.payload(inputs, site, hour_now, tariff, site_comps, edit=edit)
+    """The layout designer's scene for the draft (planned fresh: the draft changes)."""
+    inputs, tariff = scene_inputs(site_comps)
+    return site_scene.payload(inputs, site_info(), hour_now, tariff, site_comps, edit=edit)
 
 
 def start_editing(start_from) -> None:
@@ -129,7 +137,7 @@ def component_card(c: components.Component, draft: list) -> None:
 
 def editor() -> None:
     draft = st.session_state[DRAFT]
-    header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Edit site", live=True)
+    header(f"{data.site().name} · {DEMO_CITY} · {data.site().zone}", "Edit site", live=True)
     st.caption(
         "Lay out your site like it really is: drag parts from the left onto the squares, "
         "drag them around, tap one to set its size and hours. Nothing is saved until you "
@@ -227,20 +235,29 @@ def editor() -> None:
             st.rerun()
 
 
-if DRAFT in st.session_state:
+if EDITABLE and DRAFT in st.session_state:
     editor()
 else:
-    header(f"{DEMO_SITE.name} · {DEMO_CITY} · {DEMO_SITE.zone}", "Site view", live=True)
+    header(
+        f"{data.site().name} · {DEMO_CITY} · {data.site().zone}",
+        roles.words(data.role())["view"],
+        live=True,
+    )
     if "site_saved" in st.session_state:
         st.success(st.session_state.pop("site_saved"), icon=":material/check_circle:")
-    # pressed by the "Edit site" tab inside the 3D view (site_scene.html), so it stays hidden
-    st.html("<style>.st-key-site_edit { display: none !important; }</style>")
-    if st.button("Edit site", key="site_edit"):
-        start_editing([])
-        st.rerun()
-    site_scene.show(scene_data(comps))
+    if EDITABLE:
+        # pressed by the "Edit site" tab inside the 3D view (site_scene.html): stays hidden
+        st.html("<style>.st-key-site_edit { display: none !important; }</style>")
+        if st.button("Edit site", key="site_edit"):
+            start_editing([])
+            st.rerun()
+    inputs, tariff = scene_inputs(comps)
+    # a home with measurements can also play its last measured day ("Yesterday at home")
+    measured = data.measured_scene_day(comps, tariff) if data.role() == "home" else None
+    day = data.site_day(inputs, data.setup_key(comps), data.role())  # planned once, then kept
+    site_scene.show(site_scene.payload(inputs, site_info(), hour_now, tariff, comps, measured, day))
     st.page_link(
         "views/components.py",
-        label="Add or remove components under Setup → Site & components",
+        label=f"Add or remove them under Setup → {roles.words(data.role())['setup']}",
         icon=":material/add_circle:",
     )

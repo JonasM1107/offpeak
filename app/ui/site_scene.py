@@ -22,6 +22,45 @@ TEMPLATE = Path(__file__).with_name("site_scene.html")
 MODELS = Path(__file__).with_name("models")  # GLB files built by scripts/blender/
 
 
+# The models each profile's scene uses; the others are not sent.
+HOME_MODELS = {
+    "semi_detached",
+    "carport",
+    "wallbox",
+    "ev_car",
+    "home_battery",
+    "home_meter",
+    "grid_cabinet",
+    "pv_module",
+    "pv_inverter",
+    "heat_pump_unit",
+    "tree_round",
+    "tree_tall",
+    "fence_segment",
+    "pv_field",
+    "pv_rack",
+}
+
+
+def models_for(profile: str) -> dict[str, str]:
+    """The models one profile's scene needs (a home has no turbines or furnace halls)."""
+    every = models()
+    if profile == "home":
+        return {k: v for k, v in every.items() if k in HOME_MODELS}
+    return {k: v for k, v in every.items() if k not in HOME_MODELS - SHARED}
+
+
+SHARED = {
+    "pv_module",
+    "pv_inverter",
+    "heat_pump_unit",
+    "tree_round",
+    "tree_tall",
+    "fence_segment",
+    "pv_rack",
+}
+
+
 @cache
 def models() -> dict[str, str]:
     """The detailed 3D models by file name without .glb, gzip-compressed (about a third of
@@ -39,6 +78,8 @@ def payload(
     hour_now: int,
     tariff: Tariff | None = None,
     comps=None,
+    measured: dict | None = None,
+    day: dict | None = None,
     compact: bool = False,
     edit: bool = False,
 ) -> dict:
@@ -46,16 +87,20 @@ def payload(
     whole site, each plan's bill under the tariff, and every component's fact sheet.
 
     `inputs` comes from demo_site.apply_tariff() when a tariff is given, so every hour
-    has its all-in price. `compact` shows only the 3D stage. `edit` turns the stage into
-    the "Edit site" layout designer (see editor_data); it is compact too, and the models
-    are loaded as files instead of travelling inside the data on every change."""
+    has its all-in price. `day` is site_components.site_day() for these inputs if it was
+    already worked out (app/data.py keeps it, so a second visit does not plan again).
+    `compact` shows only the 3D stage. `edit` turns the stage into the "Edit site" layout
+    designer (see editor_data); it is compact too, and the models are loaded as files
+    instead of travelling inside the data on every change."""
     comps = list(comps if comps is not None else site_components.DEFAULT_COMPONENTS)
-    day = site_components.site_day(inputs, comps, tariff)
-    # where the layout designer put each component (metres east, south); None = automatic
+    profile = comps[0].profile if comps else "business"  # all of a site's are one profile
+    if day is None:
+        day = site_components.site_day(inputs, comps, tariff)
+    # where the layout designer put each component (metres east, south); None = automatic.
+    # Added to copies: `day` may be the one app/data.py keeps for the next visit.
     positions = layout.world_positions(comps)
-    for c in day["components"]:
-        c["pos"] = positions.get(c["id"])
-    return {
+    placed = [{**c, "pos": positions.get(c["id"])} for c in day["components"]]
+    out = {
         "site": site,
         "compact": compact or edit,
         "edit": editor_data(comps) if edit else None,
@@ -71,13 +116,44 @@ def payload(
         "rows": day["rows"],
         "bill": day["bill"],
         "series": day["series"],
-        "components": day["components"],
+        "components": placed,
         "price_class": day["price_class"],
         "smart_battery": day["smart_battery"],
-        "models": {} if edit else models(),
-        "model_names": sorted(models()) if edit else None,
+        "profile": profile,
+        "models": {} if edit else models_for(profile),
+        "model_names": sorted(models_for(profile)) if edit else None,
     }
+    if measured:  # a measured day, played like a third plan ("Yesterday at home")
+        out["rows"]["measured"] = measured["rows"]
+        out["series"]["measured"] = measured["series"]
+        if out["bill"] is not None and measured["bill"] is not None:
+            out["bill"]["measured"] = measured["bill"]
+        for c in out["components"]:
+            c["analytics"]["measured"] = measured["analytics"][c["id"]]
+        out["measured"] = {"date": measured["date"], "price_class": measured["price_class"]}
+    return out
 
+
+def render_html(data: dict) -> str:
+    # "</" inside the JSON would end the <script> tag early
+    return TEMPLATE.read_text().replace("__DATA__", json.dumps(data).replace("</", "<\\/"))
+
+
+def height_for(data: dict) -> int:
+    """Pixel height of the page: stage, KPIs, one day-plan row per machine, fact sheets."""
+    if data.get("compact"):
+        return 600 + 12
+    plan_rows = 3 + sum(1 for c in data["components"] if c["role"] != "generation")
+    return 600 + 12 + 96 + 12 + 110 + plan_rows * 36 + 12 + 760 + 40
+
+
+def show(data: dict) -> None:
+    # st.iframe replaces st.components.v1.html, which Streamlit removes. Our own template and
+    # JSON only, so the frame may run its script (three.js).
+    st.iframe(render_html(data), height=height_for(data))
+
+
+# ── The "Edit site" layout designer ──────────────────────────────────────────
 
 ROLES = (
     ("generation", "Generation"),
@@ -89,7 +165,8 @@ ROLES = (
 
 def editor_data(comps) -> dict:
     """What the layout designer draws and checks while dragging: the grid, the fixed
-    things, every part's footprint and square, and the parts list. All numbers come from
+    things, every part's footprint and square, and the parts list (the business
+    catalogue: the designer is part of the Business portal). All numbers come from
     offpeak/layout.py, which also has the final say on every action."""
     return {
         "grid": layout.GRID,
@@ -124,22 +201,3 @@ def squares(comps) -> dict[str, list[int]]:
         if pos is not None and c.kind not in layout.ON_ROOF:
             out[c.id] = list(pos)
     return out
-
-
-def render_html(data: dict) -> str:
-    # "</" inside the JSON would end the <script> tag early
-    return TEMPLATE.read_text().replace("__DATA__", json.dumps(data).replace("</", "<\\/"))
-
-
-def height_for(data: dict) -> int:
-    """Pixel height of the page: stage, KPIs, one day-plan row per machine, fact sheets."""
-    if data.get("compact"):
-        return 600 + 12
-    plan_rows = 3 + sum(1 for c in data["components"] if c["role"] != "generation")
-    return 600 + 12 + 96 + 12 + 110 + plan_rows * 36 + 12 + 760 + 40
-
-
-def show(data: dict) -> None:
-    # st.iframe replaces st.components.v1.html, which Streamlit removes. Our own template and
-    # JSON only, so the frame may run its script (three.js).
-    st.iframe(render_html(data), height=height_for(data))

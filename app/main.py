@@ -17,6 +17,8 @@ freshness.refresh()  # after a deploy: load the new versions of our modules (see
 from ui import account, assistant, landing  # noqa: E402
 from ui.components import inject_css  # noqa: E402
 
+from offpeak import roles  # noqa: E402
+
 st.set_page_config(page_title="offpeak", page_icon="⚡", layout="wide")
 st.logo(str(HERE / "assets" / "logo.svg"), size="large")
 inject_css()
@@ -30,27 +32,33 @@ def page(file: str, title: str, icon: str, default: bool = False) -> st.Page:
 
 # The page files live in views/, not pages/: Streamlit would turn a pages/ folder into its own
 # automatic menu and show that briefly before ours.
+#
+# Both roles get the same pages (one file per purpose, never a copy per role); only some titles
+# differ (offpeak/roles.py: WORDS), and every page takes its site and its components from the
+# signed-in account's role (app/data.py: site, site_components), never from the address.
+account.sync_browser()  # stored sign-in from this browser; saves a new one after a sign-in
+who = account.editor()
+words = roles.words(account.role() or "business")
 home = page("dashboard", "Dashboard", "dashboard", default=True)
 pages = {
     "Overview": [
         home,
-        page("site", "Site view", "view_in_ar"),
+        page("site", words["view"], "view_in_ar" if words["site"] == "site" else "cottage"),
+        page("savings", "Savings", "savings"),
     ],
     "Analytics": [
         page("analytics", "Power", "show_chart"),
         page("weather", "Weather & solar", "partly_cloudy_day"),
         page("outlook", "Price outlook", "online_prediction"),
-        page("cockpit", "Simulation cockpit", "tune"),
-    ],
-    "Results": [
-        page("savings", "Savings", "savings"),
-        page("tariff", "Tariff calculator", "receipt_long"),
+        page("cockpit", words["planner"], "tune"),
     ],
     "Setup": [
-        page("components", "Site & components", "precision_manufacturing"),
+        page("components", words["setup"], "precision_manufacturing"),
         page("settings", "Settings", "settings"),
     ],
 }
+if account.role() == "home":  # measurements are part of the Homeowner portal only
+    pages["Setup"].insert(1, page("my_data", "My data", "monitoring"))
 # not in the menu: reached through the name at the bottom of the sidebar
 account_page = st.Page(
     HERE / "views" / "account.py",
@@ -61,8 +69,6 @@ account_page = st.Page(
 pages["Setup"].append(account_page)
 # Sign in first: the app is only for the team. The page asked for in the address stays
 # selected, so after signing in it opens where the link pointed.
-account.sync_browser()  # stored sign-in from this browser; saves a new one after a sign-in
-who = account.editor()
 current = st.navigation(pages, position="sidebar" if who else "hidden")
 if not who:
     # The app's plain address shows the landing page until the visitor presses Login. A link
@@ -75,10 +81,14 @@ if not who:
 
         def back_home() -> None:
             landing.back_home()
+            st.session_state.pop(account.ROLE_CHOICE, None)  # Login starts with the cards again
             st.switch_page(home)
 
         account.login_screen(back=back_home)
     st.stop()
+note = st.session_state.pop("role_note", None)  # e.g. no database: the role holds here only
+if note:
+    st.toast(note, icon=":material/info:")
 with st.sidebar, st.container(key="account_link"):  # the editor's name, at the very bottom
     st.page_link(account_page, label=account.editor_name(who), icon=":material/account_circle:")
 assistant.widget()  # before the page, so it shows even when a page stops early

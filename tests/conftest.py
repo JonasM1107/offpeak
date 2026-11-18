@@ -32,7 +32,7 @@ def engine():
     with eng.begin() as conn:
         tables = (
             "prices_da, weather_fc, job_runs, site_components, cockpit_machines, weather_drivers, "
-            "price_outlook"
+            "price_outlook, accounts, site_measurements"
         )
         conn.execute(text(f"drop table if exists {tables}"))
         for migration in migrations:

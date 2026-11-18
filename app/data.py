@@ -18,7 +18,7 @@ from offpeak import components, db, http, layout
 from offpeak.analysis import covers_days
 from offpeak.markets import energy_charts
 from offpeak.settings import lookup
-from offpeak.sites import DEMO_SITE
+from offpeak.sites import DEMO_SITE, site_for
 from offpeak.timeutils import day_slots, market_today
 from offpeak.weather import open_meteo
 
@@ -179,27 +179,53 @@ def can_share() -> bool:
     return engine() is not None and editor() is not None
 
 
+# ── The signed-in role and its site ─────────────────────────────────────────
+# Prices and weather are the same for both roles (Köln, DE-LU). Everything that depends on
+# what is used (components, cockpit machines, the savings replay) takes the site and the
+# catalogue of the signed-in account's role, read from its signed token, never from the
+# page or the address.
+
+
+def role() -> str:
+    """The signed-in account's role; "business" before signing in (no page shows then)."""
+    from ui.account import role as signed_role
+
+    return signed_role() or "business"
+
+
+def site():
+    """The site of the signed-in account's role (offpeak/sites.py)."""
+    return site_for(role())
+
+
+def _local_key(profile: str) -> str:
+    return f"{LOCAL_COMPONENTS}_{profile}"  # one list per role, kept apart in the tab too
+
+
 # ── Site components ──────────────────────────────────────────────────────────
 
 
 def site_components() -> tuple[list[components.Component], str]:
-    """The demo site's components and where they come from: 'local' (changed in this tab
-    by someone not signed in), 'database', 'demo' (database connected but no components
+    """The signed-in role's components and where they come from: 'local' (changed in this
+    tab by someone not signed in), 'database', 'demo' (database connected but no components
     saved yet) or 'session' (no database: kept until reload)."""
-    if LOCAL_COMPONENTS in st.session_state:
-        return st.session_state[LOCAL_COMPONENTS], "local" if engine() else "session"
+    profile, here = role(), site()
+    key = _local_key(profile)
+    if key in st.session_state:
+        return st.session_state[key], "local" if engine() else "session"
+    demo = [replace(c) for c in components.DEFAULTS[profile]]
     eng = engine()
     if eng is not None:
         try:
-            rows = db.read_components(eng, DEMO_SITE.id)
-        except Exception as err:  # e.g. migration 002 not applied yet
+            rows = db.read_components(eng, here.id, profile)
+        except Exception as err:  # e.g. migration 002 or 006 not applied yet
             print(f"offpeak: cannot read site_components, keeping them in the session: {err}")
         else:
             if rows:
                 return [components.Component(**r) for r in rows], "database"
-            return [replace(c) for c in components.DEFAULT_COMPONENTS], "demo"
-    st.session_state[LOCAL_COMPONENTS] = [replace(c) for c in components.DEFAULT_COMPONENTS]
-    return st.session_state[LOCAL_COMPONENTS], "session"
+            return demo, "demo"
+    st.session_state[key] = demo
+    return st.session_state[key], "session"
 
 
 def _as_row(c: components.Component) -> dict:
@@ -209,34 +235,46 @@ def _as_row(c: components.Component) -> dict:
 def add_component(new: components.Component) -> str:
     """Add a component; returns where it went. For an editor it is stored for everyone (the
     first change saves the demo components too, so they stay); for anyone else it is kept
-    in this tab only."""
+    in this tab only. Raises ValueError if it does not belong to the signed-in role
+    (a household device for a business, or the other way round), whatever the page sent."""
+    profile, here = role(), site()
+    components.check_profile([new], profile)
     current, source = site_components()
     if not can_share():
-        st.session_state[LOCAL_COMPONENTS] = [*current, new]
+        st.session_state[_local_key(profile)] = [*current, new]
         return "local" if engine() else "session"
     rows = [_as_row(c) for c in current] if source == "demo" else []
-    db.save_components(engine(), DEMO_SITE.id, rows + [_as_row(new)])
+    db.save_components(engine(), here.id, rows + [_as_row(new)], profile)
     return "database"
 
 
 def remove_component(component_id: str) -> str:
+    profile, here = role(), site()
     current, source = site_components()
     if not can_share():
-        st.session_state[LOCAL_COMPONENTS] = [c for c in current if c.id != component_id]
+        st.session_state[_local_key(profile)] = [c for c in current if c.id != component_id]
         return "local" if engine() else "session"
     if source == "demo":
-        db.save_components(engine(), DEMO_SITE.id, [_as_row(c) for c in current])
-    db.delete_component(engine(), component_id)
+        db.save_components(engine(), here.id, [_as_row(c) for c in current], profile)
+    db.delete_component(engine(), component_id, here.id, profile)  # only from this site
     return "database"
 
 
 def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]]:
-    """Make the site exactly `new` (the "Edit site" save). Returns where it went and the
-    problems that stopped it (then nothing is saved).
+    """Make the business site exactly `new` (the "Edit site" save). Returns where it went
+    and the problems that stopped it (then nothing is saved).
 
-    Checked here again, not only on the page: this is where the data is stored. Like adding
-    and removing, only a signed-in editor changes the shared site; anyone else keeps the
-    new site in this browser tab."""
+    Checked here again, not only on the page: this is where the data is stored. The layout
+    designer is for the Business portal only, so a homeowner account is refused here even
+    if the page were tricked into calling it. Like adding and removing, only a signed-in
+    editor changes the shared site; anyone else keeps the new site in this browser tab."""
+    profile, here = role(), site()
+    if profile != "business":
+        return None, ["Edit site is part of the Business portal."]
+    try:
+        components.check_profile(new, profile)
+    except ValueError as err:
+        return None, [str(err)]
     # every ground component gets a square (those added elsewhere have none yet), then the
     # site rules and the layout rules are checked together
     new = layout.auto_place([replace(c, params=dict(c.params)) for c in new])
@@ -245,14 +283,14 @@ def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]
         return None, problems
     new = [replace(c, name=c.name.strip()) for c in new]
     if not can_share():
-        st.session_state[LOCAL_COMPONENTS] = new
+        st.session_state[_local_key(profile)] = new
         return ("local" if engine() else "session"), []
     try:
-        db.replace_components(engine(), DEMO_SITE.id, [_as_row(c) for c in new])
+        db.replace_components(engine(), here.id, [_as_row(c) for c in new], profile)
     except Exception as err:
         print(f"offpeak: cannot save the edited site: {err}")
         return None, ["The site could not be saved right now. Please try again in a minute."]
-    st.session_state.pop(LOCAL_COMPONENTS, None)
+    st.session_state.pop(_local_key(profile), None)
     return "database", []
 
 
@@ -263,14 +301,14 @@ def cockpit_machines() -> tuple[list[dict] | None, str]:
     """The cockpit machines (None if never saved) and where changes go: 'database' (signed
     in), 'local' (not signed in: this tab only) or 'session' (no database)."""
     eng = engine()
-    local = st.session_state.get("cockpit_machines")
+    local = st.session_state.get(_machines_key())
     if eng is None:
         return local, "session"
     where = "database" if can_share() else "local"
     if local is not None and where == "local":
         return local, where
     try:
-        return db.read_machines(eng, DEMO_SITE.id), where
+        return db.read_machines(eng, site().id, role()), where
     except Exception as err:  # e.g. migration 003 not applied yet
         print(f"offpeak: cannot read cockpit_machines, keeping them in the session: {err}")
         return local, "session"
@@ -280,12 +318,17 @@ def save_cockpit_machines(machines: list[dict]) -> str:
     """Keep the cockpit machines: for everyone if signed in, else in this tab only."""
     if can_share():
         try:
-            db.save_machines(engine(), DEMO_SITE.id, machines)
-            return "database"
+            if db.save_machines(engine(), site().id, machines, role()):
+                return "database"
+            print("offpeak: cockpit_machines of this site belong to another role, kept here")
         except Exception as err:
             print(f"offpeak: cannot save cockpit_machines, keeping them in the session: {err}")
-    st.session_state["cockpit_machines"] = machines
+    st.session_state[_machines_key()] = machines
     return "local" if engine() else "session"
+
+
+def _machines_key() -> str:
+    return f"cockpit_machines_{role()}"  # one list per role, kept apart in the tab too
 
 
 @st.cache_data(ttl=3 * 3600, show_spinner=False)
@@ -375,7 +418,7 @@ def hours_ahead() -> tuple[dict, int] | None:
     says so in "weather_missing"."""
     from offpeak.cockpit import horizon
     from offpeak.markets.energy_charts import PriceSourceError
-    from offpeak.tariffs import germany_2026
+    from offpeak.tariffs import tariff_for
     from offpeak.weather.outlook import generation
 
     try:
@@ -397,7 +440,7 @@ def hours_ahead() -> tuple[dict, int] | None:
         forecast,
         gen,
         base_kw=assets.cold_store_kw,
-        tariff=germany_2026(pv_kwp=assets.pv_kwp),
+        tariff=tariff_for(role(), site_components()[0]),
         tz=MARKET_TZ,
         today=market_today(),
     )
@@ -428,7 +471,20 @@ _LOCK = threading.Lock()
 
 def setup_key(comps) -> tuple:
     """The components as a hashable key: a new machine means a fresh replay."""
-    return tuple((c.id, c.kind, c.name, tuple(sorted(c.params.items()))) for c in comps)
+    return tuple((c.id, c.kind, c.name, tuple(sorted(c.params.items())), c.profile) for c in comps)
+
+
+@st.cache_data(ttl=3600, show_spinner=False, max_entries=8)
+def site_day(inputs: pd.DataFrame, setup: tuple, role: str) -> dict:
+    """Today's plan for the site view (offpeak/components.py: site_day), kept while the
+    hourly inputs (prices, weather, tariff) and the components stay the same. Planning the day
+    tries every start for every machine and takes about half a second; without this, every
+    visit to the site view paid it again. Same tariff as the page (tariffs.tariff_for): a
+    household's tariff for a home, so the role is part of the key."""
+    from offpeak.tariffs import tariff_for
+
+    comps = [components.Component(i, k, n, dict(p), prof) for i, k, n, p, prof in setup]
+    return components.site_day(inputs, comps, tariff_for(role, comps))
 
 
 @st.cache_data(ttl=12 * 3600, show_spinner=False)
@@ -436,15 +492,16 @@ def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     """Replay the last `n_days` days up to `end` with the real prices and measured weather:
     what the usual times cost and what the plan would have cost. About 0.3 s a day."""
     from offpeak import savings
-    from offpeak.tariffs import germany_2026
+    from offpeak.tariffs import tariff_for
 
-    comps = [components.Component(i, k, n, dict(p)) for i, k, n, p in setup]
+    comps = [components.Component(i, k, n, dict(p), prof) for i, k, n, p, prof in setup]
     start = end - timedelta(days=n_days - 1)
     loaded, _, _ = past_prices(start, end)
     past = archive_weather(start, end)
     assets, _ = components.site_model(comps)
     days = [start + timedelta(days=i) for i in range(n_days)]
-    out = savings.replay(loaded, past, comps, germany_2026(pv_kwp=assets.pv_kwp), MARKET_TZ, days)
+    tariff = tariff_for(comps[0].profile if comps else "business", comps)
+    out = savings.replay(loaded, past, comps, tariff, MARKET_TZ, days)
     _REPLAYED[(end, n_days, setup)] = savings.summary(out)
     return out
 
@@ -474,6 +531,130 @@ def saved_recently(n_days: int = 30) -> tuple[dict | None, str]:
         finally:
             with _LOCK:
                 _RUNNING.discard(key)
+        if n_days == 30 and key not in _FAILED:
+            # then the 90 days the Savings page also offers, so that click does not wait
+            # half a minute: it reuses the cache savings_replay fills
+            try:
+                savings_replay(end, 90, key[2])
+            except Exception as err:
+                print(f"offpeak: background 90-day savings replay failed: {err}")
 
     threading.Thread(target=work, daemon=True).start()
     return None, "running"
+
+
+# ── Measured power of the signed-in home (homeowner profile) ─────────────────
+# Stored in site_measurements with the role's profile and site (offpeak/db.py), so they
+# never reach a business's models. Without a database they live in this tab only.
+MEASURED_KEY = "measurements_{}"
+MEASURED_YEARS = 4  # how far back the pages read
+
+
+def _measured_session() -> pd.DataFrame | None:
+    return st.session_state.get(MEASURED_KEY.format(role()))
+
+
+def measurements() -> tuple[pd.DataFrame, str]:
+    """The signed-in role's own measurements (15-minute slots) and where they are kept:
+    'database', 'session' or 'none'."""
+    if role() != "home":
+        return pd.DataFrame(), "none"
+    local = _measured_session()
+    eng = engine()
+    if eng is not None:
+        end = now_utc().to_pydatetime()
+        try:
+            stored = _read_measured(site().id, role(), end.date())
+        except Exception as err:  # e.g. migration 007 not run yet
+            print(f"offpeak: cannot read site_measurements: {err}")
+            stored = None
+        if stored is not None and not stored.empty:
+            return stored, "database"
+    if local is not None and not local.empty:
+        return local, "session"
+    return pd.DataFrame(), "none"
+
+
+@st.cache_data(ttl=600, show_spinner=False, max_entries=4)
+def _read_measured(site_id: int, profile: str, today: date) -> pd.DataFrame:
+    end = datetime.combine(today + timedelta(days=1), datetime.min.time(), tzinfo=UTC)
+    return db.read_measurements(
+        engine(), site_id, profile, end - timedelta(days=365 * MEASURED_YEARS), end
+    )
+
+
+def save_measurements(slots: pd.DataFrame) -> str:
+    """Keep uploaded measurements for the signed-in home: in the database if there is one
+    (then 'database'), else in this tab ('session'). Merges with what is already there."""
+    if role() != "home":
+        raise ValueError("Only a homeowner account stores measurements here")
+    eng = engine()
+    if eng is not None:
+        try:
+            db.save_measurements(eng, site().id, role(), slots, "fronius")
+            _read_measured.clear()
+            return "database"
+        except Exception as err:
+            print(f"offpeak: cannot save site_measurements, keeping them in the session: {err}")
+    old = _measured_session()
+    merged = slots if old is None else pd.concat([old, slots]).drop_duplicates("ts", keep="last")
+    st.session_state[MEASURED_KEY.format(role())] = merged.sort_values("ts").reset_index(drop=True)
+    return "session"
+
+
+def delete_measurements() -> None:
+    """The owner's "delete my data": everywhere they are kept."""
+    st.session_state.pop(MEASURED_KEY.format(role()), None)
+    eng = engine()
+    if eng is not None and role() == "home":
+        try:
+            db.delete_measurements(eng, site().id, role())
+        except Exception as err:
+            print(f"offpeak: cannot delete site_measurements: {err}")
+        _read_measured.clear()
+
+
+def measured_scene_day(comps, tariff) -> dict | None:
+    """The newest full measured day before today, priced with that day's real prices, in
+    the shape the Home view plays ("Yesterday at home"). None without measurements."""
+    from offpeak import demo_site
+    from offpeak.load import measured
+
+    slots, _ = measurements()
+    if slots.empty:
+        return None
+    day = measured.last_full_day(slots, MARKET_TZ, market_today())
+    if day is None:
+        return None
+    try:
+        loaded, _, _ = past_prices(day, day)
+    except Exception:  # without that day's prices the scene keeps its two plans
+        return None
+    assets, _ = components.site_model(comps)
+    inputs = demo_site.hourly_inputs(loaded, None, MARKET_TZ, assets)
+    if tariff is not None:
+        inputs = demo_site.apply_tariff(inputs, tariff, day)
+    out = components.measured_day(inputs, comps, measured.hourly_day(slots, day, MARKET_TZ), tariff)
+    out["date"] = f"{day:%a %-d %b}"
+    return out
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False, max_entries=2)
+def _load_forecast(newest: pd.Timestamp, n: int, profile: str):
+    from offpeak.forecast import load_model
+
+    slots, _ = measurements()
+    history = load_model.hourly_load(slots)
+    model = load_model.LoadModel().fit(history)
+    return model.predict(history), len(load_model.daily_matrix(history))
+
+
+def load_forecast() -> tuple[pd.DataFrame, int] | None:
+    """The home's consumption for the 7 days after its last measured day (kW per hour) and
+    how many days it learned from. None with less than four weeks of measurements."""
+    from offpeak.forecast.load_model import MIN_DAYS
+
+    slots, _ = measurements()
+    if slots.empty or slots["ts"].dt.tz_convert(MARKET_TZ).dt.date.nunique() < MIN_DAYS + 1:
+        return None
+    return _load_forecast(slots["ts"].max(), len(slots), role())

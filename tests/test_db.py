@@ -118,6 +118,62 @@ def test_table_status_names_missing_tables(engine):
     assert not missing["ok"] and "price_outlook" in missing["error"]
 
 
+# ── Roles: accounts and the profile on every row ────────────────────────────
+
+
+def test_an_account_keeps_the_role_of_its_first_sign_in(engine):
+    assert db.read_role(engine, "ann@example.com") is None
+    assert db.claim_role(engine, "ann@example.com", "home") == "home"
+    assert db.claim_role(engine, "ann@example.com", "business") == "home"  # not changed
+    assert db.read_role(engine, "ann@example.com") == "home"
+
+
+def test_the_database_refuses_an_unknown_role(engine):
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError):
+        db.claim_role(engine, "bob@example.com", "admin")
+
+
+def test_components_of_one_profile_stay_apart_from_the_other(engine):
+    from offpeak.components import new_component
+
+    wallbox = new_component("ev_charger", "Wallbox", profile="home")
+    row = {"id": wallbox.id, "kind": "ev_charger", "name": "Wallbox", "params": wallbox.params}
+    db.save_components(engine, 2, [row], profile="home")
+    assert [r["id"] for r in db.read_components(engine, 2, "home")] == [wallbox.id]
+    assert db.read_components(engine, 2, "business") == []
+    assert db.read_components(engine, 1, "home") == []
+    # the same id sent for the business site does not take the home's row over ...
+    db.save_components(engine, 1, [row | {"name": "Taken"}], profile="business")
+    assert db.read_components(engine, 2, "home")[0]["name"] == "Wallbox"
+    # ... and deleting it from the business side leaves it where it is
+    db.delete_component(engine, wallbox.id, site_id=1, profile="business")
+    assert len(db.read_components(engine, 2, "home")) == 1
+    db.delete_component(engine, wallbox.id, site_id=2, profile="home")
+    assert db.read_components(engine, 2, "home") == []
+
+
+def test_cockpit_machines_of_one_profile_stay_apart(engine):
+    db.save_machines(engine, 2, [{"name": "Washer"}], profile="home")
+    assert db.read_machines(engine, 2, "home") == [{"name": "Washer"}]
+    assert db.read_machines(engine, 2, "business") is None
+    db.save_machines(engine, 2, [{"name": "Furnace"}], profile="business")  # refused
+    assert db.read_machines(engine, 2, "home") == [{"name": "Washer"}]
+
+
+def test_the_database_refuses_an_unknown_profile(engine):
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError):
+        db.save_machines(engine, 3, [], profile="admin")
+
+
+def test_saving_machines_says_whether_it_saved(engine):
+    assert db.save_machines(engine, 2, [{"name": "Washer"}], profile="home") is True
+    assert db.save_machines(engine, 2, [{"name": "Furnace"}], profile="business") is False
+
+
 def test_replace_components_makes_the_site_exactly_the_new_list(engine):
     from offpeak.components import new_component
 

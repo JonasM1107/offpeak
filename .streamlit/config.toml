@@ -13,3 +13,7 @@ toolbarMode = "minimal"
 headless = true
 # Serve app/static/ at /app/static/: the screenshots on the landing page.
 enableStaticServing = true
+# Compress what the server sends to the browser. Off by default in Streamlit; our pages send
+# whole views with their data (Power: two years of hourly prices, 612 KB, 83 KB compressed),
+# so every page change gets much lighter on a real connection.
+enableWebsocketCompression = true

@@ -3,7 +3,13 @@ import pandas as pd
 import pytest
 
 from offpeak.forecast.baselines import Blend, LastDay, LastWeek
-from offpeak.forecast.outlook import backtest, day_summaries, local_day_hours, outlook
+from offpeak.forecast.outlook import (
+    backtest,
+    day_summaries,
+    local_day_hours,
+    outlook,
+    plan_value,
+)
 
 TZ = "Europe/Berlin"
 BASELINES = [LastWeek(), LastDay(), Blend()]
@@ -40,6 +46,38 @@ def test_backtest_finds_the_weekly_pattern():
     assert scores.loc["last_week", "decision"] == 1.0
     assert scores.loc["last_day", "mae"] > 0
     assert set(test.errors["lead"]) == set(range(1, 7))
+
+
+def test_plan_value_counts_euros_for_one_machine():
+    """A flat 10 ct/kWh: 30 kW for 4 hours costs 30 x 4 x 0.10 = 12 EUR, whatever is planned."""
+    idx = pd.date_range("2026-08-03", periods=6 * 7 * 24, freq="h", tz="UTC")
+    flat = pd.Series(10.0, index=idx)
+    value = plan_value(backtest(flat, TZ, days=7, forecasters=BASELINES), flat, TZ)
+    assert set(value["way"]) == {"perfect", "tomorrow", "last_week", "last_day", "blend"}
+    assert value["cost"].tolist() == pytest.approx([12.0] * 5)
+    assert value["extra"].abs().max() == pytest.approx(0)
+    assert value["gain"].abs().max() == pytest.approx(0)
+
+
+def test_plan_value_rewards_seeing_the_cheap_weekend_coming():
+    """Weekends are cheap. "Same hour last week" sees them coming and plans like someone who
+    knew everything; "same hour as tomorrow" thinks every day is like tomorrow and so does
+    no better than using tomorrow's prices alone."""
+    h = weekly_history()
+    value = plan_value(backtest(h, TZ, days=21, forecasters=BASELINES), h, TZ).set_index("way")
+    assert value.loc["perfect", "extra"] == pytest.approx(0)
+    assert value.loc["last_week", "extra"] == pytest.approx(0)  # as good as knowing it all
+    assert value.loc["last_week", "gain"] > 1  # euros saved per run against tomorrow only
+    assert value.loc["last_day", "cost"] == pytest.approx(value.loc["tomorrow", "cost"])
+    assert value.loc["tomorrow", "extra"] == pytest.approx(value.loc["last_week", "gain"])
+    assert (value["runs"] == value.loc["perfect", "runs"]).all()  # the same days compared
+
+
+def test_plan_value_is_empty_without_a_full_week():
+    h = weekly_history()
+    test = backtest(h, TZ, days=21, forecasters=BASELINES)
+    test.errors = test.errors[test.errors["lead"] < 6]  # no day has all six forecast days
+    assert plan_value(test, h, TZ).empty
 
 
 def test_outlook_covers_six_days_with_a_band():
