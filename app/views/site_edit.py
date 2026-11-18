@@ -1,4 +1,4 @@
-"""Edit site (Business portal): the layout designer, a page of its own next to the site view.
+"""Edit site (Business portal): the layout designer, under Setup next to Site & components.
 
 The site view stays exactly as it is; this page opens the 3D scene in edit mode. The site
 is shown on a 64 x 64 grid with the Blender models: drag parts from the list onto the
@@ -6,8 +6,6 @@ site, move them, remove them, tap one to set its size and hours. Nothing is stor
 "Save site"; the rules are in offpeak/layout.py and offpeak/components.py, and
 data.replace_site checks them again (and the portal) where the site is saved. Saved
 parts then stand in the site view where they were placed."""
-
-from dataclasses import replace
 
 import data
 import streamlit as st
@@ -77,9 +75,13 @@ def site_info() -> dict:
 
 
 def scene_data(site_comps) -> dict:
-    """The layout designer's scene for the draft (planned fresh: the draft changes)."""
+    """The layout designer's scene for the draft. The day is planned once per set of parts
+    (data.site_day keeps it): where a part stands does not change the plan, so moving or
+    tapping a part costs no new planning (about 0.8 s each before)."""
     inputs, tariff = scene_inputs(site_comps)
-    return site_scene.payload(inputs, site_info(), hour_now, tariff, site_comps, edit=True)
+    unplaced = [layout.without_position(c) for c in site_comps]
+    day = data.site_day(inputs, data.setup_key(unplaced), data.role())
+    return site_scene.payload(inputs, site_info(), hour_now, tariff, site_comps, day=day, edit=True)
 
 
 def start_editing(start_from) -> None:
@@ -89,9 +91,8 @@ def start_editing(start_from) -> None:
         del st.session_state[key]
     # copies, so editing the draft never changes the site that is shown until it is saved;
     # parts without a square (the demo site) get their usual spot on the grid
-    st.session_state[DRAFT] = layout.auto_place(
-        [replace(c, params=dict(c.params)) for c in start_from]
-    )
+    # names tidied too: Site & components allows two parts with one name, a saved site not
+    st.session_state[DRAFT] = layout.auto_place(components.unique_names(start_from))
 
 
 def component_card(c: components.Component, draft: list) -> None:
@@ -218,8 +219,12 @@ def editor() -> None:
                 component_card(chosen, draft)
     with check:
         # e.g. a part that grew (more kWp, more chargers) now reaches into its neighbour
-        card_title("Layout check", "Shown before you save")
-        problems = layout.layout_problems(draft)
+        # everything "Save site" would refuse, shown while editing (data.replace_site runs
+        # the same two checks when the site is saved)
+        card_title("Check before saving", "Fix these and Save site goes through")
+        problems = (components.validate_site(draft) if draft else []) + layout.layout_problems(
+            draft
+        )
         for problem in problems:
             st.warning(problem, icon=":material/warning:")
         if draft and not problems:
@@ -230,8 +235,8 @@ def editor() -> None:
         if problems:
             status.error("Not saved yet:\n\n" + "\n".join(f"- {p}" for p in problems))
         else:
-            del st.session_state[DRAFT]
             st.session_state["site_saved"] = SAVED[where]  # shown after the rerun below
+            start_editing(draft)  # keep working on the site just saved, not a blank one
             st.rerun()
 
 

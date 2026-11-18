@@ -154,3 +154,24 @@ def test_validate_site_wants_whole_hours_and_chargers():
     ]
     whole = C.new_component("ev_charger", "Chargers", {"hours": 3.0, "count": 2.0})
     assert C.validate_site([whole]) == []
+
+
+def test_unique_names_numbers_repeats_and_fills_missing_names():
+    site = [
+        C.new_component("pv_field", "Solar field"),
+        C.new_component("pv_field", "solar field "),
+        C.new_component("battery", "  "),
+        C.new_component("pv_field", "Solar field"),
+    ]
+    names = [c.name for c in C.unique_names(site)]
+    assert names == ["Solar field", "solar field 2", "Battery storage", "Solar field 3"]
+    assert C.validate_site(C.unique_names(site)) == []
+    assert [c.name for c in site][0] == "Solar field"  # the originals are not changed
+
+
+def test_validate_site_ignores_settings_that_are_not_sizes_or_hours():
+    """A part saved earlier may carry other settings; only its own sizes and hours count."""
+    old = C.new_component("battery", "Battery", {"note": "left of the gate", "col": 3, "row": 4})
+    assert C.validate_site([old]) == []
+    broken = C.new_component("battery", "Battery", {"kwh": "lots"})
+    assert C.validate_site([broken]) == ["Battery: every size and hour must be a number"]

@@ -168,6 +168,9 @@ def test_without_a_database_the_edited_site_is_kept_in_the_tab(fake_db, monkeypa
     click(at, "Save site")
     assert replaced == []
     assert [c.name for c in at.session_state["components_local_business"]] == ["Cold store"]
+    # the editor keeps showing the site just saved, not a blank one
+    assert [c.name for c in at.session_state["site_draft"]] == ["Cold store"]
+    assert not any("Your site is empty" in i.value for i in at.info)
 
 
 def test_edit_site_is_only_for_the_business_portal(fake_db, monkeypatch):
@@ -201,3 +204,38 @@ def test_saving_a_site_is_refused_for_a_home_account(fake_db, monkeypatch):
     where, problems = data.replace_site([battery])
     assert where is None and problems == ["Edit site is part of the Business portal."]
     assert replaced == []
+
+
+def test_a_saved_site_with_repeated_names_can_be_moved_and_saved(fake_db, monkeypatch):
+    """The live bug: a site saved on Site & components (two parts with one name, an extra
+    setting) could not be saved again after moving a part in Edit site."""
+    import sys
+
+    sys.path.insert(0, str(APP.parent))  # the app's own folders (ui), as Streamlit has them
+    from ui import layout_designer
+
+    saved_before = [
+        {"id": "pv-a", "kind": "pv_field", "name": "Solar field", "params": {"kwp": 40}},
+        {"id": "pv-b", "kind": "pv_field", "name": "Solar field", "params": {"kwp": 20}},
+        {"id": "bat", "kind": "battery", "name": "Battery", "params": {"kwh": 120, "note": "x"}},
+    ]
+    monkeypatch.setattr(
+        db,
+        "read_components",
+        lambda engine, site_id, profile="business": [
+            r | {"profile": profile} for r in saved_before
+        ],
+    )
+    events = []
+    monkeypatch.setattr(layout_designer, "show", lambda *a, **k: events[-1] if events else None)
+    at, replaced = site_editor(fake_db, monkeypatch)  # opens on the saved site
+    names = [c.name for c in at.session_state["site_draft"]]
+    assert names == ["Solar field", "Solar field 2", "Battery"]
+    battery = next(c for c in at.session_state["site_draft"] if c.kind == "battery")
+    events.append({"action": "move", "id": battery.id, "col": 20, "row": 50, "n": "1"})
+    at.run()
+    click(at, "Save site")
+    assert not at.error and len(replaced) == 1
+    profile, rows = replaced[0]
+    moved = next(r for r in rows if r["id"] == "bat")
+    assert (moved["params"]["col"], moved["params"]["row"]) == (20, 50)
