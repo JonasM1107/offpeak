@@ -6,21 +6,37 @@
 
   A two-way Streamlit component, like the sign-in helper in web/token. It is served from
   this models folder on purpose: the 3D site scene inside it loads the Blender models as
-  files from here, so the browser downloads each one once instead of with every change.
+  files from here.
 
-  Python sends {html, scene_key, squares, selected, height}. When `scene_key` changes (a part was added
-  or removed, or a size changed) the scene is drawn again from `html`. Otherwise only the
-  parts are moved to their squares, so a drag does not redraw the whole site. The scene
-  calls offpeakEdit(action) for every drag, drop and tap; this frame sends it to Python.
+  Python sends {html, scene_key, squares, selected, height}. When `scene_key` changes (a
+  part was added or removed, or a size changed) a new scene is drawn from `html`. Otherwise
+  only the parts are moved to their squares, so a drag does not redraw the whole site.
+
+  Redrawing is kept quick and never black:
+  - the model files are fetched once and kept here (offpeakModel), so a new scene does not
+    download them again;
+  - the new scene is built in a hidden frame while the old one stays on screen; when the
+    new one has drawn its first picture (offpeakReady) it is shown and the old one is
+    freed (offpeakDispose), because browsers allow only a few 3D surfaces at a time.
+
+  The scene calls offpeakEdit(action) for every drag, drop and tap; this frame sends it
+  to Python.
 -->
-<style>html, body { margin: 0; background: transparent; } iframe { border: 0; width: 100%; display: block; }</style>
+<style>
+  html, body { margin: 0; background: transparent; }
+  .wrap { position: relative; }
+  iframe { border: 0; width: 100%; display: block; }
+  iframe.next { position: absolute; inset: 0; visibility: hidden; }
+  .busy { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); z-index: 2; display: none; font: 500 12px/1 Inter, system-ui, sans-serif; color: #77726A; background: rgba(255, 255, 255, .92); border: 1px solid #ECE9E4; border-radius: 10px; padding: 7px 10px; }
+  .busy.on { display: block; }
+</style>
 </head>
 <body>
-<iframe id="scene" title="Site layout designer"></iframe>
+<div class="wrap" id="wrap"><div class="busy" id="busy">Updating the site…</div></div>
 <script>
 const send = (type, extra) => window.parent.postMessage({ isStreamlitMessage: true, type, ...extra }, '*');
-const frame = document.getElementById('scene');
-let shownKey = null;
+const wrap = document.getElementById('wrap'), busy = document.getElementById('busy');
+let shown = null, pending = null, shownKey = null, last = null;
 
 // one action from the scene; n makes each one new (Streamlit repeats the last value on reruns)
 window.offpeakEdit = action => send('streamlit:setComponentValue', {
@@ -28,16 +44,44 @@ window.offpeakEdit = action => send('streamlit:setComponentValue', {
   dataType: 'json',
 });
 
+// model files, fetched once for every scene this frame shows
+const models = {};
+window.offpeakModel = name => (models[name] ??= fetch(`${name}.glb`).then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null))
+  .then(buf => (buf ? buf.slice(0) : null));  // a copy: the 3D loader may keep the one it gets
+
+// a new scene has drawn its first picture: show it, free the one it replaces
+window.offpeakReady = sceneWindow => {
+  if (!pending || pending.contentWindow !== sceneWindow) return;
+  const old = shown;
+  shown = pending; pending = null;
+  shown.classList.remove('next');
+  busy.classList.remove('on');
+  if (old) { try { old.contentWindow.offpeakDispose(); } catch (err) { /* already gone */ } old.remove(); }
+  if (last) apply(last);  // anything Python decided while the scene was being built
+};
+
+function apply(a) {
+  try { shown.contentWindow.offpeakApply({ squares: a.squares, selected: a.selected }); } catch (err) { /* still loading */ }
+}
+
+function draw(a) {
+  if (pending) { try { pending.contentWindow.offpeakDispose(); } catch (err) { /* not started */ } pending.remove(); }
+  pending = document.createElement('iframe');
+  pending.title = 'Site layout designer';
+  pending.style.height = a.height + 'px';
+  if (shown) { pending.className = 'next'; busy.classList.add('on'); }
+  wrap.appendChild(pending);
+  pending.srcdoc = a.html;  // relative model URLs resolve against this folder
+  // the very first scene is shown at once: it has its own "Loading your site…" note
+  if (!shown) { shown = pending; pending = null; }
+}
+
 window.addEventListener('message', e => {
   if (e.source !== window.parent || !e.data || e.data.type !== 'streamlit:render') return;
   const a = e.data.args;
-  frame.style.height = a.height + 'px';
-  if (a.scene_key !== shownKey) {
-    shownKey = a.scene_key;
-    frame.srcdoc = a.html;  // relative model URLs resolve against this folder
-  } else {
-    try { frame.contentWindow.offpeakApply({ squares: a.squares, selected: a.selected }); } catch (err) { /* still loading */ }
-  }
+  last = a;
+  if (a.scene_key !== shownKey) { shownKey = a.scene_key; draw(a); }
+  else apply(a);
   send('streamlit:setFrameHeight', { height: a.height });
 });
 send('streamlit:componentReady', { apiVersion: 1 });

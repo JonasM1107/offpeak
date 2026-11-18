@@ -35,6 +35,7 @@
   .parts.trash { background: #FDECEC; border-color: #D64545; }
   .parts.trash .bin { display: block; }
   .parts.trash .list, .parts.trash h4, .parts.trash .hint { display: none; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; z-index: 2; pointer-events: none; }
   .drag-tag { position: fixed; pointer-events: none; z-index: 9; display: none; background: var(--ink); color: #fff; border-radius: 9px; padding: 5px 9px; font-size: 12px; font-weight: 500; transform: translate(14px, 14px); white-space: nowrap; }
 
   /* 3D stage */
@@ -279,11 +280,17 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // ── Renderer, camera, light ────────────────────────────────────────────────
 const view = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, D.edit ? 1.5 : 2));  // the designer: a little lighter
 renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 view.appendChild(renderer.domElement);
+if (D.edit) {
+  // the designer: until the first picture is drawn the canvas would be black, so it stays
+  // hidden behind a short note while the models load (see the edit block below)
+  renderer.domElement.style.opacity = '0';
+  view.insertAdjacentHTML('beforeend', '<div class="loading" id="loading">Loading your site…</div>');
+}
 const labels = new CSS2DRenderer();
 Object.assign(labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
 view.appendChild(labels.domElement);
@@ -332,7 +339,7 @@ function beforeToneMapping(target) {
 // each object, which makes the model read as solid. If the browser cannot do it, the
 // scene is drawn as before.
 let composer = null, ao = null;
-try {
+if (!D.edit) try {  // not in the designer: it is a plan view, and every redraw must be quick
   composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
   composer.setPixelRatio(Math.min(devicePixelRatio, 2));
   composer.addPass(new RenderPass(scene, camera));
@@ -405,7 +412,11 @@ async function loadModels(models, names) {
   const loader = new GLTFLoader(), out = {};
   // inline (base64) as in the site view, or by name as files next to the page: the layout
   // designer is served from the models folder, so the browser loads each file only once
-  const files = names ? await Promise.all(names.map(n => fetch(`${n}.glb`).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null))) : null;
+  // the designer's frame (models/index.html) keeps the files it fetched once, so a redraw
+  // after adding a part does not download all models again
+  const fetchModel = n => fetch(`${n}.glb`).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null);
+  const getModel = n => { try { return window.parent.offpeakModel ? window.parent.offpeakModel(n) : fetchModel(n); } catch (err) { return fetchModel(n); } };
+  const files = names ? await Promise.all(names.map(getModel)) : null;
   const sources = names ? names.map((n, i) => [n, files[i]]) : Object.entries(models || {});
   for (const [name, data] of sources) {
     try {
@@ -1418,6 +1429,21 @@ if (D.edit) {
   window.offpeakScreenOf = (x, z) => {
     const v = new THREE.Vector3(x, 0, z).project(camera), b = renderer.domElement.getBoundingClientRect();
     return [b.left + (v.x + 1) / 2 * b.width, b.top + (1 - v.y) / 2 * b.height];
+  };
+
+  // first picture drawn: show the canvas, tell the designer's frame this scene is ready
+  // (it then swaps it in and frees the previous one)
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    renderer.domElement.style.transition = 'opacity .25s'; renderer.domElement.style.opacity = '1';
+    document.getElementById('loading')?.remove();
+    try { window.parent.offpeakReady && window.parent.offpeakReady(window); } catch (err) { /* not inside the designer */ }
+  }));
+  // free the 3D drawing surface when this scene is replaced: browsers allow only a few at a
+  // time, and a page that keeps old ones ends up with black ones
+  window.offpeakDispose = () => {
+    renderer.setAnimationLoop(null);
+    renderer.dispose();
+    renderer.forceContextLoss();
   };
 
   // after Python decided: put every part on its square and select the part it names

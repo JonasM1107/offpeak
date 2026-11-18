@@ -168,6 +168,9 @@ def test_without_a_database_the_edited_site_is_kept_in_the_tab(fake_db, monkeypa
     click(at, "Save site")
     assert replaced == []
     assert [c.name for c in at.session_state["components_local_business"]] == ["Cold store"]
+    # the editor keeps showing the site just saved, not a blank one
+    assert [c.name for c in at.session_state["site_draft"]] == ["Cold store"]
+    assert not any("Your site is empty" in i.value for i in at.info)
 
 
 def test_edit_site_is_only_for_the_business_portal(fake_db, monkeypatch):

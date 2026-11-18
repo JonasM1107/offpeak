@@ -75,9 +75,13 @@ def site_info() -> dict:
 
 
 def scene_data(site_comps) -> dict:
-    """The layout designer's scene for the draft (planned fresh: the draft changes)."""
+    """The layout designer's scene for the draft. The day is planned once per set of parts
+    (data.site_day keeps it): where a part stands does not change the plan, so moving or
+    tapping a part costs no new planning (about 0.8 s each before)."""
     inputs, tariff = scene_inputs(site_comps)
-    return site_scene.payload(inputs, site_info(), hour_now, tariff, site_comps, edit=True)
+    unplaced = [layout.without_position(c) for c in site_comps]
+    day = data.site_day(inputs, data.setup_key(unplaced), data.role())
+    return site_scene.payload(inputs, site_info(), hour_now, tariff, site_comps, day=day, edit=True)
 
 
 def start_editing(start_from) -> None:
@@ -231,8 +235,8 @@ def editor() -> None:
         if problems:
             status.error("Not saved yet:\n\n" + "\n".join(f"- {p}" for p in problems))
         else:
-            del st.session_state[DRAFT]
             st.session_state["site_saved"] = SAVED[where]  # shown after the rerun below
+            start_editing(draft)  # keep working on the site just saved, not a blank one
             st.rerun()
 
 
