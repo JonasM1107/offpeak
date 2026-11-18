@@ -381,9 +381,9 @@ MAX_NAME = 60
 WHOLE = ("hours", "earliest", "latest_end", "usual_start", "count")
 
 
-def next_name(kind: str, components) -> str:
+def next_name(kind: str, components, profile: str = "business") -> str:
     """A name for a new component that is not taken yet: "Heat pump", then "Heat pump 2"."""
-    label = CATALOGUE[kind].label
+    label = CATALOGUES[profile][kind].label
     taken = {c.name.strip().casefold() for c in components}  # as validate_site compares
     if label.casefold() not in taken:
         return label
@@ -402,7 +402,8 @@ def unique_names(components) -> list[Component]:
     something the user never changed."""
     out, taken = [], set()
     for c in components:
-        label = CATALOGUE[c.kind].label if c.kind in CATALOGUE else "Component"
+        catalogue = CATALOGUES.get(c.profile, CATALOGUE)
+        label = catalogue[c.kind].label if c.kind in catalogue else "Component"
         base = (c.name or "").strip() or label
         name, n = base, 2
         while name.casefold() in taken:  # "Solar field" taken: try "Solar field 2", 3, ...
@@ -430,7 +431,7 @@ def validate_site(components) -> list[str]:
     for i, c in enumerate(components, start=1):
         name = (c.name or "").strip()
         who = name or f"Component {i}"
-        if c.kind not in CATALOGUE:
+        if c.kind not in CATALOGUES.get(c.profile, {}):  # each profile its own catalogue
             problems.append(f"{who}: unknown type")
             continue
         if not name:
@@ -449,7 +450,7 @@ def validate_site(components) -> list[str]:
         except (TypeError, ValueError):
             problems.append(f"{who}: every size and hour must be a number")
             continue
-        problems += [f"{who}: {p}" for p in validate(c.kind, values)]
+        problems += [f"{who}: {p}" for p in validate(c.kind, values, c.profile)]
         # the energy model plans in whole hours (and whole chargers): 2.5 h would quietly
         # become 2 h, so say so instead
         fractions = [p.label for p in c.spec.params if p.key in WHOLE and values.get(p.key, 0) % 1]

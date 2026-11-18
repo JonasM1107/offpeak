@@ -103,7 +103,7 @@ def payload(
     out = {
         "site": site,
         "compact": compact or edit,
-        "edit": editor_data(comps) if edit else None,
+        "edit": editor_data(comps, profile) if edit else None,
         "hour_now": hour_now,
         "real": {
             "price": bool(inputs["price_real"].all()),
@@ -163,19 +163,32 @@ ROLES = (
 )
 
 
-def editor_data(comps) -> dict:
+def editor_data(comps, profile: str = "business") -> dict:
     """What the layout designer draws and checks while dragging: the grid, the fixed
-    things, every part's footprint and square, and the parts list (the business
-    catalogue: the designer is part of the Business portal). All numbers come from
-    offpeak/layout.py, which also has the final say on every action."""
+    things, every part's footprint and square, and the parts list (the profile's own
+    catalogue). All numbers come from offpeak/layout.py, which also has the final say on
+    every action."""
+    plot = layout.plot_for(profile)
+    catalogue = site_components.CATALOGUES[profile]
+    building = plot.fixed[plot.building]
     return {
         "grid": layout.GRID,
-        "cell": layout.CELL_M,
-        "size": layout.SIZE_M,
-        "fence": layout.FENCE_M,
-        "fixed": [list(rect) for _, rect in layout.FIXED.values()],
-        "hall": list(layout.FIXED["hall"][1]),
-        "roof": sorted(layout.ON_ROOF),
+        "cell": plot.cell_m,
+        "size": plot.size_m,
+        "fence": plot.fence_m,
+        "fixed": [list(rect) for _, rect in plot.fixed.values()],
+        "building": list(building[1]),
+        "building_name": building[0].lower(),
+        "roof": sorted(plot.off_ground),  # parts that go onto (or into) the building
+        # what the parts list says about them
+        "where": {
+            k: (
+                "in the house"
+                if k in ("appliance", "household")
+                else f"on the {building[0].lower()} roof"
+            )
+            for k in plot.off_ground
+        },
         "roles": [list(r) for r in ROLES],
         "kinds": [
             {
@@ -184,9 +197,11 @@ def editor_data(comps) -> dict:
                 "role": k.role,
                 "description": k.description,
                 # the footprint of a new part, with the kind's typical values
-                "rect": list(layout.footprint(site_components.new_component(k.key, k.label))),
+                "rect": list(
+                    layout.footprint(site_components.new_component(k.key, k.label, profile=profile))
+                ),
             }
-            for k in site_components.CATALOGUE.values()
+            for k in catalogue.values()
         ],
         "rects": {c.id: list(layout.footprint(c)) for c in comps},
         "squares": squares(comps),
@@ -198,6 +213,6 @@ def squares(comps) -> dict[str, list[int]]:
     out = {}
     for c in comps:
         pos = layout.position(c)
-        if pos is not None and c.kind not in layout.ON_ROOF:
+        if pos is not None and layout.on_ground(c):
             out[c.id] = list(pos)
     return out

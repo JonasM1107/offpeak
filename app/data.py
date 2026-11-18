@@ -240,9 +240,8 @@ def add_component(new: components.Component) -> str:
     profile, here = role(), site()
     components.check_profile([new], profile)
     current, source = site_components()
-    if profile == "business":  # a free square on the site, so the designer and the 3D view
-        # show it where it stays (homes have no site plan)
-        new = next(c for c in layout.auto_place([*current, new]) if c.id == new.id)
+    # a free square on the site, so the designer and the 3D view show it where it stays
+    new = next(c for c in layout.auto_place([*current, new]) if c.id == new.id)
     if not can_share():
         st.session_state[_local_key(profile)] = [*current, new]
         return "local" if engine() else "session"
@@ -281,9 +280,7 @@ def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]
     if the page were tricked into calling it. Like adding and removing, only a signed-in
     editor changes the shared site; anyone else keeps the new site in this browser tab."""
     profile, here = role(), site()
-    if profile != "business":
-        return None, ["Edit site is part of the Business portal."]
-    try:
+    try:  # only parts of the signed-in role's own catalogue, whatever the page sent
         components.check_profile(new, profile)
     except ValueError as err:
         return None, [str(err)]

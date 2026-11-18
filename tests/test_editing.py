@@ -213,10 +213,21 @@ def test_without_a_database_the_site_is_kept_in_the_tab(fake_db, monkeypatch):
     assert "Cold store" in [c.name for c in at.session_state["components_local_business"]]
 
 
-def test_a_home_has_no_site_designer(fake_db, monkeypatch):
-    at, replaced, events = site_designer(fake_db, monkeypatch, role="home")
-    act(at, events, action="add", kind="heat_pump")
-    assert replaced == [] and "card_designer" not in str(at.main)
+def test_a_home_moves_its_wallbox_and_it_is_saved(fake_db, monkeypatch):
+    """The homeowner lays out the plot too: the carport with the wallbox moves."""
+    wallbox = {"id": "wb", "kind": "ev_charger", "name": "Wallbox", "params": {"kw": 11}}
+    at, replaced, events = site_designer(fake_db, monkeypatch, role="home", saved=[wallbox])
+    act(at, events, action="move", id="wb", col=14, row=40)  # in the garden, west
+    profile, rows = replaced[-1]
+    assert profile == "home"
+    assert (rows[0]["params"]["col"], rows[0]["params"]["row"]) == (14, 40)
+
+
+def test_a_home_cannot_put_the_carport_on_the_house(fake_db, monkeypatch):
+    wallbox = {"id": "wb", "kind": "ev_charger", "name": "Wallbox", "params": {"kw": 11}}
+    at, replaced, events = site_designer(fake_db, monkeypatch, role="home", saved=[wallbox])
+    act(at, events, action="move", id="wb", col=27, row=26)  # the middle of the house
+    assert replaced == [] and any("on the house" in w.value for w in at.warning)
 
 
 def test_the_site_view_itself_has_no_editor(fake_db, monkeypatch):
@@ -227,8 +238,9 @@ def test_the_site_view_itself_has_no_editor(fake_db, monkeypatch):
     assert not any(b.label in ("Edit site", "Save site") for b in at.button)
 
 
-def test_saving_a_site_is_refused_for_a_home_account(fake_db, monkeypatch):
-    """The check sits where the site is saved (data.replace_site), not only on the page."""
+def test_a_home_cannot_save_a_business_machine(fake_db, monkeypatch):
+    """The check sits where the site is saved (data.replace_site), not only on the page:
+    each role saves only parts of its own catalogue."""
     import sys
 
     sys.path.insert(0, str(APP.parent))
@@ -239,10 +251,9 @@ def test_saving_a_site_is_refused_for_a_home_account(fake_db, monkeypatch):
     monkeypatch.setattr(data, "role", lambda: "home")
     replaced = []
     monkeypatch.setattr(db, "replace_components", lambda *a, **k: replaced.append(a))
-    battery = components.new_component("battery", "Battery")
-    where, problems = data.replace_site([battery])
-    assert where is None and problems == ["Edit site is part of the Business portal."]
-    assert replaced == []
+    store = components.new_component("cold_store", "Cold store")  # a business machine
+    where, problems = data.replace_site([store])
+    assert where is None and problems and replaced == []
 
 
 def test_a_saved_site_with_repeated_names_can_be_moved(fake_db, monkeypatch):

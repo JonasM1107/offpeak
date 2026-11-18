@@ -421,8 +421,10 @@ async function loadModels(models, names) {
   for (const [name, data] of sources) {
     try {
       if (!data) throw new Error('missing');
-      // inline models are gzip-compressed by Python; files are plain .glb
-      const glb = typeof data !== 'string' ? data : await new Response(new Blob([Uint8Array.from(atob(data), ch => ch.charCodeAt(0))]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+      // inline models are gzip-compressed by Python; files are plain .glb. A file comes from
+      // the designer's frame, whose ArrayBuffer the 3D loader does not take for one (it
+      // checks instanceof, which fails across frames): copied into this frame's own first
+      const glb = typeof data !== 'string' ? new Uint8Array(data).slice().buffer : await new Response(new Blob([Uint8Array.from(atob(data), ch => ch.charCodeAt(0))]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
       out[name] = (await loader.parseAsync(glb, '')).scene;
     } catch (err) { console.warn(`offpeak: model ${name} not loaded, drawing the simple shape`, err); }
   }
@@ -900,7 +902,7 @@ for (const c of COMPS) {
   if (HOME && HOUSE_KINDS.has(c.kind)) { houseMembers.push(c); continue; }
   const kit = HOME ? HOME_BUILD : BUILD;
   if (!kit[c.kind]) continue;
-  const slot = (!HOME && c.pos) || slotFor(c.kind);  // the designer's square, else the automatic spot
+  const slot = c.pos || slotFor(c.kind);  // the designer's square, else the automatic spot
   if (!slot) continue;  // the island is full; the component still shows in the list
   const g = new THREE.Group(); g.position.set(slot[0], 0, slot[1]); scene.add(g); current = g;
   // only one roof: a second rooftop system is drawn as a field on the ground
@@ -937,7 +939,7 @@ if (houseMembers.length) {
 flows.__grid = HOME ? flowPath(GRID_CABINET[0] - 0.6, GRID_CABINET[1] - 0.4) : flowPath(3, -30);
 
 // ── Camera fit and focus ───────────────────────────────────────────────────
-const HOME_TARGET = HOME ? new THREE.Vector3(3, 3, -3) : new THREE.Vector3(0, 4, 0), HOME_DIR = (D.edit ? new THREE.Vector3(0.5, 1.7, 0.95) : new THREE.Vector3(0.9, 0.95, 1.15)).normalize();
+const HOME_TARGET = HOME ? (D.edit ? new THREE.Vector3(0, 0, 0) : new THREE.Vector3(3, 3, -3)) : new THREE.Vector3(0, 4, 0), HOME_DIR = (D.edit ? new THREE.Vector3(0.5, 1.7, 0.95) : new THREE.Vector3(0.9, 0.95, 1.15)).normalize();
 let homeDist = 170, placed = false;
 const goal = { target: null, dist: null };
 controls.addEventListener('start', () => { controls.autoRotate = false; goal.target = null; goal.dist = null; });
@@ -951,7 +953,8 @@ function fit() {
   camera.setViewOffset(w, h, shift, -h * 0.03, w, h);
   camera.updateProjectionMatrix();
   const vfov = THREE.MathUtils.degToRad(camera.fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * (w - 2 * shift) / h);
-  const k = HOME ? 0.42 : D.edit ? 1.18 : 1;  // the home's plot is smaller: come closer; the whole island while editing
+  // the home's plot is smaller: come closer; while editing, the whole island or plot
+  const k = HOME ? (D.edit ? 0.62 : 0.42) : D.edit ? 1.18 : 1;
   homeDist = k * Math.max(54 / Math.tan(vfov / 2), 60 / Math.tan(hfov / 2));
   controls.minDistance = homeDist * 0.2; controls.maxDistance = homeDist * 1.4;
   if (!placed) { placed = true; camera.position.copy(HOME_TARGET).addScaledVector(HOME_DIR, homeDist); controls.target.copy(HOME_TARGET); }
@@ -1351,7 +1354,7 @@ if (D.edit) {
     for (const k of kinds) {
       const n = COMPS.filter(c => c.kind === k.key).length;
       const b = document.createElement('button'); b.type = 'button'; b.className = 'part'; b.title = k.description;
-      b.innerHTML = `<span class="ico">${icon(k.key)}</span><span><b>${esc(k.label)}</b><small>${E.roof.includes(k.key) ? 'on the hall roof · ' : ''}${n} placed</small></span>`;
+      b.innerHTML = `<span class="ico">${icon(k.key)}</span><span><b>${esc(k.label)}</b><small>${E.roof.includes(k.key) ? `${E.where[k.key]} · ` : ''}${n} placed</small></span>`;
       b.addEventListener('pointerdown', e => start(e, { mode: 'new', kind: k.key, rect: k.rect, label: k.label }));
       list.appendChild(b);
     }
@@ -1377,9 +1380,9 @@ if (D.edit) {
     drag.square = p ? squareAt(p.x, p.z) : null;
     if (removing) { tag.textContent = 'Remove'; foot.visible = false; return; }
     if (!drag.square) { tag.textContent = drag.label; foot.visible = false; return; }
-    if (E.roof.includes(drag.kind)) {  // rooftop solar: only onto the hall
-      drag.ok = overlap([p.x, p.x, p.z, p.z].map((v, i) => v + (i % 2 ? 0.01 : -0.01)), E.hall);
-      tag.textContent = drag.ok ? `${drag.label} on the hall roof` : 'Only on the hall roof';
+    if (E.roof.includes(drag.kind)) {  // rooftop solar (a home's devices too): only onto the building
+      drag.ok = overlap([p.x, p.x, p.z, p.z].map((v, i) => v + (i % 2 ? 0.01 : -0.01)), E.building);
+      tag.textContent = drag.ok ? `${drag.label} ${E.where[drag.kind]}` : `Only ${E.where[drag.kind]}`;
       foot.visible = false; return;
     }
     const r = rectAt(drag.rect, ...drag.square);
@@ -1403,7 +1406,7 @@ if (D.edit) {
     if (d.mode === 'move' && (!d.square || !d.ok)) units[d.id].g.position.copy(d.from);  // back where it stood
     if (!d.square) return;
     if (d.mode === 'new') {
-      send(E.roof.includes(d.kind) ? { action: 'add', kind: d.kind, target: d.ok ? 'hall' : 'ground' } : { action: 'add', kind: d.kind, col: d.square[0], row: d.square[1] });
+      send(E.roof.includes(d.kind) ? { action: 'add', kind: d.kind, target: d.ok ? 'building' : 'ground' } : { action: 'add', kind: d.kind, col: d.square[0], row: d.square[1] });
     } else {
       if (d.ok) E.squares[d.id] = d.square;
       select(d.id, false);
