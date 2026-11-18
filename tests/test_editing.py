@@ -102,87 +102,126 @@ def test_signing_out_shows_the_login_again(fake_db):
     assert not shows_the_app(at) and cards == ["choose_home", "choose_business"]
 
 
-# ── "Edit site" on the site view ─────────────────────────────────────────────
+# ── The site designer on Site & components ───────────────────────────────────
 
 
-def site_editor(fake_db, monkeypatch, role: str = "business") -> tuple[AppTest, list]:
-    """A signed-in editor on the Edit site page; returns the app and what replace_components
-    got."""
-    replaced = []
+def site_designer(fake_db, monkeypatch, role="business", saved=()) -> tuple[AppTest, list, list]:
+    """A signed-in editor on Site & components with the site `saved` in the database.
+    Returns the app, what replace_components got, and a list: append a designer action to
+    it and run the app, as if the browser had sent it."""
+    import sys
+
+    sys.path.insert(0, str(APP.parent))  # the app's own folders (ui), as Streamlit has them
+    from ui import layout_designer
+
+    rows = [dict(r) for r in saved]
     monkeypatch.setattr(
         db,
-        "replace_components",
-        lambda e, site_id, rows, profile="business": replaced.append((profile, rows)),
+        "read_components",
+        lambda engine, site_id, profile="business": [r | {"profile": profile} for r in rows],
     )
+    replaced = []
+
+    def replace(engine, site_id, new_rows, profile="business"):
+        replaced.append((profile, new_rows))
+        rows[:] = new_rows  # what the next read gets, like the real database
+
+    monkeypatch.setattr(db, "replace_components", replace)
+    events = []
+    monkeypatch.setattr(layout_designer, "show", lambda *a, **k: events[-1] if events else None)
     at = AppTest.from_file(str(APP), default_timeout=60)
     token = auth.make_token("ann@example.com", datetime.now(UTC), SECRET, role=role)
     at.session_state["editor_token"] = token
-    at.switch_page("views/site_edit.py").run()
-    return at, replaced
+    at.switch_page("views/components.py").run()
+    assert not at.exception
+    return at, replaced, events
 
 
-def click(at: AppTest, label: str) -> None:
-    next(b for b in at.button if b.label == label).click()
+BATTERY = {"id": "bat", "kind": "battery", "name": "Battery", "params": {"kwh": 120}}
+SOLAR = {"id": "pv", "kind": "pv_field", "name": "Solar field", "params": {"kwp": 40}}
+
+
+def act(at: AppTest, events: list, **event) -> None:
+    events.append({**event, "n": str(len(events))})
     at.run()
     assert not at.exception
 
 
-def test_edit_site_starts_empty_and_saves_what_was_built(fake_db, monkeypatch):
-    at, replaced = site_editor(fake_db, monkeypatch)
-    assert any("Your site is empty" in i.value for i in at.info)
-    click(at, "Heat pump")
-    click(at, "Heat pump")  # a second one gets its own name
-    click(at, "Rooftop solar")
-    click(at, "Save site")
+def test_a_part_dragged_onto_the_site_is_saved_at_once(fake_db, monkeypatch):
+    at, replaced, events = site_designer(fake_db, monkeypatch, saved=[BATTERY])
+    act(at, events, action="add", kind="heat_pump")
     assert len(replaced) == 1
     profile, rows = replaced[0]
-    assert profile == "business"
-    assert [r["name"] for r in rows] == ["Heat pump", "Heat pump 2", "Rooftop solar"]
-    assert "Saved for everyone" in at.success[0].value
+    assert profile == "business" and [r["name"] for r in rows] == ["Battery", "Heat pump"]
+    assert all("col" in r["params"] for r in rows)  # every part has its square
+    # the table below the designer shows it right away
+    assert "Heat pump" in at.dataframe[0].value["Name"].tolist()
 
 
-def test_edit_site_does_not_save_an_empty_site_or_a_duplicate_name(fake_db, monkeypatch):
-    at, replaced = site_editor(fake_db, monkeypatch)
-    click(at, "Save site")
-    assert "Add at least one component" in at.error[0].value
-    click(at, "Battery storage")
-    click(at, "Battery storage")
-    next(t for t in at.text_input if t.value == "Battery storage 2").input("battery storage")
-    at.run()
-    click(at, "Save site")
-    assert "two components have this name" in at.error[0].value
-    assert replaced == [] and fake_db == []  # nothing reached the database
+def test_a_moved_part_keeps_its_new_square(fake_db, monkeypatch):
+    at, replaced, events = site_designer(fake_db, monkeypatch, saved=[BATTERY, SOLAR])
+    act(at, events, action="move", id="bat", col=20, row=50)
+    moved = next(r for r in replaced[-1][1] if r["id"] == "bat")
+    assert (moved["params"]["col"], moved["params"]["row"]) == (20, 50)
 
 
-def test_cancel_leaves_the_site_as_it_was(fake_db, monkeypatch):
-    at, replaced = site_editor(fake_db, monkeypatch)
-    click(at, "Wind turbine")
-    click(at, "Cancel")
-    assert replaced == [] and not any(b.label == "Save site" for b in at.button)  # left
-
-
-def test_without_a_database_the_edited_site_is_kept_in_the_tab(fake_db, monkeypatch):
-    monkeypatch.setattr(db, "database_url", lambda: None)
-    at, replaced = site_editor(fake_db, monkeypatch)
-    click(at, "Cold store")
-    click(at, "Save site")
+def test_a_move_that_does_not_fit_is_refused_and_nothing_saved(fake_db, monkeypatch):
+    at, replaced, events = site_designer(fake_db, monkeypatch, saved=[BATTERY])
+    act(at, events, action="move", id="bat", col=0, row=0)  # the corner is outside the fence
     assert replaced == []
-    assert [c.name for c in at.session_state["components_local_business"]] == ["Cold store"]
-    # the editor keeps showing the site just saved, not a blank one
-    assert [c.name for c in at.session_state["site_draft"]] == ["Cold store"]
-    assert not any("Your site is empty" in i.value for i in at.info)
+    assert any("fence" in w.value for w in at.warning)
 
 
-def test_edit_site_is_only_for_the_business_portal(fake_db, monkeypatch):
-    # a homeowner's menu has no Edit site page, so Streamlit does not open it at all
-    at, replaced = site_editor(fake_db, monkeypatch, role="home")
+def test_the_last_part_cannot_be_removed(fake_db, monkeypatch):
+    at, replaced, events = site_designer(fake_db, monkeypatch, saved=[BATTERY])
+    act(at, events, action="remove", id="bat")
+    assert replaced == []
+    assert any("Add at least one component" in w.value for w in at.warning)
+
+
+def test_a_part_added_with_the_form_gets_a_square_too(fake_db, monkeypatch):
+    """So the designer and the site view show it where it stays, not somewhere new on
+    every visit."""
+    at, _, _ = site_designer(fake_db, monkeypatch)
+    at.text_input[0].input("Test panel")
+    next(b for b in at.button if b.label == "Add to site").click()
+    at.run()
     assert not at.exception
-    assert not any(b.label == "Save site" for b in at.button) and replaced == []
+    added = next(r for r in fake_db[-1] if r["name"] == "Test panel")
+    assert "col" in added["params"] and "row" in added["params"]
+
+
+def test_size_and_hours_are_saved_when_valid(fake_db, monkeypatch):
+    at, replaced, events = site_designer(fake_db, monkeypatch, saved=[BATTERY, SOLAR])
+    act(at, events, action="select", id="bat")
+    assert replaced == []  # tapping a part changes nothing
+    next(t for t in at.text_input if t.key == "designer_bat_name").input("Solar field")
+    at.run()
+    assert replaced == []  # two parts with one name: refused
+    assert any("two components have this name" in w.value for w in at.warning)
+    next(t for t in at.text_input if t.key == "designer_bat_name").input("Big battery")
+    at.run()
+    assert [r["name"] for r in replaced[-1][1]] == ["Big battery", "Solar field"]
+
+
+def test_without_a_database_the_site_is_kept_in_the_tab(fake_db, monkeypatch):
+    at, replaced, events = site_designer(fake_db, monkeypatch, saved=[BATTERY])
+    monkeypatch.setattr(db, "database_url", lambda: None)
+    at.run()
+    act(at, events, action="add", kind="cold_store")
+    assert replaced == []
+    assert "Cold store" in [c.name for c in at.session_state["components_local_business"]]
+
+
+def test_a_home_has_no_site_designer(fake_db, monkeypatch):
+    at, replaced, events = site_designer(fake_db, monkeypatch, role="home")
+    act(at, events, action="add", kind="heat_pump")
+    assert replaced == [] and "card_designer" not in str(at.main)
 
 
 def test_the_site_view_itself_has_no_editor(fake_db, monkeypatch):
-    """The original site view stays as it was: the editor is only on its own page."""
-    at, _ = site_editor(fake_db, monkeypatch)
+    """The site view stays as it was: the designer is on Site & components only."""
+    at, _, _ = site_designer(fake_db, monkeypatch)
     at.switch_page("views/site.py").run()
     assert not at.exception
     assert not any(b.label in ("Edit site", "Save site") for b in at.button)
@@ -206,36 +245,18 @@ def test_saving_a_site_is_refused_for_a_home_account(fake_db, monkeypatch):
     assert replaced == []
 
 
-def test_a_saved_site_with_repeated_names_can_be_moved_and_saved(fake_db, monkeypatch):
-    """The live bug: a site saved on Site & components (two parts with one name, an extra
-    setting) could not be saved again after moving a part in Edit site."""
-    import sys
-
-    sys.path.insert(0, str(APP.parent))  # the app's own folders (ui), as Streamlit has them
-    from ui import layout_designer
-
-    saved_before = [
+def test_a_saved_site_with_repeated_names_can_be_moved(fake_db, monkeypatch):
+    """A site saved on Site & components before (two parts with one name, an extra setting)
+    is tidied when the designer saves it, instead of refusing the move."""
+    saved = [
         {"id": "pv-a", "kind": "pv_field", "name": "Solar field", "params": {"kwp": 40}},
         {"id": "pv-b", "kind": "pv_field", "name": "Solar field", "params": {"kwp": 20}},
         {"id": "bat", "kind": "battery", "name": "Battery", "params": {"kwh": 120, "note": "x"}},
     ]
-    monkeypatch.setattr(
-        db,
-        "read_components",
-        lambda engine, site_id, profile="business": [
-            r | {"profile": profile} for r in saved_before
-        ],
-    )
-    events = []
-    monkeypatch.setattr(layout_designer, "show", lambda *a, **k: events[-1] if events else None)
-    at, replaced = site_editor(fake_db, monkeypatch)  # opens on the saved site
-    names = [c.name for c in at.session_state["site_draft"]]
-    assert names == ["Solar field", "Solar field 2", "Battery"]
-    battery = next(c for c in at.session_state["site_draft"] if c.kind == "battery")
-    events.append({"action": "move", "id": battery.id, "col": 20, "row": 50, "n": "1"})
-    at.run()
-    click(at, "Save site")
-    assert not at.error and len(replaced) == 1
-    profile, rows = replaced[0]
+    at, replaced, events = site_designer(fake_db, monkeypatch, saved=saved)
+    act(at, events, action="move", id="bat", col=20, row=50)
+    assert len(replaced) == 1
+    rows = replaced[0][1]
+    assert [r["name"] for r in rows] == ["Solar field", "Solar field 2", "Battery"]
     moved = next(r for r in rows if r["id"] == "bat")
     assert (moved["params"]["col"], moved["params"]["row"]) == (20, 50)
