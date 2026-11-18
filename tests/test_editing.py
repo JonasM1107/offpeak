@@ -309,3 +309,13 @@ def click_button(at: AppTest, label: str) -> None:
     next(b for b in at.button if b.label == label).click()
     at.run()
     assert not at.exception
+
+
+def test_savings_says_why_when_nothing_can_be_planned(fake_db, monkeypatch):
+    """A home with only solar and a battery: no device can move, so the plan saves nothing.
+    The page says so instead of a page of zeros."""
+    solar = {"id": "pv", "kind": "pv_roof", "name": "Rooftop solar", "params": {"kwp": 6}}
+    at, _, _ = site_designer(fake_db, monkeypatch, role="home", saved=[solar])
+    at.switch_page("views/savings.py").run()
+    assert not at.exception
+    assert any("Nothing to plan yet" in i.value for i in at.info)

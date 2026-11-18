@@ -8,7 +8,7 @@ import streamlit as st
 from ui import web
 from ui.components import header
 
-from offpeak import savings
+from offpeak import components, roles, savings
 from offpeak.sites import DEMO_CITY
 from offpeak.timeutils import market_today
 
@@ -24,6 +24,16 @@ period = st.segmented_control(
 )
 n_days = 90 if period == "Last 90 days" else 30
 comps, _ = data.site_components()
+if not components.site_model(comps)[1]:  # no machine or device whose start can move
+    w = roles.words(data.role())
+    st.info(
+        f"Nothing to plan yet: this {w['site']} has no {w['machines']} that can run at another "
+        "time (a heat pump, a wallbox, a washing machine, ...), so the plan cannot save "
+        f"anything. Add one under {w['setup']}.",
+        icon=":material/info:",
+    )
+    st.page_link("views/components.py", label=w["setup"], icon=":material/add_circle:")
+    st.stop()
 
 
 setup = data.setup_key(comps)
