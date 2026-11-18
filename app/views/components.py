@@ -1,6 +1,6 @@
 """Site & components (business) or Home & devices (homeowner): what is on the signed-in
-role's site, with a form to add or remove it. A business sees its site plan first
-(ui/site_designer.py): drag and drop, saved at once, so plan, table and site view agree.
+role's site, with a form to add or remove it. The site plan comes first
+(ui/site_designer.py): drag and drop, saved at once, so plan, table and 3D view agree.
 Each role picks from its own catalogue (offpeak/components.py); app/data.py checks again
 where it is saved. Every change shows up in the site or home view's 3D model, day plan and
 fact sheets."""
@@ -19,9 +19,8 @@ w = roles.words(profile)
 catalogue = components.CATALOGUES[profile]
 header(f"{here.name} · {DEMO_CITY} · {here.zone}", w["setup"], live=True)
 comps, source = data.site_components()
-if profile == "business":
-    site_designer.show(comps)
-    st.write("")
+site_designer.show(comps)
+st.write("")
 
 with st.container(border=True, key="card_list"):
     card_title(f"In this {w['site']}", f"{len(comps)} {w['machines']}, grouped by what they do")

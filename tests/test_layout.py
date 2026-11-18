@@ -181,3 +181,53 @@ def test_odd_or_forged_actions_change_nothing(event):
     site = [at("battery", -14, 20)]
     after, _, _ = L.apply(site, event)
     assert after == site
+
+
+# ── The home's plot ──────────────────────────────────────────────────────────
+
+
+def home(kind, name=None, **params):
+    return C.new_component(kind, name or kind, params, profile="home")
+
+
+def test_the_home_plot_is_its_own():
+    plot = L.plot_for("home")
+    assert plot.size_m == 60 and "house" in plot.fixed and "street" in plot.fixed
+
+
+def test_a_homes_devices_get_a_square_near_their_usual_spot():
+    site = L.auto_place([home("battery"), home("heat_pump"), home("ev_charger")])
+    assert all(L.position(c) for c in site)
+    assert L.layout_problems(site) == []
+    battery = L.world_positions(site)[site[0].id]
+    assert abs(battery[0] - 4.4) < 2 and abs(battery[1] + 3.4) < 2  # by the east wall
+
+
+def test_rooftop_solar_and_appliances_stay_off_the_ground():
+    pv, washer = home("pv_roof"), home("appliance")
+    assert not L.on_ground(pv) and not L.on_ground(washer)
+    assert "on the roof" in L.why_not([], pv, 30, 30)
+    assert "inside the house" in L.why_not([], washer, 30, 30)
+    assert L.auto_place([pv, washer]) == [pv, washer]  # no square given
+
+
+def test_nothing_stands_on_the_house_or_the_street():
+    carport = home("ev_charger")
+    on_house = L.square_at(-4, -6, L.plot_for("home"))
+    on_street = L.square_at(0, 17, L.plot_for("home"))
+    assert "house" in L.why_not([], carport, *on_house)
+    assert "street" in L.why_not([], carport, *on_street)
+
+
+def test_designer_actions_on_a_home_make_home_parts():
+    site, picked, problem = L.apply([], {"action": "add", "kind": "heat_pump"}, "home")
+    assert problem is None and site[0].profile == "home" and picked == site[0].id
+    _, _, problem = L.apply([], {"action": "add", "kind": "cold_store"}, "home")
+    assert problem == "Unknown component type."  # a business machine
+    site, _, problem = L.apply([], {"action": "add", "kind": "appliance"}, "home")
+    assert problem is None and L.position(site[0]) is None  # into the house
+
+
+def test_a_squares_centre_is_on_its_own_plot():
+    assert L.centre(0, 0, L.plot_for("home")) == (-29.531, -29.531)
+    assert L.centre(0, 0) == (-59.062, -59.062)  # the business island, as before

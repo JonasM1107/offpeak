@@ -145,7 +145,7 @@ def show(comps) -> None:
         )
         if event and event.get("n") != st.session_state.get(SEEN):
             st.session_state[SEEN] = event.get("n")
-            new, picked, problem = layout.apply(site_comps, event)
+            new, picked, problem = layout.apply(site_comps, event, data.role())
             st.session_state[PICK] = picked
             if problem is None and new != site_comps:
                 problems = _save(new)
