@@ -241,6 +241,93 @@ def cost(
     return float(simulate(inputs, plan, assets, loads)["cost_eur"].sum())
 
 
+class QuickCost:
+    """cost() for many plans of the same day, fast.
+
+    plan_day() prices about 90 plans per day, and the Savings page replays 30 or 90 days.
+    cost() builds a pandas table per plan (simulate) and adds up the bill with pandas
+    (tariffs.bill); for 24 rows pandas spends nearly all its time on bookkeeping, about
+    7 ms per plan. Here everything that is the same for every plan (prices, own power,
+    the tariff's ct per kWh) is read out of the tables once, and each plan is then worked
+    out with plain Python numbers: the same steps as simulate() and bill(), in the same
+    order, about 50 times faster. tests/test_quick_cost.py checks that both give the same
+    euros for every plan plan_day tries."""
+
+    def __init__(self, inputs, tariff, assets, loads):
+        self.assets, self.loads, self.tariff = assets, loads, tariff
+        buy_ct = inputs["import_ct"] if "import_ct" in inputs else inputs["price_ct"]
+        sell_ct = inputs["export_ct"] if "export_ct" in inputs else EXPORT_EUR_KWH * 100
+        self.median = buy_ct.median()  # pandas' median, exactly as simulate() takes it
+        self.buy = buy_ct.tolist()
+        self.sell = pd.Series(sell_ct, index=inputs.index).tolist()
+        self.hour = inputs["hour"].tolist()
+        self.gen = [p + w for p, w in zip(inputs["pv_kw"], inputs["wind_kw"], strict=True)]
+        shape = assets.base_shape
+        self.base = [assets.cold_store_kw * (shape[h] if shape else 1.0) for h in self.hour]
+        if tariff is not None:  # what bill() reads from the price table, read once
+            from offpeak.tariffs.engine import slot_hours
+            from offpeak.tariffs.model import GROUPS
+
+            prices = inputs.reset_index(drop=True)
+            self.slot_h = slot_hours(prices["ts"])
+            self.days = len(prices) * self.slot_h / 24
+            self.group_ct = [prices[f"{g}_ct"].tolist() for g in GROUPS]
+            self.export_ct = prices["export_ct"].tolist()
+            self.period = prices["period"].tolist()
+            self.vat = 1 + tariff.vat if tariff.gross else 1.0
+            self.fixed = sum(f.eur_year for f in tariff.fixed) * self.days / 365 * self.vat
+
+    def grid(self, plan: Plan) -> list[float]:
+        """grid_kw per hour, step by step as in simulate()."""
+        a = self.assets
+        soc_kwh = a.battery_kwh / 2
+        out = []
+        for i, h in enumerate(self.hour):
+            load = self.base[i] + sum(
+                f.kw if plan.starts[f.key] <= h < plan.starts[f.key] + f.hours else 0.0
+                for f in self.loads
+            )
+            gen = self.gen[i]
+            battery = 0.0
+            if gen > load:
+                battery = min(gen - load, a.battery_kw, a.battery_kwh - soc_kwh)
+            elif plan.smart_battery and self.buy[i] > self.median:
+                battery = -min(load - gen, a.battery_kw, soc_kwh)
+            soc_kwh += battery
+            out.append(load - gen + battery)
+        return out
+
+    def __call__(self, plan: Plan) -> float:
+        grid = self.grid(plan)
+        if self.tariff is None:  # simulate()'s cost_eur, summed
+            return sum(
+                g * (b if g > 0 else s) / 100
+                for g, b, s in zip(grid, self.buy, self.sell, strict=True)
+            )
+        # bill(): energy, grid, levies and tax per bought kWh, demand charges, fixed
+        # charges, minus what exported kWh earn
+        bought = [max(g, 0.0) for g in grid]
+        sold = [max(-g, 0.0) for g in grid]
+        total = sum(
+            sum(b * self.slot_h * ct for b, ct in zip(bought, cts, strict=True)) / 100
+            for cts in self.group_ct
+        )
+        demand = 0.0
+        for d in self.tariff.demand:
+            if d.basis == "peak":
+                kw = max(bought) if bought else 0.0
+            elif d.basis.startswith("period:"):
+                name = d.basis.split(":", 1)[1]
+                inside = [b for b, p in zip(bought, self.period, strict=True) if p == name]
+                kw = sum(inside) / len(inside) if inside else 0.0
+            else:
+                raise ValueError(f"unknown demand basis {d.basis!r}")
+            demand += max(kw, 0.0) * d.eur_per_kw_year * self.days / 365
+        total += demand * self.vat + self.fixed
+        total -= sum(s * self.slot_h * ct for s, ct in zip(sold, self.export_ct, strict=True)) / 100
+        return total
+
+
 def plan_day(
     inputs: pd.DataFrame,
     tariff: Tariff | None = None,
@@ -255,8 +342,12 @@ def plan_day(
     usual = usual_plan(loads)
     best = usual
 
+    quick = QuickCost(inputs, tariff, assets, loads)  # same euros as cost(), much faster
+
     def price(p: Plan) -> float:
-        return cost(inputs, p, tariff, assets, loads)
+        # rounded to a millionth of a cent: two starts that cost the same must stay equal,
+        # whatever order the sums were added in, so the earlier start keeps winning
+        return round(quick(p), 8)
 
     for smart in (False, True):
         starts = dict(usual.starts)

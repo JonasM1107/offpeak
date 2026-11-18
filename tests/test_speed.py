@@ -1,5 +1,5 @@
-"""Faster page changes: compressed answers, the site view's day planned once, the 90-day
-savings replay prepared in the background."""
+"""Faster page changes: compressed answers, the site view's day planned once, only the
+30-day savings replay in the background."""
 
 import sys
 import tomllib
@@ -65,9 +65,10 @@ def test_a_home_keeps_its_day_under_the_household_tariff(inputs):
     assert kept == C.site_day(inputs, comps, tariff_for("home", comps))
 
 
-def test_the_dashboards_replay_also_prepares_90_days(monkeypatch):
-    """The background replay the dashboard starts (30 days) goes on with the 90 days the
-    Savings page offers, so that click finds them ready."""
+def test_the_dashboards_replay_runs_only_the_30_days(monkeypatch):
+    """The dashboard's background replay does the 30 days it shows, nothing more: a longer
+    run in the background slowed down every page meanwhile (Python works on one thing at a
+    time), and the 90 days now take a few seconds when asked for."""
     import threading
 
     import data
@@ -83,7 +84,7 @@ def test_the_dashboards_replay_also_prepares_90_days(monkeypatch):
     data._RUNNING.clear()
     data._FAILED.clear()
     assert data.saved_recently(30) == (None, "running")
-    assert asked == [30, 90]
+    assert asked == [30]
 
 
 class _Ran:
