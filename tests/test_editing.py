@@ -275,3 +275,26 @@ def test_a_failed_save_says_why(fake_db, monkeypatch):
         "could not be saved right now (RuntimeError: something the database said)" in w.value
         for w in at.warning
     )
+
+
+def test_clear_field_starts_empty_and_the_first_part_replaces_the_site(fake_db, monkeypatch):
+    at, replaced, events = site_designer(fake_db, monkeypatch, saved=[BATTERY, SOLAR])
+    click_button(at, "Clear field")
+    assert replaced == []  # an empty site is never saved: the old one stays until then
+    assert any("Empty field" in i.value for i in at.info)
+    act(at, events, action="add", kind="heat_pump", col=40, row=40)
+    assert [r["name"] for r in replaced[-1][1]] == ["Heat pump"]
+    assert not any("Empty field" in i.value for i in at.info)  # back to the saved site
+
+
+def test_back_to_the_saved_site_leaves_it_as_it_was(fake_db, monkeypatch):
+    at, replaced, _ = site_designer(fake_db, monkeypatch, saved=[BATTERY])
+    click_button(at, "Clear field")
+    click_button(at, "Back to the saved site")
+    assert replaced == [] and any(b.label == "Clear field" for b in at.button)
+
+
+def click_button(at: AppTest, label: str) -> None:
+    next(b for b in at.button if b.label == label).click()
+    at.run()
+    assert not at.exception

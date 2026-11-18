@@ -23,6 +23,10 @@ from ui.components import card_title
 PICK = "designer_pick"  # the part whose size and hours are shown under the designer
 SEEN = "designer_seen"  # the last designer action already handled
 MESSAGE = "designer_message"  # why the last action was refused, shown after the rerun
+# "Clear field": the designer shows an empty site to build up from scratch. An empty site
+# cannot be saved (in the database it means "never edited", which shows the demo site), so
+# the saved site stays until the first part is dragged on; that part then replaces it.
+EMPTY = "designer_empty"
 SCHEDULE_KEYS = ("hours", "earliest", "latest_end", "usual_start")
 
 
@@ -107,13 +111,31 @@ def _size_and_hours(c: components.Component, site_comps) -> None:
 
 def show(comps) -> None:
     """The designer and, under it, the picked part's size and hours."""
-    site_comps = on_the_grid(comps)
+    empty = bool(st.session_state.get(EMPTY))
+    site_comps = [] if empty else on_the_grid(comps)
     with st.container(border=True, key="card_designer"):
         card_title(
             "Site layout",
             "Drag parts from the list onto the squares, move them, tap one to set its size "
             "and hours. Every change is saved at once and shows up in the site view.",
         )
+        if empty:
+            st.info(
+                "Empty field: drag your parts on. The first one you drop replaces the saved "
+                "site; until then the site view keeps showing the old one.",
+                icon=":material/crop_free:",
+            )
+            if st.button("Back to the saved site", icon=":material/undo:"):
+                del st.session_state[EMPTY]
+                st.rerun()
+        elif st.button(
+            "Clear field",
+            icon=":material/crop_free:",
+            help="Start from an empty site and drag everything on again",
+        ):
+            st.session_state[EMPTY] = True
+            st.session_state[PICK] = None
+            st.rerun()
         if MESSAGE in st.session_state:  # what the last drag or drop could not do
             st.warning(st.session_state.pop(MESSAGE), icon=":material/info:")
         # The designer reports one action at a time; offpeak/layout.py decides if it is
@@ -128,6 +150,8 @@ def show(comps) -> None:
             if problem is None and new != site_comps:
                 problems = _save(new)
                 problem = " · ".join(problems) if problems else None
+                if not problems:
+                    st.session_state.pop(EMPTY, None)  # the new site is saved: show it
             if problem:
                 st.session_state[MESSAGE] = problem
             st.rerun()
