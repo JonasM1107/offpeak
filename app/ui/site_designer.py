@@ -58,7 +58,9 @@ def _scene(site_comps) -> dict:
         "date": market_today().isoformat(),
     }
     hour_now = data.now_utc().tz_convert(MARKET_TZ).hour
-    return site_scene.payload(inputs, site, hour_now, tariff, site_comps, day=day, edit=True)
+    return site_scene.payload(
+        inputs, site, hour_now, tariff, site_comps, day=day, edit=True, profile=data.role()
+    )
 
 
 def _save(new) -> list[str]:

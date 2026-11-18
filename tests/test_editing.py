@@ -319,3 +319,21 @@ def test_savings_says_why_when_nothing_can_be_planned(fake_db, monkeypatch):
     at.switch_page("views/savings.py").run()
     assert not at.exception
     assert any("Nothing to plan yet" in i.value for i in at.info)
+
+
+def test_clear_field_at_home_shows_the_home_plot(fake_db, monkeypatch):
+    """An empty field has no part to tell whose plot it is: the home must keep its own
+    plot (houses, street), not get the business island."""
+    import sys
+
+    sys.path.insert(0, str(APP.parent))
+    from ui import layout_designer
+
+    battery = {"id": "b", "kind": "battery", "name": "Home battery", "params": {"kwh": 8}}
+    at, _, _ = site_designer(fake_db, monkeypatch, role="home", saved=[battery])
+    shown = []  # what the designer is given to draw (after the helper's own stand-in)
+    monkeypatch.setattr(layout_designer, "show", lambda data, *a, **k: shown.append(data))
+    click_button(at, "Clear field")
+    scene = shown[-1]
+    assert scene["profile"] == "home" and scene["edit"]["size"] == 60
+    assert [k["key"] for k in scene["edit"]["kinds"]][0] == "pv_roof"  # the home's parts list
