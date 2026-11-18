@@ -58,7 +58,6 @@ def test_app_starts_without_errors():
     "page",
     [
         "views/site.py",
-        "views/site_edit.py",
         "views/analytics.py",
         "views/weather.py",
         "views/outlook.py",

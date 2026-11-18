@@ -240,6 +240,9 @@ def add_component(new: components.Component) -> str:
     profile, here = role(), site()
     components.check_profile([new], profile)
     current, source = site_components()
+    if profile == "business":  # a free square on the site, so the designer and the 3D view
+        # show it where it stays (homes have no site plan)
+        new = next(c for c in layout.auto_place([*current, new]) if c.id == new.id)
     if not can_share():
         st.session_state[_local_key(profile)] = [*current, new]
         return "local" if engine() else "session"
