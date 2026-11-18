@@ -531,13 +531,6 @@ def saved_recently(n_days: int = 30) -> tuple[dict | None, str]:
         finally:
             with _LOCK:
                 _RUNNING.discard(key)
-        if n_days == 30 and key not in _FAILED:
-            # then the 90 days the Savings page also offers, so that click does not wait
-            # half a minute: it reuses the cache savings_replay fills
-            try:
-                savings_replay(end, 90, key[2])
-            except Exception as err:
-                print(f"offpeak: background 90-day savings replay failed: {err}")
 
     threading.Thread(target=work, daemon=True).start()
     return None, "running"
