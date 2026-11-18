@@ -106,7 +106,8 @@ def test_signing_out_shows_the_login_again(fake_db):
 
 
 def site_editor(fake_db, monkeypatch, role: str = "business") -> tuple[AppTest, list]:
-    """A signed-in editor on the site view; returns the app and what replace_components got."""
+    """A signed-in editor on the Edit site page; returns the app and what replace_components
+    got."""
     replaced = []
     monkeypatch.setattr(
         db,
@@ -116,7 +117,7 @@ def site_editor(fake_db, monkeypatch, role: str = "business") -> tuple[AppTest, 
     at = AppTest.from_file(str(APP), default_timeout=60)
     token = auth.make_token("ann@example.com", datetime.now(UTC), SECRET, role=role)
     at.session_state["editor_token"] = token
-    at.switch_page("views/site.py").run()
+    at.switch_page("views/site_edit.py").run()
     return at, replaced
 
 
@@ -128,7 +129,6 @@ def click(at: AppTest, label: str) -> None:
 
 def test_edit_site_starts_empty_and_saves_what_was_built(fake_db, monkeypatch):
     at, replaced = site_editor(fake_db, monkeypatch)
-    click(at, "Edit site")
     assert any("Your site is empty" in i.value for i in at.info)
     click(at, "Heat pump")
     click(at, "Heat pump")  # a second one gets its own name
@@ -138,13 +138,11 @@ def test_edit_site_starts_empty_and_saves_what_was_built(fake_db, monkeypatch):
     profile, rows = replaced[0]
     assert profile == "business"
     assert [r["name"] for r in rows] == ["Heat pump", "Heat pump 2", "Rooftop solar"]
-    assert not any(b.label == "Save site" for b in at.button)  # back in the site view
     assert "Saved for everyone" in at.success[0].value
 
 
 def test_edit_site_does_not_save_an_empty_site_or_a_duplicate_name(fake_db, monkeypatch):
     at, replaced = site_editor(fake_db, monkeypatch)
-    click(at, "Edit site")
     click(at, "Save site")
     assert "Add at least one component" in at.error[0].value
     click(at, "Battery storage")
@@ -158,16 +156,14 @@ def test_edit_site_does_not_save_an_empty_site_or_a_duplicate_name(fake_db, monk
 
 def test_cancel_leaves_the_site_as_it_was(fake_db, monkeypatch):
     at, replaced = site_editor(fake_db, monkeypatch)
-    click(at, "Edit site")
     click(at, "Wind turbine")
     click(at, "Cancel")
-    assert replaced == [] and any(b.label == "Edit site" for b in at.button)
+    assert replaced == [] and not any(b.label == "Save site" for b in at.button)  # left
 
 
 def test_without_a_database_the_edited_site_is_kept_in_the_tab(fake_db, monkeypatch):
     monkeypatch.setattr(db, "database_url", lambda: None)
     at, replaced = site_editor(fake_db, monkeypatch)
-    click(at, "Edit site")
     click(at, "Cold store")
     click(at, "Save site")
     assert replaced == []
@@ -175,13 +171,18 @@ def test_without_a_database_the_edited_site_is_kept_in_the_tab(fake_db, monkeypa
 
 
 def test_edit_site_is_only_for_the_business_portal(fake_db, monkeypatch):
+    # a homeowner's menu has no Edit site page, so Streamlit does not open it at all
     at, replaced = site_editor(fake_db, monkeypatch, role="home")
     assert not at.exception
-    assert not any(b.label == "Edit site" for b in at.button)  # no way into the editor
-    # even a draft forced into the session does not open the editor for a homeowner
-    at.session_state["site_draft"] = []
-    at.run()
     assert not any(b.label == "Save site" for b in at.button) and replaced == []
+
+
+def test_the_site_view_itself_has_no_editor(fake_db, monkeypatch):
+    """The original site view stays as it was: the editor is only on its own page."""
+    at, _ = site_editor(fake_db, monkeypatch)
+    at.switch_page("views/site.py").run()
+    assert not at.exception
+    assert not any(b.label in ("Edit site", "Save site") for b in at.button)
 
 
 def test_saving_a_site_is_refused_for_a_home_account(fake_db, monkeypatch):

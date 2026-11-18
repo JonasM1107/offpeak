@@ -50,11 +50,6 @@
   .seg button.on .d { background: var(--orange); }
   .ghost { border: 1px solid var(--line); background: rgba(255, 255, 255, .92); backdrop-filter: blur(8px); border-radius: 10px; padding: 7px 12px; font-size: 12px; color: var(--muted); }
   .ghost:hover { color: var(--ink); }
-  .actions { display: flex; gap: 8px; }
-  .ghost.edit { display: inline-flex; align-items: center; gap: 6px; color: var(--orange); border-color: var(--orange-mid); font-weight: 500; }
-  .ghost.edit:hover { background: var(--orange-soft); color: var(--orange); }
-  .ghost.edit svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .ghost.edit[hidden] { display: none; }
   .panel { position: absolute; top: 68px; right: 16px; width: 256px; background: rgba(255, 255, 255, .95); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; padding: 16px; z-index: 3; box-shadow: 0 8px 30px rgba(28, 27, 25, .06); }
   .panel .now { display: flex; justify-content: space-between; align-items: baseline; }
   .clock { font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
@@ -222,10 +217,7 @@
       <button data-plan="usual" role="tab"><span class="d"></span>Usual day</button>
       <button data-plan="measured" role="tab" id="seg-measured" hidden><span class="d"></span>Measured day</button>
     </div>
-    <div class="actions">
-      <button class="ghost" id="reset" type="button">Reset view</button>
-      <button class="ghost edit" id="edit-site" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>Edit site</button>
-    </div>
+    <button class="ghost" id="reset" type="button">Reset view</button>
   </div>
   <div class="panel">
     <div class="now"><span class="clock" id="clock">12:00</span><span class="tag" id="price-tag">normal</span></div>
@@ -262,22 +254,8 @@
 
 <script>window.OFFPEAK = __DATA__;</script>
 <script>
-// Compact mode and the "Edit site" tab, in a plain script of their own: they must work even
-// if three.js cannot be loaded from the CDN or the 3D drawing fails, because the tab is the
-// way into the editor.
-// "Edit site" presses the hidden "Edit site" button of the Streamlit page around this frame
-// (allowed: both come from the same server), which opens the editor. The tab only shows when
-// that button is there, so not in the editor's own preview.
-document.addEventListener('DOMContentLoaded', function () {
-  const D = window.OFFPEAK;
-  document.body.classList.toggle('compact', !!D.compact);
-  const editTab = document.getElementById('edit-site');
-  function streamlitEditButton() {
-    try { return window.parent !== window && window.parent.document.querySelector('.st-key-site_edit button'); } catch (err) { return null; }
-  }
-  editTab.hidden = !!D.compact || !streamlitEditButton();
-  editTab.addEventListener('click', () => { const b = streamlitEditButton(); if (b) b.click(); });
-});
+// compact (the "Edit site" designer): only the 3D stage, nothing below it
+document.addEventListener('DOMContentLoaded', () => document.body.classList.toggle('compact', !!window.OFFPEAK.compact));
 </script>
 <script type="module">
 import * as THREE from 'three';

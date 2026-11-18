@@ -58,6 +58,7 @@ def test_app_starts_without_errors():
     "page",
     [
         "views/site.py",
+        "views/site_edit.py",
         "views/analytics.py",
         "views/weather.py",
         "views/outlook.py",
@@ -154,4 +155,4 @@ def test_compact_scene_is_only_the_3d_stage():
     assert full["compact"] is False and compact["compact"] is True
     assert site_scene.height_for(compact) < site_scene.height_for(full)
     html = site_scene.render_html(compact)
-    assert 'id="edit-site"' in html and "body.compact section" in html
+    assert "body.compact section" in html
