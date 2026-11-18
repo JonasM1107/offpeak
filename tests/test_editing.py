@@ -260,3 +260,18 @@ def test_a_saved_site_with_repeated_names_can_be_moved(fake_db, monkeypatch):
     assert [r["name"] for r in rows] == ["Solar field", "Solar field 2", "Battery"]
     moved = next(r for r in rows if r["id"] == "bat")
     assert (moved["params"]["col"], moved["params"]["row"]) == (20, 50)
+
+
+def test_a_failed_save_says_why(fake_db, monkeypatch):
+    """On the live app the logs are hard to reach: the editor sees the database's reason."""
+
+    def fails(*a, **k):
+        raise RuntimeError("something the database said\nmore detail")
+
+    at, _, events = site_designer(fake_db, monkeypatch, saved=[BATTERY, SOLAR])
+    monkeypatch.setattr(db, "replace_components", fails)
+    act(at, events, action="move", id="bat", col=20, row=50)
+    assert any(
+        "could not be saved right now (RuntimeError: something the database said)" in w.value
+        for w in at.warning
+    )

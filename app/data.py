@@ -263,6 +263,15 @@ def remove_component(component_id: str) -> str:
     return "database"
 
 
+def why_not_saved(err: Exception) -> str:
+    """A short reason for a failed save, for the signed-in editor: the database's own error
+    type and the first line of its message (the password is never part of it), so a
+    failure on the live app can be understood without its logs."""
+    cause = getattr(err, "orig", None) or err  # SQLAlchemy wraps the database's error
+    first = (str(cause).strip().splitlines() or [""])[0]
+    return f"{type(cause).__name__}: {first}"[:200]
+
+
 def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]]:
     """Make the business site exactly `new` (the "Edit site" save). Returns where it went
     and the problems that stopped it (then nothing is saved).
@@ -291,8 +300,8 @@ def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]
     try:
         db.replace_components(engine(), here.id, [_as_row(c) for c in new], profile)
     except Exception as err:
-        print(f"offpeak: cannot save the edited site: {err}")
-        return None, ["The site could not be saved right now. Please try again in a minute."]
+        print(f"offpeak: cannot save the edited site: {err!r}")
+        return None, [f"The site could not be saved right now ({why_not_saved(err)})."]
     st.session_state.pop(_local_key(profile), None)
     return "database", []
 
