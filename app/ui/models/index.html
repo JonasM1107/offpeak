@@ -72,6 +72,10 @@ function draw(a) {
   if (shown) { pending.className = 'next'; busy.classList.add('on'); }
   wrap.appendChild(pending);
   pending.srcdoc = a.html;  // relative model URLs resolve against this folder
+  // if the new scene never reports ready (e.g. the 3D library could not load), show it
+  // anyway after a while instead of keeping "Updating the site…" up for ever
+  const next = pending;
+  setTimeout(() => { if (pending === next) window.offpeakReady(next.contentWindow); }, 20000);
   // the very first scene is shown at once: it has its own "Loading your site…" note
   if (!shown) { shown = pending; pending = null; }
 }
