@@ -82,6 +82,7 @@ def payload(
     day: dict | None = None,
     compact: bool = False,
     edit: bool = False,
+    profile: str | None = None,
 ) -> dict:
     """Everything the page needs: both plans for all 24 hours, per component and for the
     whole site, each plan's bill under the tariff, and every component's fact sheet.
@@ -93,7 +94,9 @@ def payload(
     designer (see editor_data); it is compact too, and the models are loaded as files
     instead of travelling inside the data on every change."""
     comps = list(comps if comps is not None else site_components.DEFAULT_COMPONENTS)
-    profile = comps[0].profile if comps else "business"  # all of a site's are one profile
+    # all of a site's components are one profile; an empty site (the designer's "Clear
+    # field") has none to ask, so the page passes the signed-in role's profile
+    profile = profile or (comps[0].profile if comps else "business")
     if day is None:
         day = site_components.site_day(inputs, comps, tariff)
     # where the layout designer put each component (metres east, south); None = automatic.
