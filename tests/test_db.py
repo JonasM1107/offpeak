@@ -199,3 +199,19 @@ def test_replace_components_never_changes_another_sites_component(engine):
     db.save_components(engine, 2, [row])
     db.replace_components(engine, 1, [row | {"name": "Taken over"}])  # same id, site 1
     assert [c["name"] for c in db.read_components(engine, 2)] == ["Their battery"]
+
+
+def test_replace_components_keeps_the_old_site_when_saving_fails(engine):
+    """Delete and save are one transaction: a failed save deletes nothing."""
+    from offpeak.components import new_component
+
+    old = new_component("battery", "Old battery")
+    db.save_components(
+        engine, 1, [{"id": old.id, "kind": old.kind, "name": old.name, "params": old.params}]
+    )
+    broken = {"id": "x", "kind": "battery", "name": None, "params": {}}  # name is required
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError):
+        db.replace_components(engine, 1, [broken])
+    assert [c["name"] for c in db.read_components(engine, 1)] == ["Old battery"]

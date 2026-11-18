@@ -194,21 +194,18 @@ def read_components(engine: Engine, site_id: int, profile: str = "business") -> 
     return [dict(r) for r in rows]
 
 
-def save_components(
-    engine: Engine, site_id: int, components: list[dict], profile: str = "business"
-) -> None:
-    """Insert or update components (dicts with id, kind, name, params). An existing row is
-    only updated if it belongs to the same site and profile: an id from another site or
-    profile is never taken over."""
-    query = text("""
-        insert into site_components (id, site_id, kind, name, params, profile)
-        values (:id, :site_id, :kind, :name, cast(:params as jsonb), :profile)
-        on conflict (id) do update set
-            kind = excluded.kind, name = excluded.name, params = excluded.params
-        where site_components.site_id = excluded.site_id
-          and site_components.profile = excluded.profile
-    """)
-    rows = [
+UPSERT_COMPONENT = text("""
+    insert into site_components (id, site_id, kind, name, params, profile)
+    values (:id, :site_id, :kind, :name, cast(:params as jsonb), :profile)
+    on conflict (id) do update set
+        kind = excluded.kind, name = excluded.name, params = excluded.params
+    where site_components.site_id = excluded.site_id
+      and site_components.profile = excluded.profile
+""")
+
+
+def _component_rows(site_id: int, components: list[dict], profile: str) -> list[dict]:
+    return [
         {
             "id": c["id"],
             "site_id": site_id,
@@ -219,9 +216,18 @@ def save_components(
         }
         for c in components
     ]
+
+
+def save_components(
+    engine: Engine, site_id: int, components: list[dict], profile: str = "business"
+) -> None:
+    """Insert or update components (dicts with id, kind, name, params). An existing row is
+    only updated if it belongs to the same site and profile: an id from another site or
+    profile is never taken over."""
+    rows = _component_rows(site_id, components, profile)
     if rows:
         with engine.begin() as conn:
-            conn.execute(query, rows)
+            conn.execute(UPSERT_COMPONENT, rows)
 
 
 def delete_component(
@@ -240,22 +246,26 @@ def delete_component(
 def replace_components(
     engine: Engine, site_id: int, components: list[dict], profile: str = "business"
 ) -> None:
-    """Make the site's components of this profile exactly this list (the "Edit site" save).
+    """Make the site's components of this profile exactly this list (the site designer's
+    save).
 
-    One transaction: if anything fails, the site keeps its old components instead of ending
-    up half old, half new. Components that stay are updated in place, so they keep their
-    place in the list (it is ordered by when each was first saved). Like save_components,
-    it never deletes or takes over a row of another site or profile."""
+    One transaction for the delete and the insert-or-update: if anything fails, the site
+    keeps its old components instead of ending up half old, half new. Components that stay
+    are updated in place, so they keep their place in the list (it is ordered by when each
+    was first saved). Like save_components, it never deletes or takes over a row of another
+    site or profile."""
+    keep = [c["id"] for c in components]
     with engine.begin() as conn:
         conn.execute(
             text("""
                 delete from site_components
                 where site_id = :s and profile = :p and not (id = any(:keep))
             """),
-            {"s": site_id, "p": profile, "keep": [c["id"] for c in components]},
+            {"s": site_id, "p": profile, "keep": keep},
         )
-    if components:
-        save_components(engine, site_id, components, profile)
+        rows = _component_rows(site_id, components, profile)
+        if rows:
+            conn.execute(UPSERT_COMPONENT, rows)
 
 
 # ── Simulation cockpit machines ─────────────────────────────────────────────
