@@ -12,7 +12,7 @@ Material masses and CO2 factors are typical values from the literature, scaled w
 component's size. They are rough estimates for a first overview, not a bill of materials.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from uuid import uuid4
 
 import pandas as pd
@@ -393,6 +393,25 @@ def next_name(kind: str, components) -> str:
     return f"{label} {n}"
 
 
+def unique_names(components) -> list[Component]:
+    """The same components, with a name for every one and no name twice: a missing name
+    becomes the kind's label, a repeated one gets a number ("Solar field 2"), like next_name.
+
+    Site & components lets two parts share a name, but saving a whole site does not, so
+    "Edit site" tidies the names when it opens a saved site instead of refusing to save
+    something the user never changed."""
+    out, taken = [], set()
+    for c in components:
+        label = CATALOGUE[c.kind].label if c.kind in CATALOGUE else "Component"
+        base = (c.name or "").strip() or label
+        name, n = base, 2
+        while name.casefold() in taken:  # "Solar field" taken: try "Solar field 2", 3, ...
+            name, n = f"{base} {n}", n + 1
+        taken.add(name.casefold())
+        out.append(replace(c, name=name, params=dict(c.params)))
+    return out
+
+
 def validate_site(components) -> list[str]:
     """Problems with a whole site before it is saved, in plain words (empty list = fine).
 
@@ -421,8 +440,12 @@ def validate_site(components) -> list[str]:
         elif name.casefold() in seen:
             problems.append(f"{who}: two components have this name")
         seen.add(name.casefold())
+        # only the kind's own sizes and hours count here: a part saved earlier (on Site &
+        # components, or by an older version) may carry other settings, and its place on the
+        # site (col, row) is checked by offpeak/layout.py
+        known = {p.key for p in c.spec.params}
         try:
-            values = {k: float(v) for k, v in c.params.items()}
+            values = {k: float(v) for k, v in c.params.items() if k in known}
         except (TypeError, ValueError):
             problems.append(f"{who}: every size and hour must be a number")
             continue

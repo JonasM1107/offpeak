@@ -7,8 +7,6 @@ site, move them, remove them, tap one to set its size and hours. Nothing is stor
 data.replace_site checks them again (and the portal) where the site is saved. Saved
 parts then stand in the site view where they were placed."""
 
-from dataclasses import replace
-
 import data
 import streamlit as st
 from ui import layout_designer, site_scene
@@ -89,9 +87,8 @@ def start_editing(start_from) -> None:
         del st.session_state[key]
     # copies, so editing the draft never changes the site that is shown until it is saved;
     # parts without a square (the demo site) get their usual spot on the grid
-    st.session_state[DRAFT] = layout.auto_place(
-        [replace(c, params=dict(c.params)) for c in start_from]
-    )
+    # names tidied too: Site & components allows two parts with one name, a saved site not
+    st.session_state[DRAFT] = layout.auto_place(components.unique_names(start_from))
 
 
 def component_card(c: components.Component, draft: list) -> None:
@@ -218,8 +215,12 @@ def editor() -> None:
                 component_card(chosen, draft)
     with check:
         # e.g. a part that grew (more kWp, more chargers) now reaches into its neighbour
-        card_title("Layout check", "Shown before you save")
-        problems = layout.layout_problems(draft)
+        # everything "Save site" would refuse, shown while editing (data.replace_site runs
+        # the same two checks when the site is saved)
+        card_title("Check before saving", "Fix these and Save site goes through")
+        problems = (components.validate_site(draft) if draft else []) + layout.layout_problems(
+            draft
+        )
         for problem in problems:
             st.warning(problem, icon=":material/warning:")
         if draft and not problems:
