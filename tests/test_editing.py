@@ -100,3 +100,104 @@ def test_signing_out_shows_the_login_again(fake_db):
     # the login starts again at step 1: the two role cards
     cards = [b.key for b in at.button if (b.key or "").startswith("choose_")]
     assert not shows_the_app(at) and cards == ["choose_home", "choose_business"]
+
+
+# ── "Edit site" on the site view ─────────────────────────────────────────────
+
+
+def site_editor(fake_db, monkeypatch, role: str = "business") -> tuple[AppTest, list]:
+    """A signed-in editor on the Edit site page; returns the app and what replace_components
+    got."""
+    replaced = []
+    monkeypatch.setattr(
+        db,
+        "replace_components",
+        lambda e, site_id, rows, profile="business": replaced.append((profile, rows)),
+    )
+    at = AppTest.from_file(str(APP), default_timeout=60)
+    token = auth.make_token("ann@example.com", datetime.now(UTC), SECRET, role=role)
+    at.session_state["editor_token"] = token
+    at.switch_page("views/site_edit.py").run()
+    return at, replaced
+
+
+def click(at: AppTest, label: str) -> None:
+    next(b for b in at.button if b.label == label).click()
+    at.run()
+    assert not at.exception
+
+
+def test_edit_site_starts_empty_and_saves_what_was_built(fake_db, monkeypatch):
+    at, replaced = site_editor(fake_db, monkeypatch)
+    assert any("Your site is empty" in i.value for i in at.info)
+    click(at, "Heat pump")
+    click(at, "Heat pump")  # a second one gets its own name
+    click(at, "Rooftop solar")
+    click(at, "Save site")
+    assert len(replaced) == 1
+    profile, rows = replaced[0]
+    assert profile == "business"
+    assert [r["name"] for r in rows] == ["Heat pump", "Heat pump 2", "Rooftop solar"]
+    assert "Saved for everyone" in at.success[0].value
+
+
+def test_edit_site_does_not_save_an_empty_site_or_a_duplicate_name(fake_db, monkeypatch):
+    at, replaced = site_editor(fake_db, monkeypatch)
+    click(at, "Save site")
+    assert "Add at least one component" in at.error[0].value
+    click(at, "Battery storage")
+    click(at, "Battery storage")
+    next(t for t in at.text_input if t.value == "Battery storage 2").input("battery storage")
+    at.run()
+    click(at, "Save site")
+    assert "two components have this name" in at.error[0].value
+    assert replaced == [] and fake_db == []  # nothing reached the database
+
+
+def test_cancel_leaves_the_site_as_it_was(fake_db, monkeypatch):
+    at, replaced = site_editor(fake_db, monkeypatch)
+    click(at, "Wind turbine")
+    click(at, "Cancel")
+    assert replaced == [] and not any(b.label == "Save site" for b in at.button)  # left
+
+
+def test_without_a_database_the_edited_site_is_kept_in_the_tab(fake_db, monkeypatch):
+    monkeypatch.setattr(db, "database_url", lambda: None)
+    at, replaced = site_editor(fake_db, monkeypatch)
+    click(at, "Cold store")
+    click(at, "Save site")
+    assert replaced == []
+    assert [c.name for c in at.session_state["components_local_business"]] == ["Cold store"]
+
+
+def test_edit_site_is_only_for_the_business_portal(fake_db, monkeypatch):
+    # a homeowner's menu has no Edit site page, so Streamlit does not open it at all
+    at, replaced = site_editor(fake_db, monkeypatch, role="home")
+    assert not at.exception
+    assert not any(b.label == "Save site" for b in at.button) and replaced == []
+
+
+def test_the_site_view_itself_has_no_editor(fake_db, monkeypatch):
+    """The original site view stays as it was: the editor is only on its own page."""
+    at, _ = site_editor(fake_db, monkeypatch)
+    at.switch_page("views/site.py").run()
+    assert not at.exception
+    assert not any(b.label in ("Edit site", "Save site") for b in at.button)
+
+
+def test_saving_a_site_is_refused_for_a_home_account(fake_db, monkeypatch):
+    """The check sits where the site is saved (data.replace_site), not only on the page."""
+    import sys
+
+    sys.path.insert(0, str(APP.parent))
+    import data
+
+    from offpeak import components
+
+    monkeypatch.setattr(data, "role", lambda: "home")
+    replaced = []
+    monkeypatch.setattr(db, "replace_components", lambda *a, **k: replaced.append(a))
+    battery = components.new_component("battery", "Battery")
+    where, problems = data.replace_site([battery])
+    assert where is None and problems == ["Edit site is part of the Business portal."]
+    assert replaced == []

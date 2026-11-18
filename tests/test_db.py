@@ -172,3 +172,30 @@ def test_the_database_refuses_an_unknown_profile(engine):
 def test_saving_machines_says_whether_it_saved(engine):
     assert db.save_machines(engine, 2, [{"name": "Washer"}], profile="home") is True
     assert db.save_machines(engine, 2, [{"name": "Furnace"}], profile="business") is False
+
+
+def test_replace_components_makes_the_site_exactly_the_new_list(engine):
+    from offpeak.components import new_component
+
+    def row(c):
+        return {"id": c.id, "kind": c.kind, "name": c.name, "params": c.params}
+
+    keep, drop = new_component("pv_roof", "Roof"), new_component("battery", "Old battery")
+    db.save_components(engine, 1, [row(keep), row(drop)])
+    added = new_component("heat_pump", "New heat pump")
+    db.replace_components(engine, 1, [row(keep) | {"name": "Roof east"}, row(added)])
+    stored = db.read_components(engine, 1)
+    assert [c["name"] for c in stored] == ["Roof east", "New heat pump"]  # kept first
+    assert drop.id not in {c["id"] for c in stored}
+    db.replace_components(engine, 1, [])  # an empty list clears the site
+    assert db.read_components(engine, 1) == []
+
+
+def test_replace_components_never_changes_another_sites_component(engine):
+    from offpeak.components import new_component
+
+    other = new_component("battery", "Their battery")
+    row = {"id": other.id, "kind": other.kind, "name": other.name, "params": other.params}
+    db.save_components(engine, 2, [row])
+    db.replace_components(engine, 1, [row | {"name": "Taken over"}])  # same id, site 1
+    assert [c["name"] for c in db.read_components(engine, 2)] == ["Their battery"]

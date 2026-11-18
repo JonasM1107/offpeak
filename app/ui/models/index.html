@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<!--
+  The "Edit site" layout designer's frame (app/ui/layout_designer.py).
+
+  A two-way Streamlit component, like the sign-in helper in web/token. It is served from
+  this models folder on purpose: the 3D site scene inside it loads the Blender models as
+  files from here, so the browser downloads each one once instead of with every change.
+
+  Python sends {html, scene_key, squares, selected, height}. When `scene_key` changes (a part was added
+  or removed, or a size changed) the scene is drawn again from `html`. Otherwise only the
+  parts are moved to their squares, so a drag does not redraw the whole site. The scene
+  calls offpeakEdit(action) for every drag, drop and tap; this frame sends it to Python.
+-->
+<style>html, body { margin: 0; background: transparent; } iframe { border: 0; width: 100%; display: block; }</style>
+</head>
+<body>
+<iframe id="scene" title="Site layout designer"></iframe>
+<script>
+const send = (type, extra) => window.parent.postMessage({ isStreamlitMessage: true, type, ...extra }, '*');
+const frame = document.getElementById('scene');
+let shownKey = null;
+
+// one action from the scene; n makes each one new (Streamlit repeats the last value on reruns)
+window.offpeakEdit = action => send('streamlit:setComponentValue', {
+  value: { ...action, n: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
+  dataType: 'json',
+});
+
+window.addEventListener('message', e => {
+  if (e.source !== window.parent || !e.data || e.data.type !== 'streamlit:render') return;
+  const a = e.data.args;
+  frame.style.height = a.height + 'px';
+  if (a.scene_key !== shownKey) {
+    shownKey = a.scene_key;
+    frame.srcdoc = a.html;  // relative model URLs resolve against this folder
+  } else {
+    try { frame.contentWindow.offpeakApply({ squares: a.squares, selected: a.selected }); } catch (err) { /* still loading */ }
+  }
+  send('streamlit:setFrameHeight', { height: a.height });
+});
+send('streamlit:componentReady', { apiVersion: 1 });
+</script>
+</body>
+</html>

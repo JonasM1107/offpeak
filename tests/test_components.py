@@ -85,3 +85,72 @@ def test_advice_for_a_flexible_load(day):
     hp = next(c for c in day["components"] if c["id"] == "heat-pump")
     assert hp["advice"]["best"] and hp["advice"]["usual"] == "05–11"
     assert hp["analytics"]["offpeak"]["energy_kwh"] == 48  # 8 kW x 6 h
+
+
+# ── Editing a whole site ("Edit site" in the site view) ─────────────────────
+
+
+def test_next_name_numbers_a_second_of_the_same_kind():
+    assert C.next_name("heat_pump", []) == "Heat pump"
+    site = [C.new_component("heat_pump", "heat pump")]  # taken, whatever the capitals
+    assert C.next_name("heat_pump", site) == "Heat pump 2"
+    site.append(C.new_component("heat_pump", "Heat pump 2"))
+    assert C.next_name("heat_pump", site) == "Heat pump 3"
+
+
+def test_validate_site_accepts_the_demo_site_and_a_single_component():
+    assert C.validate_site(C.DEFAULT_COMPONENTS) == []
+    assert C.validate_site([C.new_component("pv_roof", "Roof")]) == []
+
+
+def test_validate_site_rejects_an_empty_site():
+    # an empty list in the database would show the demo site again
+    assert C.validate_site([]) == ["Add at least one component before saving"]
+
+
+def test_validate_site_rejects_missing_long_and_duplicate_names():
+    site = [
+        C.new_component("pv_roof", "  "),
+        C.new_component("battery", "x" * (C.MAX_NAME + 1)),
+        C.new_component("heat_pump", "Heat pump"),
+        C.new_component("heat_pump", "HEAT PUMP "),
+    ]
+    problems = C.validate_site(site)
+    assert "Component 1 (Rooftop solar) needs a name" in problems
+    assert any("at most 60 characters" in p for p in problems)
+    assert "HEAT PUMP: two components have this name" in problems
+    assert len(problems) == 3
+
+
+def test_validate_site_rejects_bad_values_and_unknown_kinds():
+    too_big = C.new_component("pv_field", "Field", {"kwp": 1_000_000})
+    impossible = C.new_component("furnace", "Oven", {"hours": 10, "earliest": 8, "latest_end": 12})
+    not_a_number = C.new_component("wind", "Turbine", {"kw": "lots"})
+    unknown = C.Component("x", "nuclear_plant", "Reactor", {})
+    problems = C.validate_site([too_big, impossible, not_a_number, unknown])
+    assert "Field: Peak power must be between 1 and 2000 kWp" in problems
+    assert "Oven: The allowed hours are shorter than the run time" in problems
+    assert "Turbine: every size and hour must be a number" in problems
+    assert "Reactor: unknown type" in problems
+
+
+def test_validate_site_limits_the_number_of_components():
+    full = [C.new_component("ev_charger", f"Charger {i}") for i in range(C.MAX_COMPONENTS)]
+    assert C.validate_site(full) == []  # exactly at the limit is fine
+    one_more = full + [C.new_component("ev_charger", "One too many")]
+    assert C.validate_site(one_more) == ["A site can have at most 20 components"]
+
+
+def test_next_name_ignores_spaces_like_the_duplicate_check_does():
+    site = [C.new_component("heat_pump", "Heat pump ")]
+    assert C.next_name("heat_pump", site) == "Heat pump 2"
+    assert C.validate_site(site + [C.new_component("heat_pump", "Heat pump 2")]) == []
+
+
+def test_validate_site_wants_whole_hours_and_chargers():
+    half = C.new_component("ev_charger", "Chargers", {"hours": 2.5, "count": 1.5})
+    assert C.validate_site([half]) == [
+        "Chargers: Chargers, Charging time per day must be whole numbers"
+    ]
+    whole = C.new_component("ev_charger", "Chargers", {"hours": 3.0, "count": 2.0})
+    assert C.validate_site([whole]) == []

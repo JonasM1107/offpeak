@@ -237,6 +237,27 @@ def delete_component(
         conn.execute(text(query), {"id": component_id, "site_id": site_id, "profile": profile})
 
 
+def replace_components(
+    engine: Engine, site_id: int, components: list[dict], profile: str = "business"
+) -> None:
+    """Make the site's components of this profile exactly this list (the "Edit site" save).
+
+    One transaction: if anything fails, the site keeps its old components instead of ending
+    up half old, half new. Components that stay are updated in place, so they keep their
+    place in the list (it is ordered by when each was first saved). Like save_components,
+    it never deletes or takes over a row of another site or profile."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                delete from site_components
+                where site_id = :s and profile = :p and not (id = any(:keep))
+            """),
+            {"s": site_id, "p": profile, "keep": [c["id"] for c in components]},
+        )
+    if components:
+        save_components(engine, site_id, components, profile)
+
+
 # ── Simulation cockpit machines ─────────────────────────────────────────────
 
 

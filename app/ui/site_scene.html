@@ -17,6 +17,25 @@
   .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 20px 22px; }
   section { margin-top: 12px; }
+  /* compact: only the 3D stage, used as the live preview while editing the site */
+  body.compact section, body.compact .foot { display: none; }
+  /* edit mode ("Edit site"): the layout designer; parts list on the left, no plan controls */
+  body.editing .panel, body.editing .timeline, body.editing .seg { display: none; }
+  .parts { display: none; }
+  body.editing .parts { display: block; position: absolute; left: 16px; top: 16px; bottom: 16px; width: 214px; overflow-y: auto; z-index: 4; background: rgba(255, 255, 255, .95); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; padding: 14px 12px; transition: background .15s, border-color .15s; }
+  .parts h4 { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+  .parts .hint { font-size: 11.5px; color: var(--muted); margin-bottom: 6px; line-height: 1.4; }
+  .parts .group { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 12px 4px 6px; }
+  .parts .part { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); margin-bottom: 6px; cursor: grab; touch-action: none; text-align: left; }
+  .parts .part:hover { border-color: var(--orange-mid); background: #fff; }
+  .parts .part .ico { width: 30px; height: 30px; border-radius: 9px; }
+  .parts .part b { display: block; font-size: 12.5px; font-weight: 500; }
+  .parts .part small { display: block; font-size: 11px; color: var(--muted); }
+  .parts .bin { display: none; text-align: center; color: #D64545; font-weight: 600; font-size: 13px; padding: 60px 8px; }
+  .parts.trash { background: #FDECEC; border-color: #D64545; }
+  .parts.trash .bin { display: block; }
+  .parts.trash .list, .parts.trash h4, .parts.trash .hint { display: none; }
+  .drag-tag { position: fixed; pointer-events: none; z-index: 9; display: none; background: var(--ink); color: #fff; border-radius: 9px; padding: 5px 9px; font-size: 12px; font-weight: 500; transform: translate(14px, 14px); white-space: nowrap; }
 
   /* 3D stage */
   .stage { position: relative; height: 600px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
@@ -190,6 +209,8 @@
 <body>
 <div class="stage" id="stage">
   <div id="view"></div>
+  <div class="parts" id="parts"><h4>Parts</h4><div class="hint">Drag a part onto the site. Drag a placed part to move it, or back here to remove it. Scroll to zoom.</div><div class="list" id="part-list"></div><div class="bin">Drop here to remove</div></div>
+  <div class="drag-tag" id="drag-tag"></div>
   <div class="topbar">
     <div class="seg" role="tablist" aria-label="Schedule">
       <button class="on" data-plan="offpeak" role="tab"><span class="d"></span>Offpeak plan</button>
@@ -232,6 +253,10 @@
 <div class="foot" id="foot"></div>
 
 <script>window.OFFPEAK = __DATA__;</script>
+<script>
+// compact (the "Edit site" designer): only the 3D stage, nothing below it
+document.addEventListener('DOMContentLoaded', () => document.body.classList.toggle('compact', !!window.OFFPEAK.compact));
+</script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -376,18 +401,23 @@ function spinner(parent, x, y, z, build) {
 // Detailed models built in Blender (scripts/blender/build_models.py), sent inside the
 // page's data as gzip-compressed, base64 GLB files. A model that is missing or broken
 // falls back to the simple shapes.
-async function loadModels(models) {
+async function loadModels(models, names) {
   const loader = new GLTFLoader(), out = {};
-  for (const [name, b64] of Object.entries(models || {})) {
+  // inline (base64) as in the site view, or by name as files next to the page: the layout
+  // designer is served from the models folder, so the browser loads each file only once
+  const files = names ? await Promise.all(names.map(n => fetch(`${n}.glb`).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null))) : null;
+  const sources = names ? names.map((n, i) => [n, files[i]]) : Object.entries(models || {});
+  for (const [name, data] of sources) {
     try {
-      const packed = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
-      const glb = await new Response(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+      if (!data) throw new Error('missing');
+      // inline models are gzip-compressed by Python; files are plain .glb
+      const glb = typeof data !== 'string' ? data : await new Response(new Blob([Uint8Array.from(atob(data), ch => ch.charCodeAt(0))]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
       out[name] = (await loader.parseAsync(glb, '')).scene;
     } catch (err) { console.warn(`offpeak: model ${name} not loaded, drawing the simple shape`, err); }
   }
   return out;
 }
-const MODELS = await loadModels(D.models);
+const MODELS = await loadModels(D.models, D.model_names);
 // Put a copy of a model into the current group. Every mesh keeps its part (from Blender)
 // and gets the scene's own material of the same name, or one passed in `own`.
 // Returns the meshes by material name.
@@ -452,6 +482,9 @@ if (!instancedModel('fence_segment', fence.map((m, i) => m.clone().multiply(new 
 }
 const windowsMat = matte(0x2E2C29, { emissive: 0xFFC48A, emissiveIntensity: 0 });
 const treeMat = matte(0xE3DED5);
+// components placed in the "Edit site" designer (metres east, south of the centre)
+const PLACED = COMPS.filter(c => c.pos).map(c => c.pos);
+const nearPlaced = (x, z, d) => PLACED.some(([px, pz]) => Math.hypot(px - x, pz - z) < d);
 let hubRing, hubGroup;
 // Where the home's pieces stand (world coordinates). The houses' origin is the middle of
 // the party wall; our half spans x -3..4 and its street side faces +z at z = -1.
@@ -500,6 +533,7 @@ if (!HOME) {
 
   current = scene;
   [[-48, -32], [-54, 30], [46, -34], [52, -10], [-6, 46], [40, 42], [-30, 48], [54, 22], [-20, -48], [10, 52], [-54, 2]].forEach(([x, z], i) => {
+    if (nearPlaced(x, z, 9)) return;  // a part placed in "Edit site" stands here
     const s = 0.8 + (i % 3) * 0.25, kind = i % 4 === 1 ? 'tree_tall' : 'tree_round';
     if (MODELS[kind]) { modelGroup(kind, x, 0, z, g => { g.scale.setScalar(s); g.rotation.y = i * 1.3; }, { tree: treeMat }); return; }
     cyl(0.25, 0.3, 2 * s, M.frame, x, s, z, null, 8);
@@ -811,7 +845,7 @@ const taken = new Set();
 function slotFor(kind) {
   const free = HOME
     ? [...(HOME_SLOTS[kind] || []), ...HOME_SPARE].find(s => !taken.has(s.join(',')))
-    : [...(SLOTS[kind] || []), ...SPARE].find(s => !taken.has(s.join(',')));
+    : [...(SLOTS[kind] || []), ...SPARE].find(s => !taken.has(s.join(',')) && !nearPlaced(s[0], s[1], 12));
   if (free) taken.add(free.join(','));
   return free || null;
 }
@@ -855,7 +889,7 @@ for (const c of COMPS) {
   if (HOME && HOUSE_KINDS.has(c.kind)) { houseMembers.push(c); continue; }
   const kit = HOME ? HOME_BUILD : BUILD;
   if (!kit[c.kind]) continue;
-  const slot = slotFor(c.kind);
+  const slot = (!HOME && c.pos) || slotFor(c.kind);  // the designer's square, else the automatic spot
   if (!slot) continue;  // the island is full; the component still shows in the list
   const g = new THREE.Group(); g.position.set(slot[0], 0, slot[1]); scene.add(g); current = g;
   // only one roof: a second rooftop system is drawn as a field on the ground
@@ -892,7 +926,7 @@ if (houseMembers.length) {
 flows.__grid = HOME ? flowPath(GRID_CABINET[0] - 0.6, GRID_CABINET[1] - 0.4) : flowPath(3, -30);
 
 // ── Camera fit and focus ───────────────────────────────────────────────────
-const HOME_TARGET = HOME ? new THREE.Vector3(3, 3, -3) : new THREE.Vector3(0, 4, 0), HOME_DIR = new THREE.Vector3(0.9, 0.95, 1.15).normalize();
+const HOME_TARGET = HOME ? new THREE.Vector3(3, 3, -3) : new THREE.Vector3(0, 4, 0), HOME_DIR = (D.edit ? new THREE.Vector3(0.5, 1.7, 0.95) : new THREE.Vector3(0.9, 0.95, 1.15)).normalize();
 let homeDist = 170, placed = false;
 const goal = { target: null, dist: null };
 controls.addEventListener('start', () => { controls.autoRotate = false; goal.target = null; goal.dist = null; });
@@ -902,11 +936,11 @@ function fit() {
   renderer.setSize(w, h); labels.setSize(w, h);
   if (composer) composer.setSize(w, h);
   camera.aspect = w / h;
-  const shift = w > 900 ? 140 : 0;
+  const shift = w > 900 ? (D.edit ? -115 : 140) : 0;  // room for the panel (or the parts list)
   camera.setViewOffset(w, h, shift, -h * 0.03, w, h);
   camera.updateProjectionMatrix();
   const vfov = THREE.MathUtils.degToRad(camera.fov), hfov = 2 * Math.atan(Math.tan(vfov / 2) * (w - 2 * shift) / h);
-  const k = HOME ? 0.42 : 1;  // the home's plot is smaller: come closer
+  const k = HOME ? 0.42 : D.edit ? 1.18 : 1;  // the home's plot is smaller: come closer; the whole island while editing
   homeDist = k * Math.max(54 / Math.tan(vfov / 2), 60 / Math.tan(hfov / 2));
   controls.minDistance = homeDist * 0.2; controls.maxDistance = homeDist * 1.4;
   if (!placed) { placed = true; camera.position.copy(HOME_TARGET).addScaledVector(HOME_DIR, homeDist); controls.target.copy(HOME_TARGET); }
@@ -1216,6 +1250,7 @@ let downAt = null;
 renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;  // a drag
+  if (D.edit) return;  // the layout designer handles taps itself
   const k = pick(e); if (!k) return;
   select(k.comp, true);
   if (k.part) { tab = 'parts'; highlight(k.part); renderSheet(); }
@@ -1248,6 +1283,153 @@ window.offpeakLayoutProblems = () => {
 const src = [D.real.price ? 'Live day-ahead prices' : 'Demo prices (live prices unavailable)', D.real.weather ? 'live weather forecast' : 'demo weather'];
 document.getElementById('foot').textContent = `${D.site.name} · ${D.site.city} · ${D.site.zone} · ${D.site.date}. ${src.join(', ')}. ${COMPS.length} components. The plan tries every allowed start time for each flexible load and keeps the cheapest.`;
 
+// ── Edit mode: the layout designer ("Edit site") ───────────────────────────
+// The site on a grid of 64 x 64 squares (1.875 m). Drag a part from the list onto the
+// site, drag a placed part to move it, drag it back onto the list to remove it, tap it to
+// set its size and hours (below the designer, in Streamlit). Every action goes to Python
+// (offpeak/layout.py decides); the checks here only colour the footprint while dragging.
+if (D.edit) {
+  const E = D.edit;
+  document.body.classList.add('editing');
+  controls.enableRotate = false; controls.autoRotate = false;
+
+  // grid lines on the island, inside the fence; every 8th line a little stronger
+  const cv = document.createElement('canvas'), N = 2048, px = N / E.size, ctx = cv.getContext('2d');
+  cv.width = cv.height = N;
+  ctx.beginPath(); ctx.arc(N / 2, N / 2, E.fence * px, 0, Math.PI * 2); ctx.clip();
+  for (let i = 0; i <= E.grid; i++) {
+    const p = i * E.cell * px;
+    ctx.strokeStyle = i % 8 ? 'rgba(120, 112, 100, .16)' : 'rgba(120, 112, 100, .32)';
+    ctx.lineWidth = i % 8 ? 1.2 : 2;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, N); ctx.moveTo(0, p); ctx.lineTo(N, p); ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const gridMesh = new THREE.Mesh(new THREE.PlaneGeometry(E.size, E.size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  gridMesh.rotation.x = -Math.PI / 2; gridMesh.position.y = 0.16; gridMesh.renderOrder = 1; scene.add(gridMesh);
+
+  // the footprint under the pointer while dragging: green where it fits, red where not
+  const foot = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x2E9E5B, transparent: true, opacity: 0.38, depthWrite: false }));
+  foot.rotation.x = -Math.PI / 2; foot.position.y = 0.22; foot.renderOrder = 2; foot.visible = false; scene.add(foot);
+
+  const centreOf = (col, row) => [-E.size / 2 + (col + 0.5) * E.cell, -E.size / 2 + (row + 0.5) * E.cell];
+  const squareAt = (x, z) => [Math.floor((x + E.size / 2) / E.cell), Math.floor((z + E.size / 2) / E.cell)];
+  const rectAt = (r, col, row) => { const [x, z] = centreOf(col, row); return [x + r[0], x + r[1], z + r[2], z + r[3]]; };
+  const overlap = (a, b) => a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3];
+  function fits(rect, ignore) {
+    if (![rect[0], rect[1]].every(x => [rect[2], rect[3]].every(z => Math.hypot(x, z) <= E.fence))) return false;
+    if (E.fixed.some(f => overlap(rect, f))) return false;
+    return Object.entries(E.squares).every(([id, sq]) => id === ignore || !E.rects[id] || !overlap(rect, rectAt(E.rects[id], ...sq)));
+  }
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  function groundAt(e) {
+    const b = renderer.domElement.getBoundingClientRect();
+    if (e.clientX < b.left || e.clientX > b.right || e.clientY < b.top || e.clientY > b.bottom) return null;
+    pointer.set((e.clientX - b.left) / b.width * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
+    ray.setFromCamera(pointer, camera);
+    const p = new THREE.Vector3();
+    return ray.ray.intersectPlane(groundPlane, p) ? p : null;
+  }
+  const send = ev => { try { window.parent.offpeakEdit(ev); } catch (err) { /* not inside the designer */ } };
+
+  // the parts list
+  const partsEl = document.getElementById('parts'), tag = document.getElementById('drag-tag');
+  const list = document.getElementById('part-list');
+  for (const [role, title] of E.roles) {
+    const kinds = E.kinds.filter(k => k.role === role); if (!kinds.length) continue;
+    list.insertAdjacentHTML('beforeend', `<div class="group">${esc(title)}</div>`);
+    for (const k of kinds) {
+      const n = COMPS.filter(c => c.kind === k.key).length;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'part'; b.title = k.description;
+      b.innerHTML = `<span class="ico">${icon(k.key)}</span><span><b>${esc(k.label)}</b><small>${E.roof.includes(k.key) ? 'on the hall roof · ' : ''}${n} placed</small></span>`;
+      b.addEventListener('pointerdown', e => start(e, { mode: 'new', kind: k.key, rect: k.rect, label: k.label }));
+      list.appendChild(b);
+    }
+  }
+
+  let drag = null;
+  function start(e, d) {
+    if (e.button > 0) return;
+    e.preventDefault();
+    drag = { ...d, at: [e.clientX, e.clientY], moved: false, square: null };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', drop, { once: true });
+  }
+  const overParts = e => { const r = partsEl.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; };
+  function move(e) {
+    if (drag.mode === 'tap') return;  // rooftop solar is not dragged
+    if (!drag.moved && Math.hypot(e.clientX - drag.at[0], e.clientY - drag.at[1]) < 6) return;
+    drag.moved = true;
+    tag.style.display = 'block'; tag.style.left = e.clientX + 'px'; tag.style.top = e.clientY + 'px';
+    const removing = drag.mode === 'move' && overParts(e);
+    partsEl.classList.toggle('trash', removing);
+    const p = removing || overParts(e) ? null : groundAt(e);
+    drag.square = p ? squareAt(p.x, p.z) : null;
+    if (removing) { tag.textContent = 'Remove'; foot.visible = false; return; }
+    if (!drag.square) { tag.textContent = drag.label; foot.visible = false; return; }
+    if (E.roof.includes(drag.kind)) {  // rooftop solar: only onto the hall
+      drag.ok = overlap([p.x, p.x, p.z, p.z].map((v, i) => v + (i % 2 ? 0.01 : -0.01)), E.hall);
+      tag.textContent = drag.ok ? `${drag.label} on the hall roof` : 'Only on the hall roof';
+      foot.visible = false; return;
+    }
+    const r = rectAt(drag.rect, ...drag.square);
+    drag.ok = fits(r, drag.id);
+    foot.scale.set(r[1] - r[0], r[3] - r[2], 1); foot.position.set((r[0] + r[1]) / 2, 0.22, (r[2] + r[3]) / 2);
+    foot.material.color.set(drag.ok ? 0x2E9E5B : 0xD64545); foot.visible = true;
+    tag.textContent = drag.ok ? drag.label : 'Not here';
+    if (drag.mode === 'move') { const [x, z] = centreOf(...drag.square); units[drag.id].g.position.set(x, 0, z); }
+  }
+  function drop(e) {
+    window.removeEventListener('pointermove', move);
+    const d = drag; drag = null;
+    tag.style.display = 'none'; partsEl.classList.remove('trash'); foot.visible = false;
+    if (!d.moved) {  // a tap
+      if (d.mode === 'new') send({ action: 'add', kind: d.kind });
+      else { select(d.id, false); send({ action: 'select', id: d.id }); }
+      return;
+    }
+    if (d.mode === 'tap') return;
+    if (d.mode === 'move' && overParts(e)) { units[d.id].g.visible = false; send({ action: 'remove', id: d.id }); return; }
+    if (d.mode === 'move' && (!d.square || !d.ok)) units[d.id].g.position.copy(d.from);  // back where it stood
+    if (!d.square) return;
+    if (d.mode === 'new') {
+      send(E.roof.includes(d.kind) ? { action: 'add', kind: d.kind, target: d.ok ? 'hall' : 'ground' } : { action: 'add', kind: d.kind, col: d.square[0], row: d.square[1] });
+    } else {
+      if (d.ok) E.squares[d.id] = d.square;
+      select(d.id, false);
+      send({ action: 'move', id: d.id, col: d.square[0], row: d.square[1] });
+    }
+  }
+  // drag a placed part by its model or by its name tag (in the bird's-eye view the tag
+  // sits on top of the model); rooftop solar stays on the roof: tap it to change it
+  function grab(e, id) {
+    const c = byId[id];
+    if (!E.squares[id]) { start(e, { mode: 'tap', id }); return; }
+    start(e, { mode: 'move', id, kind: c.kind, rect: E.rects[id], label: c.name, from: units[id].g.position.clone() });
+  }
+  renderer.domElement.addEventListener('pointerdown', e => { const k = pick(e); if (k && units[k.comp]) grab(e, k.comp); });
+  for (const [id, u] of Object.entries(units)) {
+    u.chip.style.touchAction = 'none';
+    u.chip.addEventListener('pointerdown', e => { e.stopPropagation(); grab(e, id); });
+    u.chip.addEventListener('click', e => e.stopImmediatePropagation(), true);  // no zoom-in while editing
+  }
+
+  // where a point of the island (metres east, south) is on the screen; used by the
+  // browser tests to drag onto exact squares
+  window.offpeakScreenOf = (x, z) => {
+    const v = new THREE.Vector3(x, 0, z).project(camera), b = renderer.domElement.getBoundingClientRect();
+    return [b.left + (v.x + 1) / 2 * b.width, b.top + (1 - v.y) / 2 * b.height];
+  };
+
+  // after Python decided: put every part on its square and select the part it names
+  window.offpeakApply = ({ squares, selected: sel }) => {
+    for (const [id, sq] of Object.entries(squares || {})) {
+      E.squares[id] = sq;
+      if (units[id] && (!drag || drag.id !== id)) { const [x, z] = centreOf(...sq); units[id].g.position.set(x, 0, z); units[id].g.visible = true; }
+    }
+    if (sel && sel !== selected) select(sel, false);
+  };
+}
+
 new ResizeObserver(fit).observe(view);
 fit();
 renderList();
@@ -1278,6 +1460,7 @@ renderer.setAnimationLoop(() => {
     hubRing.scale.setScalar(1 + 0.04 * Math.sin(performance.now() / 400));
   }
   for (const f of Object.values(flows)) {
+    if (D.edit) { f.line.visible = false; continue; }
     const a = Math.abs(f.kw), on = a > LIVE;
     f.t += dt * (0.4 + a / 50) * Math.sign(f.kw || 1) * (reduceMotion ? 0 : 1);
     const u = f.line.material.uniforms;
