@@ -1,4 +1,4 @@
-"""Edit site (Business portal): the layout designer, a page of its own next to the site view.
+"""Edit site (Business portal): the layout designer, under Setup next to Site & components.
 
 The site view stays exactly as it is; this page opens the 3D scene in edit mode. The site
 is shown on a 64 x 64 grid with the Blender models: drag parts from the list onto the

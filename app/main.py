@@ -59,8 +59,8 @@ pages = {
 }
 if account.role() == "home":  # measurements are part of the Homeowner portal only
     pages["Setup"].insert(1, page("my_data", "My data", "monitoring"))
-else:  # the layout designer is part of the Business portal, right under the site view
-    pages["Overview"].insert(2, page("site_edit", "Edit site", "edit_square"))
+else:  # the layout designer (Business portal only) sits with the site's setup, not in Overview
+    pages["Setup"].insert(1, page("site_edit", "Edit site", "edit_square"))
 # not in the menu: reached through the name at the bottom of the sidebar
 account_page = st.Page(
     HERE / "views" / "account.py",
