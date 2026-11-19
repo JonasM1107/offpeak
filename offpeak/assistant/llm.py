@@ -1,64 +1,11 @@
-"""One call to the language model, through Requesty (the course's standard AI router).
+"""What can go wrong when Ollie asks its language model.
 
-Requesty speaks the OpenAI chat format at router.requesty.ai/v1. The key comes from the
-setting REQUESTY_API_KEY (Streamlit secrets or .env), never from code. We use free models
-that support tool calling; if the first one fails, the next one is tried. Free plan limits:
-200 requests a day and 20 a minute for the whole account, so the app limits questions too.
+Ollie talks to Claude through the Anthropic API (claude.py), with the team's key from the
+setting ANTHROPIC_API_KEY (Streamlit secrets or .env), never from code. Whatever goes wrong
+there (no key, network, limit, a refused request) is raised as AssistantUnavailable, so the
+chat can say "Ollie can't answer right now" while every other page keeps working.
 """
-
-import requests
-
-URL = "https://router.requesty.ai/v1/chat/completions"
-MODELS = ("nvidia/nemotron-3-ultra-550b-a55b", "google/gemma-4-31b-it")
-TIMEOUT_S = 45
-
-
-def models_for(preferred: str | None) -> tuple[str, ...]:
-    """The models to try in turn: the one chosen in the setting OLLIE_MODEL first (for example
-    a Claude model, which needs credit on the Requesty account), then the free ones."""
-    first = (preferred or "").strip()
-    return ((first,) if first else ()) + tuple(m for m in MODELS if m != first)
 
 
 class AssistantUnavailable(RuntimeError):
-    """The model could not answer (no key, network, limit reached, or every model failed)."""
-
-
-def complete(
-    messages: list[dict],
-    tools: list[dict],
-    api_key: str | None,
-    models: tuple[str, ...] = MODELS,
-    post=requests.post,
-) -> dict:
-    """The model's next message (dict with "content" and maybe "tool_calls")."""
-    if not api_key:
-        raise AssistantUnavailable("no API key")
-    problems = []
-    for model in models:
-        try:
-            response = post(
-                URL,
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "tools": tools,
-                    "temperature": 0.2,
-                    "max_tokens": 1200,
-                },
-                timeout=TIMEOUT_S,
-            )
-        except requests.RequestException as err:
-            problems.append(f"{model}: {type(err).__name__}")
-            continue
-        if response.status_code == 429:  # the free limit applies to every model
-            raise AssistantUnavailable("request limit reached")
-        if response.status_code != 200:
-            problems.append(f"{model}: HTTP {response.status_code}")
-            continue
-        try:
-            return response.json()["choices"][0]["message"]
-        except (ValueError, KeyError, IndexError):
-            problems.append(f"{model}: unexpected answer")
-    raise AssistantUnavailable("; ".join(problems))
+    """The model could not answer (no key, network, limit reached, or an error)."""

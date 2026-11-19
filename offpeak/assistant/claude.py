@@ -1,8 +1,8 @@
 """Ollie through Claude (Anthropic API), with the team's own key from the Claude Console.
 
-Why a second provider: the course's standard router is Requesty (llm.py), but the team has
-a budget in the Claude Console, so Ollie uses Claude directly when ANTHROPIC_API_KEY is set.
-Without it, Ollie keeps using the free models through Requesty.
+Ollie uses Claude only: the team has a budget in the Claude Console, and the key comes from
+the setting ANTHROPIC_API_KEY. Without it, Ollie says it can't answer and the rest of the app
+works as usual. The setting OLLIE_MODEL can name another Claude model than MODEL below.
 
 The conversation in agent.py is written in one format (role, content, tool_calls). This
 file translates it to Claude's Messages API and the answer back:
@@ -91,7 +91,7 @@ def complete(
     model: str | None = None,
     client=None,
 ) -> dict:
-    """Claude's next message for agent.answer (same contract as llm.complete)."""
+    """Claude's next message for agent.answer: a dict with "content" and maybe "tool_calls"."""
     if not api_key and client is None:
         raise AssistantUnavailable("no Anthropic API key")
     client = client or anthropic.Anthropic(api_key=api_key, timeout=60.0, max_retries=1)

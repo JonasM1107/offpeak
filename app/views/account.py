@@ -96,7 +96,7 @@ with st.container(border=True, key="card_connections"):
     services = [
         ("Database", "Supabase, where everything above is stored", eng is not None),
         ("Sign-in", "Team emails and password set on the server", account.configured()),
-        ("Ollie's AI", "Claude or Requesty key for the assistant", assistant.configured()),
+        ("Ollie's AI", "Claude key for the assistant", assistant.configured()),
     ]
     problems = [t for t, s in status.items() if not s["ok"]] + [
         n for n, _, ok in services if not ok
@@ -131,7 +131,7 @@ with st.container(border=True, key="card_connections"):
         name
         for name, found in (
             ("DATABASE_URL", eng is not None),
-            ("ANTHROPIC_API_KEY or REQUESTY_API_KEY", assistant.configured()),
+            ("ANTHROPIC_API_KEY", assistant.configured()),
             ("OFFPEAK_EDITORS, OFFPEAK_PASSWORD_HASH, OFFPEAK_AUTH_SECRET", account.configured()),
         )
         if not found

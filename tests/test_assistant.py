@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 import pytest
 
-from offpeak.assistant import agent, llm
+from offpeak.assistant import agent
 from offpeak.assistant.tools import Context, run_tool
 
 TODAY = date(2026, 11, 12)  # a Thursday
@@ -217,56 +217,6 @@ def test_history_is_sent_along_but_only_chat_messages():
 def test_empty_or_long_questions_are_rejected(text):
     with pytest.raises(ValueError):
         agent.clean_question(text)
-
-
-# ── The model call ───────────────────────────────────────────────────────────
-
-
-class Response:
-    def __init__(self, status, body):
-        self.status_code, self._body = status, body
-
-    def json(self):
-        if isinstance(self._body, Exception):
-            raise self._body
-        return self._body
-
-
-def test_complete_tries_the_next_model_and_returns_the_message():
-    calls = []
-
-    def post(url, headers, json, timeout):
-        calls.append(json["model"])
-        if len(calls) == 1:
-            return Response(503, {})
-        return Response(200, {"choices": [{"message": {"content": "hi"}}]})
-
-    assert llm.complete([], [], "key", post=post) == {"content": "hi"}
-    assert calls == list(llm.MODELS)
-
-
-def test_complete_fails_clearly():
-    with pytest.raises(llm.AssistantUnavailable, match="no API key"):
-        llm.complete([], [], None)
-    with pytest.raises(llm.AssistantUnavailable, match="limit"):
-        llm.complete([], [], "key", post=lambda *a, **k: Response(429, {}))
-    with pytest.raises(llm.AssistantUnavailable, match="unexpected answer"):
-        llm.complete([], [], "key", post=lambda *a, **k: Response(200, {"choices": []}))
-
-    def offline(*a, **k):
-        raise llm.requests.ConnectionError("no network")
-
-    with pytest.raises(llm.AssistantUnavailable, match="ConnectionError"):
-        llm.complete([], [], "key", post=offline)
-
-
-def test_a_chosen_model_is_tried_first_then_the_free_ones():
-    assert llm.models_for("anthropic/claude-haiku-5-5") == (
-        "anthropic/claude-haiku-5-5",
-        *llm.MODELS,
-    )
-    assert llm.models_for(None) == llm.MODELS and llm.models_for("  ") == llm.MODELS
-    assert llm.models_for(llm.MODELS[1]) == (llm.MODELS[1], llm.MODELS[0])  # no duplicates
 
 
 def test_without_weather_ollie_says_plans_count_no_own_power():

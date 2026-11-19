@@ -145,8 +145,7 @@ For offpeak this means:
 | Open-Meteo forecast | Weather, solar, cockpit, dashboard | The stored forecast from the database is used if under 6 hours old; otherwise the API, and if that fails, the latest stored forecast however old. Only with nothing stored: "The weather forecast is not available right now." In the app, a failing source is retried once (jobs: four times), so a visitor never waits 30 s for retries. |
 | Open-Meteo previous runs (weather for Offpeak Intelligence) | Price outlook | Read from Supabase, which the daily job fills. If missing, the outlook runs without weather (prices only) and the day cards show no weather reason. |
 | Offpeak Intelligence outlook (computed by our forecast job) | Price outlook, cockpit, dashboard plan, Ollie | Read from Supabase. The app never trains. If the job is late, the stored outlook still covers the days after the newest prices. With nothing stored at all, the app makes a quick outlook from simple rules (a few seconds). The job also starts after every Prices and weather run, because GitHub runs schedules late or skips them. |
-| Requesty (language model for Ollie) | Ask Ollie chat | Ollie says "can't answer right now" and points to the dashboard plan and the cockpit, which do not need it. If the first model fails, a second one is tried. Each visitor can ask 25 questions per session (free plan: 200 requests a day). |
-| Claude, Anthropic API (Ollie, when `ANTHROPIC_API_KEY` is set) | Ask Ollie chat | Used instead of Requesty because the team has a budget in the Claude Console (the course asks for a reason when leaving its standard). If Claude declines, the API's built-in fallback model answers; if the API fails or the key is wrong, Ollie says it can't answer and the rest of the app works. |
+| Claude, Anthropic API (language model for Ollie, key `ANTHROPIC_API_KEY`) | Ask Ollie chat | Ollie says "can't answer right now" and points to the dashboard plan and the cockpit, which do not need it. If Claude declines, the API's built-in fallback model answers; if the API fails or the key is missing or wrong, Ollie says it can't answer and the rest of the app works. Each visitor can ask a limited number of questions per session, so one visitor cannot use up the team's budget. |
 | Open-Meteo archive and satellite | Savings replay, solar accuracy | A clear message on that card or page. The rest of the app is unaffected. |
 | Supabase | Stored data, components, cockpit machines | The pages fall back to the APIs. Components and machines are kept for the session only, and the page says so. |
 
@@ -204,9 +203,9 @@ Tests: `tests/test_app.py` runs every page offline with saved responses.
   - *Limit:* only about a year of such data.
 - **Demo site instead of real meter data:**
   - *Limit:* consumption is modelled, not measured.
-- **Ollie through a free Requesty model:**
-  - *Why:* the course's standard router, no card needed. The numbers come from our tools, so a smaller model is enough.
-  - *Limit:* 200 requests a day for the whole app, and answers can be slower than the rest of the app.
+- **Ollie through Claude only:**
+  - *Why:* the team has a budget in the Claude Console, and one provider is simpler to explain, test and secure. The course's standard router (Requesty) was dropped on purpose; the numbers come from our own tools either way.
+  - *Limit:* each answer costs money from that budget, so questions per visitor are limited, and answers can be slower than the rest of the app.
 - **Editor sign-in instead of user accounts:**
   - *Why:* one demo site and a team of three; a shared password plus an email list is simple to explain and enough here.
   - *Limit:* everyone shares one password, so a leaked password means changing it for all (new fingerprint in the secrets). The sign-in is kept in the browser's storage (Streamlit Cloud does not pass cookies to the app), where the page's own scripts can read it, so it is signed and expires after 24 hours. Staff need a login for the demo and the review: add their email to OFFPEAK_EDITORS.
@@ -261,6 +260,6 @@ Checked on 11 November 2026. ✅ meets High · ⚠️ partly · ❌ missing.
 | Security: access control | ✅ | The app is only for the team: a login screen comes before every page (email on a list plus a password stored only as a PBKDF2 fingerprint, five wrong tries then a pause). A signed token keeps the browser signed in for 24 hours. Shared data is also checked where it is saved (`app/data.py`). Two roles (Homeowner, Business): the role is stored per account and signed into the token, and every saved component is checked against the role's catalogue. Settings in Streamlit secrets, not in the repo. Tests: `tests/test_auth.py`, `tests/test_editing.py`, `tests/test_roles.py`, `tests/test_app_roles.py`. |
 | Security: input validation | ✅ / ⚠️ | Cockpit machines and new components are validated before saving. To check: every remaining input. |
 | Security: dependencies | ✅ | Pinned in `uv.lock`, installed `--locked`. CI runs `pip-audit` on every push: no known vulnerabilities. |
-| Ollie (chat) | ⚠️ | Built and tested with a fake model. Goes live once `REQUESTY_API_KEY` is in the Streamlit secrets; not yet tried against the real model. |
+| Ollie (chat) | ⚠️ | Built and tested with a fake model. Runs on Claude once `ANTHROPIC_API_KEY` is in the Streamlit secrets. |
 | Walkthrough readiness | ⚠️ | Section 5 has the answers. Every member should walk through the repo once, using this file. |
 | Team workflow | ⚠️ | `AGENTS.md` asks for a branch and pull request per task, but recent work was pushed straight to `main`. From now on: a pull request per change, reviewed by a teammate. |

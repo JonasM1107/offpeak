@@ -4,9 +4,8 @@ The answers come from offpeak/assistant/ (the conversation and the tools that lo
 app's own data). This file only draws the chat and passes the question on.
 
 Safeguards: questions are checked (not empty, at most 500 characters), and each visitor can
-ask MAX_QUESTIONS per session, because the free Requesty plan allows 200 requests a day for
-the whole app. Without a key, or when the model is unavailable, Ollie says so instead of
-failing.
+ask MAX_QUESTIONS per session, so one visitor cannot use up the team's Claude budget. Without
+a key, or when Claude is unavailable, Ollie says so instead of failing.
 """
 
 import os
@@ -48,13 +47,14 @@ def _secret(name: str) -> str | None:
     return lookup(st.secrets, name)
 
 
-def configured() -> bool:
-    """Whether Ollie has a model to talk to (a Claude or a Requesty key)."""
-    return bool(os.environ.get("ANTHROPIC_API_KEY") or _secret("ANTHROPIC_API_KEY") or api_key())
-
-
 def api_key() -> str | None:
-    return _secret("REQUESTY_API_KEY") or os.environ.get("REQUESTY_API_KEY")
+    """The team's Claude key (ANTHROPIC_API_KEY), from Streamlit secrets or the environment."""
+    return os.environ.get("ANTHROPIC_API_KEY") or _secret("ANTHROPIC_API_KEY")
+
+
+def configured() -> bool:
+    """Whether Ollie has a model to talk to (a Claude key is set)."""
+    return bool(api_key())
 
 
 def _context() -> Context | None:
@@ -81,13 +81,9 @@ def _reply(question: str, history: list[dict]) -> str:
     if ctx is None:
         return "I can't see the prices right now, so I can't plan. Please try again soon."
     st.session_state["ollie_asked"] = asked + 1
-    model = os.environ.get("OLLIE_MODEL") or _secret("OLLIE_MODEL")
-    claude_key = os.environ.get("ANTHROPIC_API_KEY") or _secret("ANTHROPIC_API_KEY")
-    if claude_key:  # the team's Claude Console key: Claude directly
-        ask = lambda messages, tools: claude.complete(messages, tools, claude_key, model)  # noqa: E731
-    else:  # otherwise the free models through Requesty
-        key = api_key()
-        ask = lambda messages, tools: llm.complete(messages, tools, key, llm.models_for(model))  # noqa: E731
+    model = os.environ.get("OLLIE_MODEL") or _secret("OLLIE_MODEL")  # another Claude model
+    key = api_key()  # no key: claude.complete raises AssistantUnavailable, answered as BUSY
+    ask = lambda messages, tools: claude.complete(messages, tools, key, model)  # noqa: E731
     try:
         return agent.answer(question, history, ctx, ask, datetime.now(ZoneInfo("Europe/Berlin")))
     except llm.AssistantUnavailable as err:

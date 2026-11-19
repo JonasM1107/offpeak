@@ -48,7 +48,7 @@ Run the app (it works without a database, calling the public APIs directly):
 uv run streamlit run app/main.py
 ```
 
-With the shared database: `cp .env.example .env` and fill in `DATABASE_URL` from the team password manager. For Ollie, also `REQUESTY_API_KEY` (without it, Ollie says it can't answer and the rest works).
+With the shared database: `cp .env.example .env` and fill in `DATABASE_URL` from the team password manager. For Ollie, also `ANTHROPIC_API_KEY`, a Claude key (without it, Ollie says it can't answer and the rest works).
 
 Run the tests (they never call the real APIs; they use saved responses in `tests/fixtures/`):
 
