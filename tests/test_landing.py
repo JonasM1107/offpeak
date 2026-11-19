@@ -179,3 +179,20 @@ def test_the_3d_visuals_load_three_js_from_our_own_server():
     for js in vendor.rglob("*.js"):
         for rel in re.findall(r"from '(\.{1,2}/[^']+)'", js.read_text()):
             assert (js.parent / rel).resolve().is_file(), f"{js.name} imports {rel}"
+
+
+def test_the_landing_page_models_are_exact_copies_of_the_app_models():
+    """The 3D site on the landing page uses copies of the Blender models (Streamlit serves
+    only app/static/). A copy must never drift from its original in app/ui/models/."""
+    root = Path(__file__).parent.parent
+    copies = sorted((root / "app" / "static" / "landing" / "models").glob("*.glb"))
+    assert len(copies) >= 20
+    for copy in copies:
+        original = root / "app" / "ui" / "models" / copy.name
+        assert original.is_file(), f"{copy.name} has no original"
+        assert copy.read_bytes() == original.read_bytes(), f"{copy.name} differs from app/ui/models"
+    # every model the page loads is there
+    html = PAGE.read_text()
+    names = re.search(r"const NAMES = \[([^\]]+)\]", html).group(1)
+    for name in re.findall(r"'(\w+)'", names):
+        assert (root / "app" / "static" / "landing" / "models" / f"{name}.glb").is_file(), name

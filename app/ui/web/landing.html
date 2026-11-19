@@ -640,6 +640,12 @@
   .ol-foot { margin-top: 26px; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
   .ol-foot small { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; color: rgba(238,240,242,.45); }
   @media (prefers-reduced-motion: reduce) { .ol-msg, .ol-card, .ol-btn, .ol-btn svg { transition: none; } .ol-dots i, .ol-text .caret { animation: none; } }
+
+  /* the 3D site (buildSite3D): a WebGL layer over the zoom's canvas, with name chips */
+  .oz-3d { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+  .oz-3d canvas { display: block; width: 100%; height: 100%; }
+  .oz3d-chip { position: absolute; left: 0; top: 0; padding: 6px 12px; border-radius: 999px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; white-space: nowrap; will-change: transform, opacity; }
+  .oz3d-chip.hot { color: #FFB27A; }
 </style>
 </head>
 <body>
@@ -702,6 +708,7 @@
   <section class="oz" id="oz" data-dark aria-label="From orbit to one machine">
     <div class="oz-track" id="oz-track"><div class="oz-stage">
       <canvas id="oz-cv" aria-hidden="true"></canvas>
+      <div class="oz-3d" id="oz-3d" aria-hidden="true"></div>
       <div class="oz-amber" id="oz-amber" aria-hidden="true"></div>
       <div class="oz-bar" aria-hidden="true"><i id="oz-bar"></i></div>
       <div class="oz-cap lg" id="oz-cap" aria-live="polite">
@@ -1726,7 +1733,7 @@
     if (!track || !cv) return;
     const ctx = cv.getContext('2d');
     const RAD = Math.PI / 180, EARTH = 6371000, HOME = [50.94 * RAD, 6.96 * RAD];  // Köln
-    const PUMP = [-3, -22];   // the heat pump on the site, metres east and south of the meter (open ground)
+    const PUMP = [3.7, -16];   // the heat pump on the site, metres east and south of the meter (as in the app)
     const sm = t => t * t * (3 - 2 * t), lerp = (a, b, t) => a + (b - a) * t;
     const ramp = (x, a, b) => clamp((x - a) / (b - a), 0, 1);
     const rnd = (s => () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; })(5);
@@ -2117,7 +2124,12 @@
       drawGrid(c, L1, ramp(lr, lm + .6, lm + 1.6) * (1 - ramp(lr, lm + 4.2, lm + 5.2)), t, 1.3);
       drawGrid(c, L2, ramp(lr, lm + 3.4, lm + 4.4) * (1 - ramp(lr, lm + 6.6, lm + 7.6)), t, 1.3);
       drawGrid(c, L3, ramp(lr, lm + 6.2, lm + 7.2) * (1 - site), t, 1.5);
-      drawSite(c, site, t, ramp(p, .8, .9), p);
+      // the 3D site (buildSite3D, from the Blender models) draws itself from this; without
+      // WebGL the line drawing below stands in
+      const focus = ramp(p, .8, .9);
+      window.__oz = { k: c.k, pe: c.pe, ps: c.ps, alpha: site, focus,
+        tilt: lerp(89.5, 30, sm(ramp(p, .6, .78))) * RAD, yaw: lerp(0, -.6, sm(ramp(p, .62, .9))) };   // swings round from the west, clear of the hall
+      if (!window.__ozSite3d) drawSite(c, site, t, focus, p);
       if (site < .9) {   // Köln: an orange point with rings going out
         const [x, y] = project(c, HOME[0], HOME[1]);
         ctx.globalAlpha = 1 - site; ctx.fillStyle = '#FF5F00'; ctx.shadowColor = '#FF5F00'; ctx.shadowBlur = 16;
@@ -2485,6 +2497,214 @@ async function buildScatter(root, config) {
   })(performance.now());
   root.dataset.ready = 'true';
 }
+
+
+// ── The site in 3D, built from the app's Blender models (copies in app/static/landing/
+//    models/), placed where the app's site view places them, in a darker, sharper look:
+//    graphite surfaces, glowing edges (white on buildings and generation, orange on the
+//    devices), blue solar glass, a gravity-well floor and current on the cables. The zoom
+//    in orbitZoom() drives the camera through window.__oz; this only draws. ──
+async function buildSite3D(root) {
+  const THREE = await import('three');
+  const [{ GLTFLoader }, { EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
+    import('three/addons/loaders/GLTFLoader.js'), import('three/addons/postprocessing/EffectComposer.js'),
+    import('three/addons/postprocessing/RenderPass.js'), import('three/addons/postprocessing/UnrealBloomPass.js'),
+    import('three/addons/postprocessing/OutputPass.js'),
+  ]);
+  const NAMES = ['main_hall', 'transformer', 'pylon', 'site_meter', 'pv_rack', 'pv_module', 'pv_inverter', 'wind_base', 'wind_nacelle',
+    'wind_hub', 'wind_blade', 'battery_container', 'battery_hvac', 'battery_pcs', 'heat_pump_unit', 'heat_tank', 'ev_charger', 'e_car',
+    'e_truck', 'cold_store', 'furnace_hall', 'tree_round', 'tree_tall', 'fence_segment'];
+  const base = new URL('app/static/landing/models/', document.baseURI).href, loader = new GLTFLoader(), MODEL = {};
+  await Promise.all(NAMES.map(n => loader.loadAsync(`${base}${n}.glb`).then(g => { MODEL[n] = g.scene; }).catch(() => {})));
+  if (!MODEL.main_hall) throw new Error('the site models did not load');
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setClearColor(0x000000, 0); renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+  root.appendChild(renderer.domElement);
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(30, 1, 1, 3000);
+  scene.fog = new THREE.Fog(0x050607, 160, 420);
+  scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x1a0d06, 1.1));
+  const key = new THREE.DirectionalLight(0xfff1e0, 2.4); key.position.set(-40, 80, 60); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xff6a1a, 2.2); rim.position.set(50, 30, -70); scene.add(rim);
+
+  // ── the look: one material per original material name, a warmer set for the devices ──
+  const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, metalness: .45, roughness: .42, ...o });
+  const SHELL = {
+    white: std(0x2b3039), clay: std(0x22262e), concrete: std(0x181b20, { roughness: .8 }), roof: std(0x1d2128), frame: std(0x3a404b),
+    steel: std(0x4a515d, { metalness: .8, roughness: .25 }), ink: std(0x0d0f12), orange: std(0xff5f00, { emissive: 0xff5f00, emissiveIntensity: .9 }),
+    panel: std(0x0c1a3a, { metalness: .9, roughness: .15, emissive: 0x1f3fb0, emissiveIntensity: .35 }),
+    windows: std(0x1a1410, { emissive: 0xffa864, emissiveIntensity: .9 }), glassDark: std(0x0a0d12, { metalness: .9, roughness: .1 }),
+    door: std(0x1a1410, { emissive: 0xff5f00, emissiveIntensity: .5 }), screen: std(0x1a1410, { emissive: 0xff7a2a, emissiveIntensity: 1.2 }),
+    tree: std(0x16262a, { roughness: .9, transparent: true, opacity: .85 }),
+  };
+  const DEVICE = { ...SHELL, white: std(0x3a2618, { emissive: 0xff5f00, emissiveIntensity: .06 }), clay: std(0x2e1d12, { emissive: 0xff5f00, emissiveIntensity: .04 }), roof: std(0x2a1a10) };
+  const EDGE_W = new THREE.LineBasicMaterial({ color: 0xdfe3ea, transparent: true, opacity: .45, blending: THREE.AdditiveBlending, depthWrite: false });
+  const EDGE_O = new THREE.LineBasicMaterial({ color: 0xff7a2a, transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false });
+  const edgeCache = new Map();
+  const edgesOf = g => { if (!edgeCache.has(g.uuid)) edgeCache.set(g.uuid, new THREE.EdgesGeometry(g, 28)); return edgeCache.get(g.uuid); };
+  // a model at (x, y, z) inside `parent`, turned by ry; `device` makes it orange-edged
+  function place(parent, name, x, y, z, { ry = 0, scale = 1, device = false, edges = true } = {}) {
+    if (!MODEL[name]) return null;
+    const g = MODEL[name].clone(true); g.position.set(x, y, z); g.rotation.y = ry; g.scale.setScalar(scale);
+    const mats = device ? DEVICE : SHELL;
+    g.traverse(m => {
+      if (!m.isMesh) return;
+      m.material = mats[m.material.name] || mats.white;
+      if (edges && m.material !== SHELL.tree) m.add(new THREE.LineSegments(edgesOf(m.geometry), device ? EDGE_O : EDGE_W));
+    });
+    parent.add(g); return g;
+  }
+  const group = (x, z) => { const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g); return g; };
+  const spinning = [];   // [object, axis, speed]
+
+  // ── the floor: a dark disc, rings flowing into the meter, a shallow well round it ──
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(61, 96), new THREE.MeshStandardMaterial({ color: 0x07080b, metalness: .2, roughness: .9 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = -.02; scene.add(floor);
+  const well = r => r < 9 ? -2.4 * Math.pow(1 - r / 9, 1.8) : 0;
+  const rings = Array.from({ length: 18 }, () => {
+    const geo = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 129 }, (_, i) => new THREE.Vector3(Math.cos(i / 128 * 6.2832), 0, Math.sin(i / 128 * 6.2832))));
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffd9bf, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false }));
+    scene.add(line); return line;
+  });
+  for (let j = 0; j < 24; j++) {
+    const a = j / 24 * 6.2832, pts = Array.from({ length: 30 }, (_, i) => { const r = 1.5 + 57 * (i / 29) ** 1.4; return new THREE.Vector3(Math.cos(a) * r, well(r) + .03, Math.sin(a) * r); });
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xdfe3ea, transparent: true, opacity: .12, blending: THREE.AdditiveBlending, depthWrite: false })));
+  }
+  const core = new THREE.Mesh(new THREE.SphereGeometry(.9, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffe2c8 }));
+  core.position.y = well(0) + .9; scene.add(core);
+
+  // ── the site, where the app's site view puts it (app/ui/site_scene.html: SLOTS, BUILD) ──
+  place(scene, 'site_meter', 0, 0, 0, { device: true });
+  const hall = group(18, -8); place(hall, 'main_hall', 0, 0, 0);
+  {   // rooftop solar on the sawtooth roof
+    for (let i = 0; i < 60; i++) {
+      const t = Math.floor(i / 15), k = i % 15, row = Math.floor(k / 7), col = k % 7;
+      const g = new THREE.Group(); g.position.set(-7.8 + t * 5.2 - .4 + row * .9, 10.25 + row * .3, -5.6 + col * 1.85); g.rotation.z = .32; hall.add(g);
+      const m = place(g, 'pv_module', 0, 0, 0, { ry: Math.PI / 2, edges: false }); if (m) m.scale.set(1, 1, .9);
+    }
+  }
+  place(group(33.5, -8), 'furnace_hall', 0, 0, 0, { device: true });
+  const grid = group(2, -36); place(grid, 'transformer', 0, 0, 0); place(grid, 'pylon', -5, 0, -4);
+  {   // the solar field: six racks of two rows of modules, facing south
+    const pv = group(-26, -18), rows = 6, zRow = r => -rows * 2.1 + r * 4.2 + 1.4, up = [Math.sin(.5), -Math.cos(.5)];
+    for (let r = 0; r < rows; r++) place(pv, 'pv_rack', 0, 0, zRow(r), { edges: false });
+    for (let i = 0; i < 143; i++) {
+      const r = Math.floor(i / 24), k = i % 24, col = k % 12, d = (Math.floor(k / 12) - .5) * 1.08;
+      const m = place(pv, 'pv_module', -10.2 + col * 1.85, 1.75 + up[0] * d, zRow(r) + up[1] * d, { edges: false });
+      if (m) m.rotation.x = .5;
+    }
+    for (let i = 0; i < 2; i++) place(pv, 'pv_inverter', 13.4, 0, -2 + i * 1.6);
+  }
+  [[-44, 12], [-34, 32]].forEach(([x, z], w) => {   // wind turbines: base, tower, nacelle, a turning rotor
+    const g = group(x, z), hub = 24, blade = 4.9;
+    place(g, 'wind_base', 0, 0, 0);
+    for (let i = 0; i < 3; i++) {
+      const r0 = .85 - i * .17, sec = hub / 3, seg = new THREE.Mesh(new THREE.CylinderGeometry(r0 - .17, r0, sec, 24), SHELL.white);
+      seg.position.y = .6 + sec * (i + .5); g.add(seg); seg.add(new THREE.LineSegments(edgesOf(seg.geometry), EDGE_W));
+    }
+    place(g, 'wind_nacelle', 0, hub + .6, .3);
+    const rotor = new THREE.Group(); rotor.position.set(0, hub + .6, 2.3); rotor.rotation.z = w * 1.3; g.add(rotor);
+    for (let k = 0; k < 3; k++) { const b = place(rotor, 'wind_blade', 0, 0, 0, { scale: blade / 5 }); if (b) b.rotation.z = k * 2 * Math.PI / 3; }
+    place(rotor, 'wind_hub', 0, 0, 0, { device: true });
+    spinning.push([rotor, 'z', 1.1]);
+  });
+  { const g = group(-14, 18); place(g, 'battery_container', 0, .05, 0, { device: true }); place(g, 'battery_hvac', -5.6, .1, 0, { device: true }); place(g, 'battery_pcs', 5.8, .1, 0, { device: true }); }
+  const pump = group(2, -16);
+  {   // the heat pump: the unit with two fans turning, the buffer tank
+    place(pump, 'heat_pump_unit', 0, .15, 0, { device: true }); place(pump, 'heat_tank', 3.4, .1, 0, { device: true });
+    for (let k = 0; k < 2; k++) {
+      const fan = new THREE.Group(); fan.position.set(-.55 + k * 1.1, 1.0, .64); pump.add(fan);
+      for (let b = 0; b < 3; b++) { const m = new THREE.Mesh(new THREE.BoxGeometry(.7, .13, .03), SHELL.orange); m.rotation.z = b * Math.PI / 3; fan.add(m); }
+      spinning.push([fan, 'z', 7]);
+    }
+  }
+  {   // EV chargers: four cars at their chargers, two trucks on their own bays
+    const ev = group(12, 26), n = 4;
+    for (let i = 0; i < n; i++) { place(ev, 'ev_charger', i * 4.2 - 1.1, 0, -2.5, { device: true }); place(ev, 'e_car', i * 4.2, 0, 0); }
+    const bx = n * 4.2 + 3.4;
+    for (let k = 0; k < 2; k++) { const x = bx - 2.3 + k * 4.6; place(ev, 'ev_charger', x + 1.5, 0, -4.4, { device: true }); place(ev, 'e_truck', x, 0, 2); }
+  }
+  {   // the cold store, its two condenser fans turning
+    const g = group(42, 14); place(g, 'cold_store', 0, 0, 0, { device: true });
+    for (const x of [-2.8, 2.8]) {
+      const fan = new THREE.Group(); fan.position.set(x, 6.85, 0); g.add(fan);
+      for (let b = 0; b < 3; b++) { const m = new THREE.Mesh(new THREE.BoxGeometry(1.6, .04, .3), SHELL.orange); m.rotation.y = b * Math.PI / 3; fan.add(m); }
+      spinning.push([fan, 'y', 3]);
+    }
+  }
+  [[-48, -32], [-54, 30], [46, -34], [52, -10], [-6, 46], [40, 42], [-30, 48], [54, 22], [-20, -48], [10, 52], [-54, 2]].forEach(([x, z], i) => {
+    const t = place(scene, i % 4 === 1 ? 'tree_tall' : 'tree_round', x, 0, z, { ry: i * 1.3, scale: .8 + (i % 3) * .25, edges: false });
+  });
+  {   // the fence: segments of 2.6 m round the island
+    const R = 58.5, n = Math.round(2 * Math.PI * R / 2.625);
+    for (let i = 0; i < n; i++) { const a = i * 2 * Math.PI / n, f = place(scene, 'fence_segment', Math.cos(a) * R, 0, Math.sin(a) * R, { ry: -a - Math.PI / 2, edges: false }); if (f) f.scale.x = 2 * Math.PI * R / n / 2.625; }
+  }
+  // cables from the meter to every part, with current running along them
+  const ENDS = [[-13, -19], [-44, 12], [-34, 32], [-8, 18], [8, -8], [42, 14], [9, 23], [2, -16], [2, -32], [33.5, -4]];
+  const pulseMat = new THREE.MeshBasicMaterial({ color: 0xff8a3d }), pulseGeo = new THREE.SphereGeometry(.16, 12, 8), pulses = [];
+  ENDS.forEach(([x, z], i) => {
+    const pts = Array.from({ length: 24 }, (_, k) => { const u = k / 23, px = x * u, pz = z * u; return new THREE.Vector3(px, well(Math.hypot(px, pz)) + .12, pz); });
+    const curve = new THREE.CatmullRomCurve3(pts);
+    scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, .1, 6), new THREE.MeshBasicMaterial({ color: 0x3a2a20 })));
+    for (let j = 0; j < 3; j++) { const m = new THREE.Mesh(pulseGeo, pulseMat); scene.add(m); pulses.push([m, curve, i * .13 + j / 3]); }
+  });
+  // waves going out from the heat pump once the camera is on it
+  const waves = Array.from({ length: 3 }, () => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(.96, 1, 96), new THREE.MeshBasicMaterial({ color: 0xff5f00, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    m.rotation.x = -Math.PI / 2; m.position.set(3.7, .08, -16); scene.add(m); return m;
+  });
+
+  // names as small glass chips that follow their parts on the screen
+  const LABELS = [['Solar field', -26, 4, -18, false], ['Wind turbine', -44, 30, 12, false], ['Production hall', 18, 13, -8, false], ['Battery', -14, 5, 18, true],
+    ['Heat pump', 3.7, 4.5, -16, true], ['EV chargers', 18, 4.5, 26, true], ['Cold store', 42, 9.5, 14, true], ['Electric furnace', 33.5, 12, -8, true]];
+  const chips = LABELS.map(([name, , , , hot]) => { const d = document.createElement('div'); d.className = `oz3d-chip lg${hot ? ' hot' : ''}`; d.textContent = name; root.appendChild(d); return d; });
+
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), .5, .5, .35); composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches, v = new THREE.Vector3();
+  let W = 0, H = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const o = window.__oz;
+    const alpha = o ? o.alpha : 0;
+    root.style.opacity = alpha.toFixed(3);
+    if (alpha < .01) return;
+    const w = root.clientWidth, h = root.clientHeight;
+    if (w !== W || h !== H) { W = w; H = h; const dpr = Math.min(devicePixelRatio || 1, 1.75); renderer.setPixelRatio(dpr); renderer.setSize(W, H, false); composer.setPixelRatio(dpr); composer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix(); }
+    const t = calm ? 0 : now / 1000;
+    // the camera: so many pixels per metre at the target as the zoom asks for
+    const d = H / (2 * o.k * Math.tan(camera.fov * Math.PI / 360)), tl = o.tilt, yw = o.yaw;
+    const tx = o.pe, tz = o.ps;
+    camera.position.set(tx + d * Math.cos(tl) * Math.sin(yw), d * Math.sin(tl), tz + d * Math.cos(tl) * Math.cos(yw));
+    camera.lookAt(tx, 0, tz); camera.near = Math.max(.5, d / 50); camera.far = d * 6 + 600; camera.updateProjectionMatrix();
+    // flowing rings, current, turning parts, the waves
+    rings.forEach((ring, i) => {
+      const u = (((i + .5) / rings.length - t * .03) % 1 + 1) % 1, r = 1.5 + 57 * u ** 1.5, inner = (1 - u) ** 3;
+      ring.scale.set(r, 1, r); ring.position.y = well(r) + .05; ring.material.opacity = .08 + .55 * inner;
+      ring.material.color.setRGB(1, .85 - .3 * inner, .75 - .5 * inner);
+    });
+    pulses.forEach(([m, curve, ph]) => { curve.getPointAt((ph + t * .18) % 1, v); m.position.copy(v); });
+    spinning.forEach(([obj, axis, speed]) => { obj.rotation[axis] = t * speed + (axis === 'z' && speed < 2 ? obj.userData.ph || 0 : 0); });
+    EDGE_W.opacity = .45 * (1 - .6 * o.focus);
+    waves.forEach((m, k) => { const u = (t * .45 + k / 3) % 1; m.scale.setScalar(2 + u * 7); m.material.opacity = o.focus * (1 - u) * .9; });
+    composer.render();
+    // the chips
+    LABELS.forEach(([, x, y, z], i) => {
+      v.set(x, y, z).project(camera);
+      const vis = alpha * (1 - o.focus) * Math.min(1, Math.max(0, (o.k - 1.2) / 1.2)) * (v.z < 1 ? 1 : 0);
+      chips[i].style.opacity = vis.toFixed(3);
+      chips[i].style.transform = `translate(${(v.x + 1) / 2 * W}px, ${(1 - v.y) / 2 * H}px) translate(-50%, -120%)`;
+    });
+  }
+  requestAnimationFrame(frame);
+  window.__ozSite3d = true;
+}
+
+const site3d = document.querySelector('#oz-3d');
+if (site3d) buildSite3D(site3d).catch(err => { console.warn('offpeak: 3D site off:', err); site3d.remove(); });   // the line drawing stands in
 
 const amber = document.querySelector('#oz-amber');
 if (amber) buildAmberSphere(amber, { scale: 1, density: 1, particleSize: 1, intensity: 1, glow: .4, amber: '#ff6c18', gold: '#ffa441', turbulence: .052, speed: 1 })
