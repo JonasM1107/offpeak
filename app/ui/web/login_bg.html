@@ -9,9 +9,11 @@
 <style>
   html, body { margin: 0; background: transparent; overflow: hidden; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+  #field { mix-blend-mode: screen; opacity: .85; }
 </style>
 </head>
 <body>
+<canvas id="well" aria-hidden="true"></canvas>
 <canvas id="field" aria-hidden="true"></canvas>
 <!--FIELD-->
 <script>
@@ -39,6 +41,66 @@
     })(t0);
   }
 
+  // ── the gravity well: a grid of light sinking into a funnel at the card's core ──
+  // A flat grid seen at an angle; each point is pulled down towards the core (deeper the
+  // closer it is), the cursor bends it a little, typing sends a ripple out of the throat.
+  const wv = document.getElementById('well'), wx = wv.getContext('2d');
+  const well = { depth: calm ? 1 : 0, ripple: [], mx: 0, my: 0, tmx: 0, tmy: 0 };
+  function sizeWell() { const d = Math.min(devicePixelRatio || 1, 2); wv.width = innerWidth * d; wv.height = innerHeight * d; wx.setTransform(d, 0, 0, d, 0, 0); }
+  sizeWell(); addEventListener('resize', () => { sizeWell(); if (calm) requestAnimationFrame(drawWell); });   // still picture: draw again
+  const kick = field.kick; field.kick = v => { kick(v); if (!calm) well.ripple.push({ t: performance.now(), a: Math.min(1, v) }); };
+  const t0w = performance.now();
+  function drawWell(now) {
+    const W = innerWidth, H = innerHeight, cx = field.coreX, cy = field.coreY, t = (now - t0w) / 1000;
+    if (!calm) well.depth = 1 - Math.pow(Math.max(0, 1 - t / 1.8), 3);   // the well opens as the card arrives
+    well.mx += (well.tmx - well.mx) * .06; well.my += (well.tmy - well.my) * .06;
+    well.ripple = well.ripple.filter(r => now - r.t < 1600);
+    wx.clearRect(0, 0, W, H);
+    // the glow in the throat
+    const g = wx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .55);
+    g.addColorStop(0, 'rgba(255,95,0,.20)'); g.addColorStop(.25, 'rgba(255,95,0,.06)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    wx.fillStyle = g; wx.fillRect(0, 0, W, H);
+    const S = Math.max(W, H) * 1.1, step = S / 34;
+    // a point of the flat grid (gx, gz around the core) to the screen, sunk into the well
+    const proj = (gx, gz) => {
+      const d = Math.hypot(gx, gz), rr = d / (S * .5);
+      let sink = 190 * well.depth / (1 + Math.pow(rr * 5.2, 2));
+      for (const r of well.ripple) { const age = (now - r.t) / 1000, front = age * S * .45; sink += 26 * r.a * Math.exp(-Math.pow((d - front) / 70, 2)) * (1 - age / 1.6); }
+      const pull = 1 - .55 * well.depth / (1 + Math.pow(rr * 3, 2));     // drawn in, towards the throat
+      const sx = cx + gx * pull + well.mx * (1 - rr) * 30, sz = gz * pull + well.my * (1 - rr) * 30;
+      return [sx, cy + sz * .42 + sink * (1 - Math.min(1, rr))];       // 0.42: the grid is seen tilted
+    };
+    wx.lineWidth = 1;
+    for (let k = -17; k <= 17; k++) {
+      for (const dir of [0, 1]) {
+        wx.beginPath();
+        for (let j = -17; j <= 17; j++) {
+          const gx = dir ? k * step : j * step, gz = dir ? j * step : k * step;
+          const [x, y] = proj(gx, gz + (calm ? 0 : (t * 14) % step));
+          j === -17 ? wx.moveTo(x, y) : wx.lineTo(x, y);
+        }
+        const near = 1 - Math.min(1, Math.abs(k) / 17);
+        wx.strokeStyle = `rgba(255,${120 + near * 60},${60 + near * 80},${.05 + near * .16})`;
+        wx.stroke();
+      }
+    }
+    // the grid fades out towards the edges of the window (no hard border where it ends)
+    wx.globalCompositeOperation = 'destination-in';
+    const fade = wx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .62);
+    fade.addColorStop(0, 'rgba(0,0,0,1)'); fade.addColorStop(.55, 'rgba(0,0,0,.8)'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+    wx.save(); wx.translate(cx, cy); wx.scale(1, .62); wx.translate(-cx, -cy);
+    wx.fillStyle = fade; wx.fillRect(-W, -H, W * 3, H * 3); wx.restore();
+    wx.globalCompositeOperation = 'source-over';
+    // rings sinking into the throat, one after another
+    for (let i = 0; i < 6; i++) {
+      const ph = calm ? i / 6 : ((t * .25 + i / 6) % 1), r = (1 - ph) * 240 + 34;
+      wx.beginPath(); wx.ellipse(cx, cy + 6 + ph * 34 * well.depth, r, r * .42, 0, 0, 7);
+      wx.strokeStyle = `rgba(255,140,60,${.42 * ph * (1 - ph) * well.depth})`; wx.lineWidth = 1.4; wx.stroke();
+    }
+    if (!calm) requestAnimationFrame(drawWell);
+  }
+  requestAnimationFrame(drawWell);
+
   if (!app) return;
   // Listeners on the app's page; removed again when this frame goes (after signing in).
   const stop = new AbortController(), on = { signal: stop.signal, passive: true };
@@ -51,6 +113,15 @@
   doc.addEventListener('pointerdown', e => { if (inCard(e.target) && e.target.closest('button')) field.kick(1.6); }, on);
   // a soft light on the card follows the cursor (CSS: --mx, --my in app/ui/components.py)
   app.addEventListener('pointermove', e => {
+    well.tmx = e.clientX / app.innerWidth - .5; well.tmy = e.clientY / app.innerHeight - .5;
+    // the role cards lean towards the cursor (CSS: --rx, --ry)
+    doc.querySelectorAll('.st-key-role_home, .st-key-role_business').forEach(rc => {
+      const b = rc.getBoundingClientRect(), x = (e.clientX - b.left) / b.width, y = (e.clientY - b.top) / b.height;
+      const inside = x >= 0 && x <= 1 && y >= 0 && y <= 1 && !calm;
+      rc.style.setProperty('--rx', inside ? ((.5 - y) * 8).toFixed(2) + 'deg' : '0deg');
+      rc.style.setProperty('--ry', inside ? ((x - .5) * 10).toFixed(2) + 'deg' : '0deg');
+      rc.style.setProperty('--gx', (x * 100).toFixed(1) + '%'); rc.style.setProperty('--gy', (y * 100).toFixed(1) + '%');
+    });
     const card = doc.querySelector('.st-key-card_login, .st-key-card_roles');
     if (!card) return;
     const r = card.getBoundingClientRect();
