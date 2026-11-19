@@ -271,14 +271,28 @@ def why_not_saved(err: Exception) -> str:
     return f"{type(cause).__name__}: {first}"[:200]
 
 
-def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]]:
-    """Make the business site exactly `new` (the "Edit site" save). Returns where it went
-    and the problems that stopped it (then nothing is saved).
+def reset_to_demo() -> str:
+    """Throw away the signed-in role's own site, so it shows its demo site again (the
+    designer's "Reset to demo"). Only that role's rows of that site are deleted, never the
+    other role's. Like every change, only a signed-in editor changes the shared site; for
+    anyone else it is this browser tab. Returns where the change went."""
+    profile, here = role(), site()
+    st.session_state.pop(_local_key(profile), None)
+    if not can_share():
+        return "local" if engine() else "session"
+    # an empty list in the database means "never edited": the demo site shows again
+    db.replace_components(engine(), here.id, [], profile)
+    return "database"
 
-    Checked here again, not only on the page: this is where the data is stored. The layout
-    designer is for the Business portal only, so a homeowner account is refused here even
-    if the page were tricked into calling it. Like adding and removing, only a signed-in
-    editor changes the shared site; anyone else keeps the new site in this browser tab."""
+
+def replace_site(new: list[components.Component]) -> tuple[str | None, list[str]]:
+    """Make the signed-in role's site exactly `new` (the site designer's save). Returns
+    where it went and the problems that stopped it (then nothing is saved).
+
+    Checked here again, not only on the page: this is where the data is stored. Only parts
+    of the role's own catalogue are accepted, whatever the page sent. Like adding and
+    removing, only a signed-in editor changes the shared site; anyone else keeps the new
+    site in this browser tab."""
     profile, here = role(), site()
     try:  # only parts of the signed-in role's own catalogue, whatever the page sent
         components.check_profile(new, profile)

@@ -130,14 +130,24 @@ def show(comps) -> None:
             if st.button("Back to the saved site", icon=":material/undo:"):
                 del st.session_state[EMPTY]
                 st.rerun()
-        elif st.button(
-            "Clear field",
-            icon=":material/crop_free:",
-            help="Start from an empty site and drag everything on again",
-        ):
-            st.session_state[EMPTY] = True
-            st.session_state[PICK] = None
-            st.rerun()
+        else:
+            clear, reset, _ = st.columns([1, 1, 4])
+            if clear.button(
+                "Clear field",
+                icon=":material/crop_free:",
+                help="Start from an empty site and drag everything on again",
+            ):
+                st.session_state[EMPTY] = True
+                st.session_state[PICK] = None
+                st.rerun()
+            # the demo site again, without the database's SQL editor; asked once more first,
+            # because the own layout is gone afterwards
+            with reset.popover("Reset to demo", icon=":material/restart_alt:"):
+                st.write("Your own layout is replaced by the demo site. This cannot be undone.")
+                if st.button("Yes, reset", type="primary", key="designer_reset"):
+                    data.reset_to_demo()
+                    st.session_state[PICK] = None
+                    st.rerun()
         if MESSAGE in st.session_state:  # what the last drag or drop could not do
             st.warning(st.session_state.pop(MESSAGE), icon=":material/info:")
         # The designer reports one action at a time; offpeak/layout.py decides if it is
