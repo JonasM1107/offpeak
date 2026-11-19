@@ -468,6 +468,65 @@
     .nw .rise { animation: none; opacity: 1; transform: none; filter: none; }
     .nw-view canvas { transition: none; }
   }
+
+  /* ── zoom into the site: a window on the site view grows to fill the screen as you scroll
+     (HorizonX "Scroll Expand", adapted: our screenshot, our copy, the night colours) ── */
+  .sxp-section { padding: 0; background: #07080A; position: relative; z-index: 2; }
+  .sxp-root { position: relative; width: 100%; }
+  .sxp-track { position: relative; width: 100%; }
+  .sxp-stage { position: sticky; top: 0; width: 100%; overflow: hidden; --sxp-title-size: 4rem; }
+  .sxp-frame { position: absolute; inset: 0; clip-path: inset(21% 22% 21% 22% round 96px); will-change: clip-path; box-shadow: 0 0 0 1px rgba(255,255,255,.06); }
+  .sxp-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; will-change: transform; transform-origin: center; user-select: none; -webkit-user-drag: none; }
+  .sxp-scrim { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(to top, rgba(7,8,10,.92), rgba(7,8,10,.55) 38%, rgba(7,8,10,.1) 62%, rgba(7,8,10,.25)); }
+  .sxp-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: .75rem; text-align: center; padding: 6% 6% 9%; opacity: 0; will-change: opacity, transform; color: #fff; }
+  .sxp-overlay-title { margin: 0; font: 500 clamp(28px, 4vw, 56px)/1.05 var(--display); letter-spacing: -.035em; text-shadow: 0 2px 24px rgba(0,0,0,.45); }
+  .sxp-overlay-title b { color: var(--accent); font-weight: 500; }
+  .sxp-overlay-body { margin: 0; max-width: 52ch; font-size: clamp(15px, 1.4vw, 18px); line-height: 1.5; color: rgba(255,255,255,.8); text-shadow: 0 1px 16px rgba(0,0,0,.5); }
+  .sxp-title { position: absolute; left: 0; right: 0; top: 11%; display: flex; justify-content: center; margin: 0; padding: 0 6%; text-align: center; font: 500 var(--sxp-title-size)/1 var(--display); letter-spacing: -.045em; color: #EEF0F2; pointer-events: none; will-change: opacity, transform; }
+  .sxp-title b { color: var(--accent); font-weight: 500; text-shadow: 0 0 40px rgba(255,95,0,.4); }
+  .sxp-hint { position: absolute; left: 0; right: 0; bottom: 1.4rem; text-align: center; font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: rgba(238,240,242,.5); pointer-events: none; will-change: opacity, transform; }
+
+  /* ── a look inside: app screens fly up and stack (HorizonX "Scroll Stack", adapted:
+     CSS transitions instead of the GSAP library, our screens and copy) ── */
+  .ssc-section { padding: 70px 0 90px; background: #07080A; color: #EEF0F2; position: relative; z-index: 2; }
+  .ssc-section .ssc-head { text-align: center; margin: 0 auto 8px; padding: 0 24px; }
+  .ssc-section .ssc-head .eyebrow { color: rgba(238,240,242,.55); }
+  .ssc-section .ssc-head h2 { color: #EEF0F2; margin-bottom: 8px; }
+  .ssc-section .ssc-head p { color: rgba(238,240,242,.6); margin: 0; }
+  .ssc-frame { display: flex; align-items: center; justify-content: center; width: 100%; height: 680px; overflow: hidden; }
+  .ssc-viewport { --ssc-card-width: 900px; --ssc-card-height: 520px; --ssc-radius: 22px; --ssc-offset: 0px; position: relative; flex: 0 0 auto; width: 1088px; max-width: 100%; height: 680px; overflow: hidden; isolation: isolate; color: #fff; font-family: Inter, system-ui, sans-serif; }
+  .ssc-stack { position: absolute; inset: 0; overflow: hidden; outline: none; perspective: 1400px; touch-action: pan-y; cursor: ns-resize; }
+  .ssc-stack[data-dragging='true'] { cursor: grabbing; }
+  .ssc-card { position: absolute; left: 50%; top: 70px; display: block; width: min(var(--ssc-card-width), calc(100% - 40px)); height: var(--ssc-card-height); overflow: hidden; border-radius: var(--ssc-radius); background: #171717;
+    transform-origin: 50% 0; will-change: transform, filter, opacity; box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06);
+    transition: transform .55s cubic-bezier(.2,.8,.2,1), opacity .55s cubic-bezier(.2,.8,.2,1), filter .55s cubic-bezier(.2,.8,.2,1); }
+  .ssc-card:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+  .ssc-media, .ssc-scrim { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ssc-media { object-fit: cover; object-position: 50% 0; pointer-events: none; }
+  .ssc-scrim { background: linear-gradient(180deg, rgb(0 0 0 / 0) 40%, rgb(7 8 10 / .9) 100%); pointer-events: none; }
+  .ssc-top-count { position: absolute; top: 24px; right: 26px; color: rgb(28 27 25 / .55); font-family: var(--mono); font-size: 10px; letter-spacing: .16em; }
+  .ssc-copy { position: absolute; left: 36px; right: 36px; bottom: 32px; display: grid; gap: 10px; text-align: left; }
+  .ssc-eyebrow { color: #FFB27A; font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: .2em; }
+  .ssc-title { font-family: var(--display); font-size: 34px; font-weight: 500; letter-spacing: -.03em; line-height: 1.05; }
+  .ssc-body { max-width: 520px; color: rgb(255 255 255 / .72); font-size: 16px; line-height: 1.5; }
+  .ssc-footer { position: absolute; left: 50%; bottom: 26px; z-index: 300; display: flex; align-items: center; gap: 16px; transform: translateX(-50%); }
+  .ssc-progress { display: flex; width: 176px; height: 8px; align-items: center; gap: 4px; }
+  .ssc-segment { flex: 1; height: 2px; border: 0; padding: 0; background: rgb(255 255 255 / .16); cursor: pointer; border-radius: 2px; transition: background .3s; }
+  .ssc-segment[data-complete='true'] { background: var(--accent); }
+  .ssc-footer-count { color: rgba(238,240,242,.55); font-family: var(--mono); font-size: 10px; letter-spacing: .16em; white-space: nowrap; }
+  .ssc-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 700px) {
+    .ssc-frame, .ssc-viewport { height: 520px; } .ssc-viewport { --ssc-card-height: 380px; }
+    .ssc-card { top: 50px; width: calc(100% - 28px); } .ssc-copy { left: 22px; right: 22px; bottom: 22px; gap: 8px; }
+    .ssc-title { font-size: 26px; } .ssc-body { font-size: 14.5px; } .ssc-top-count { top: 18px; right: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .ssc-card { transition: none; } }
+
+  /* everything that reveals itself on the rest of the page flies in: from further down,
+     a little smaller and out of focus */
+  .reveal { opacity: 0; transform: translateY(70px) scale(.94); filter: blur(10px); transition: opacity 1s var(--ease), transform 1.1s var(--ease), filter 1s var(--ease); transition-delay: var(--d, 0s); }
+  .reveal.in { opacity: 1; transform: none; filter: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; filter: none; transition: none; } }
 </style>
 </head>
 <body>
@@ -496,7 +555,7 @@
 
 <main id="top">
   <!-- ── the night window: the first screen ── -->
-  <section class="nw" id="nw" aria-label="offpeak">
+  <section class="nw" id="nw" data-dark aria-label="offpeak">
     <div class="nw-top">
       <div class="nw-eyebrow rise" style="--i:1"><i></i>Live from the German grid · DE-LU</div>
       <h1 class="rise" style="--i:2">Peak prices are <b>optional.</b><em>Run every machine in the cheapest quarter-hours.</em></h1>
@@ -524,6 +583,33 @@
       <span class="tele" aria-label="Example readout"><span>SPOT <b id="nw-spot">8.42</b> ct/kWh</span><span>LOAD <b id="nw-load">54.1</b> GW</span><span>WIND <b id="nw-wind">21.3</b> GW</span><span>EXAMPLE</span></span>
       <span>© 2026 offpeak</span>
     </div>
+  </section>
+
+  <!-- ── zoom into the site (scrolling grows the window to the full screen) ── -->
+  <section class="sxp-section" data-dark aria-label="The site view">
+    <div class="sxp-root" id="sxp"><div class="sxp-track"><div class="sxp-stage">
+      <div class="sxp-frame">
+        <img class="sxp-media" src="/app/static/tour/site.jpg" alt="The offpeak site view: a 3D model of the demo site with solar, wind, battery and machines, and the day plan below" draggable="false" decoding="async">
+        <div class="sxp-scrim"></div>
+        <div class="sxp-overlay"><h3 class="sxp-overlay-title">Every machine. <b>Every quarter-hour.</b></h3><p class="sxp-overlay-body">Solar, wind, battery and every machine in one live 3D model, planned around tomorrow's prices. Drag parts around and the plan follows.</p></div>
+      </div>
+      <div class="sxp-title">Zoom into&nbsp;<b>your site.</b></div>
+      <div class="sxp-hint">Scroll</div>
+    </div></div></div>
+  </section>
+
+  <!-- ── a look inside: the app's screens fly up one after another ── -->
+  <section class="ssc-section" data-dark aria-label="A look inside the app">
+    <div class="ssc-head reveal"><div class="eyebrow">A look inside</div><h2>Five screens. <em style="font-style:normal;color:var(--accent)">One plan.</em></h2><p>Scroll or drag over the cards. Real screens with demo data.</p></div>
+    <div class="ssc-frame"><div class="ssc-viewport" role="region" aria-label="Screens of the app"><div class="ssc-stack" role="group" aria-roledescription="carousel" aria-label="Screens of the app. Use the mouse wheel, drag vertically, or press the arrow keys." tabindex="0">
+      <article class="ssc-card" aria-label="Dashboard"><img class="ssc-media" src="/app/static/tour/dashboard.jpg" alt="The dashboard: the price right now and the week plan for every machine" draggable="false" decoding="async"><span class="ssc-scrim" aria-hidden="true"></span><span class="ssc-top-count" aria-hidden="true">01/05</span><span class="ssc-copy"><span class="ssc-eyebrow">01 · DASHBOARD</span><span class="ssc-title">Today, at a glance</span><span class="ssc-body">The price right now, what runs next, and what the plan has saved so far.</span></span></article>
+      <article class="ssc-card" aria-label="Site view"><img class="ssc-media" src="/app/static/tour/site.jpg" alt="The site view: a 3D model of the site with its power flows" draggable="false" decoding="async"><span class="ssc-scrim" aria-hidden="true"></span><span class="ssc-top-count" aria-hidden="true">02/05</span><span class="ssc-copy"><span class="ssc-eyebrow">02 · SITE VIEW</span><span class="ssc-title">Your site, live in 3D</span><span class="ssc-body">Every machine and every power flow, hour by hour, with the plan and the usual day side by side.</span></span></article>
+      <article class="ssc-card" aria-label="Savings"><img class="ssc-media" src="/app/static/tour/savings.jpg" alt="The savings page: what the plan saved each of the last 30 days" draggable="false" decoding="async"><span class="ssc-scrim" aria-hidden="true"></span><span class="ssc-top-count" aria-hidden="true">03/05</span><span class="ssc-copy"><span class="ssc-eyebrow">03 · SAVINGS</span><span class="ssc-title">Proof, in euros</span><span class="ssc-body">Every past day replayed with the real prices and weather: what the plan would have saved.</span></span></article>
+      <article class="ssc-card" aria-label="Power"><img class="ssc-media" src="/app/static/tour/power.jpg" alt="The power page: tomorrow's prices per quarter-hour" draggable="false" decoding="async"><span class="ssc-scrim" aria-hidden="true"></span><span class="ssc-top-count" aria-hidden="true">04/05</span><span class="ssc-copy"><span class="ssc-eyebrow">04 · POWER</span><span class="ssc-title">Tomorrow, every quarter-hour</span><span class="ssc-body">The cheapest block for every job length, before the day starts.</span></span></article>
+      <article class="ssc-card" aria-label="Home view"><img class="ssc-media" src="/app/static/tour/home.jpg" alt="The home view: a house with solar, battery, heat pump and wallbox" draggable="false" decoding="async"><span class="ssc-scrim" aria-hidden="true"></span><span class="ssc-top-count" aria-hidden="true">05/05</span><span class="ssc-copy"><span class="ssc-eyebrow">05 · HOME VIEW</span><span class="ssc-title">For homes, too</span><span class="ssc-body">Heat pump, wallbox, washing machine: the same plan for a household, with § 14a tariffs.</span></span></article>
+    </div>
+    <div class="ssc-footer"><div class="ssc-progress" role="group" aria-label="Choose a screen"><button class="ssc-segment" type="button" aria-label="Show screen 1"></button><button class="ssc-segment" type="button" aria-label="Show screen 2"></button><button class="ssc-segment" type="button" aria-label="Show screen 3"></button><button class="ssc-segment" type="button" aria-label="Show screen 4"></button><button class="ssc-segment" type="button" aria-label="Show screen 5"></button></div><span class="ssc-footer-count"><span class="ssc-current">01</span> / 05</span></div>
+    <p class="ssc-status" aria-live="polite"></p></div></div>
   </section>
 
   <!-- ── hero ── -->
@@ -1411,13 +1497,84 @@
       setInterval(() => { if (!on) return; tele.forEach(r => { r.v += (Math.random() - .5) * r.d + (r.base - r.v) * .08; r.el.textContent = r.v.toFixed(r.n); }); }, 1000);
     }
     requestAnimationFrame(() => sec.classList.add('live'));
-    // the menu bar turns dark over this screen
-    const onScroll = () => nav.classList.toggle('on-dark', scrollY < sec.offsetHeight - 60);
+    // the menu bar turns dark over every dark section (this screen, the zoom, the screens)
+    const darks = $$('[data-dark]');
+    const onScroll = () => nav.classList.toggle('on-dark', darks.some(d => { const r = d.getBoundingClientRect(); return r.top < 44 && r.bottom > 44; }));
     addEventListener('scroll', onScroll, { passive: true }); onScroll();
   }
 
+  // ── zoom into the site: the window's clip opens with the scroll position ──
+  // (HorizonX "Scroll Expand": the same curves, with our values filled in)
+  function zoomSite() {
+    const root = $('#sxp'); if (!root) return;
+    const track = root.querySelector('.sxp-track'), stage = root.querySelector('.sxp-stage'), frame = root.querySelector('.sxp-frame');
+    const media = root.querySelector('.sxp-media'), scrim = root.querySelector('.sxp-scrim'), title = root.querySelector('.sxp-title');
+    const hint = root.querySelector('.sxp-hint'), overlay = root.querySelector('.sxp-overlay');
+    const ramp = (x, a, b) => { const t = clamp((x - a) / ((b - a) || 1e-6), 0, 1); return t * t * (3 - 2 * t); };
+    const aperture = t => 1 - Math.pow(1 - clamp(t, 0, 1), 2.4);
+    const W0 = 56, H0 = 58, R0 = 96, ZOOM = 1.18, REST = W0 * H0 / 10000, LENGTH = 1.3;
+    const coverage = a => clamp(((W0 + (100 - W0) * a) * (H0 + (100 - H0) * a) / 10000 - REST) / (1 - REST), 0, 1);
+    let current = 0, target = 0, stageH = 0, running = false;
+    const apply = p => {
+      const a = aperture(p), w = W0 + (100 - W0) * a, h = H0 + (100 - H0) * a;
+      frame.style.clipPath = `inset(${(100 - h) / 2}% ${(100 - w) / 2}% ${(100 - h) / 2}% ${(100 - w) / 2}% round ${R0 * (1 - a)}px)`;
+      media.style.transform = `scale(${ZOOM + (1 - ZOOM) * aperture((p - .18) / .82)})`;
+      const cov = coverage(a);
+      scrim.style.opacity = String(.95 * cov);
+      const out = ramp(cov, .24, .85); title.style.opacity = String(1 - out); title.style.transform = `translate3d(0,${-22 * out}px,0) scale(${1 - .04 * out})`;
+      const gone = ramp(cov, 0, .09); hint.style.opacity = String(1 - gone);
+      const inn = ramp(cov, .78, 1); overlay.style.opacity = String(inn); overlay.style.transform = `translate3d(0,${22 * (1 - inn)}px,0)`;
+    };
+    const measure = () => { stageH = innerHeight; stage.style.height = stageH + 'px'; track.style.height = stageH * 2.75 + 'px';
+      stage.style.setProperty('--sxp-title-size', clamp(root.clientWidth * .065, 30, 84) + 'px'); };
+    const read = () => clamp(-track.getBoundingClientRect().top / (stageH * LENGTH), 0, 1);
+    const tick = () => { current += (target - current) * .16; if (Math.abs(target - current) < .0004) { current = target; running = false; } apply(current); if (running) requestAnimationFrame(tick); };
+    addEventListener('scroll', () => { target = read(); if (calm) { current = target; apply(current); return; } if (!running) { running = true; requestAnimationFrame(tick); } }, { passive: true });
+    addEventListener('resize', () => { measure(); target = current = read(); apply(current); });
+    measure(); target = current = read(); apply(current);
+  }
+
+  // ── a look inside: five screens fly up from below and stack (wheel, drag, keys, dots) ──
+  // (HorizonX "Scroll Stack", with CSS transitions instead of the GSAP library)
+  function screenStack() {
+    const stack = $('.ssc-stack'); if (!stack) return;
+    const cards = [...stack.querySelectorAll('.ssc-card')], dots = $$('.ssc-segment'), cur = $('.ssc-current'), status = $('.ssc-status');
+    const DEPTH = 3, PEEK = 30, STEP = .07, BLUR = 4, DIM = .32, n = cards.length;
+    let active = 0, wheel = 0, wheelTimer = 0, dragging = false, startY = 0, pid = null;
+    const render = i => {
+      active = clamp(i, 0, n - 1);
+      cards.forEach((card, k) => {
+        const behind = active - k, mounted = behind >= 0 && behind <= DEPTH, now = behind === 0;
+        const y = mounted ? -behind * PEEK * .5 : card.offsetHeight + 160;     // not yet shown: waiting below
+        const scale = mounted ? Math.max(.58, 1 - behind * STEP) : 1;
+        card.style.transform = `translateX(-50%) translateY(${y}px) scale(${scale})`;
+        card.style.opacity = mounted ? '1' : '0';
+        card.style.filter = `blur(${now ? 0 : Math.min(BLUR, BLUR * behind)}px) brightness(${now ? 1 : Math.max(.15, 1 - DIM * Math.max(1, behind))})`;
+        card.style.zIndex = String(100 + k); card.style.pointerEvents = now ? 'auto' : 'none';
+        card.setAttribute('aria-hidden', mounted ? 'false' : 'true');
+      });
+      dots.forEach((d, k) => { d.dataset.complete = String(k <= active); d.setAttribute('aria-current', k === active ? 'true' : 'false'); });
+      cur.textContent = String(active + 1).padStart(2, '0'); status.textContent = `Screen ${active + 1} of ${n}`;
+    };
+    stack.addEventListener('wheel', e => {   // the wheel moves through the cards; at the ends the page scrolls on
+      if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
+      const dir = Math.sign(e.deltaY);
+      if ((dir < 0 && active === 0) || (dir > 0 && active === n - 1)) return;
+      e.preventDefault(); wheel += e.deltaY; clearTimeout(wheelTimer); wheelTimer = setTimeout(() => { wheel = 0; }, 160);
+      if (Math.abs(wheel) >= 42) { render(active + Math.sign(wheel)); wheel = 0; }
+    }, { passive: false });
+    stack.addEventListener('keydown', e => { const k = { ArrowDown: 1, PageDown: 1, ArrowUp: -1, PageUp: -1 }[e.key]; if (k) { e.preventDefault(); render(active + k); } });
+    stack.addEventListener('pointerdown', e => { if (e.button) return; dragging = true; pid = e.pointerId; startY = e.clientY; stack.setPointerCapture(pid); stack.dataset.dragging = 'true'; });
+    const up = e => { if (!dragging || e.pointerId !== pid) return; dragging = false; stack.dataset.dragging = 'false'; const d = startY - e.clientY; if (Math.abs(d) > 28) render(active + Math.sign(d)); };
+    stack.addEventListener('pointerup', up); stack.addEventListener('pointercancel', up);
+    dots.forEach((d, k) => d.addEventListener('click', () => render(k)));
+    render(0);
+    // the first time the stack comes into view, the next screen flies in by itself as a hint
+    if (!calm) new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { o.disconnect(); setTimeout(() => { if (active === 0) render(1); }, 700); } }, { threshold: .6 }).observe(stack);
+  }
+
   const ready = () => { $('#nw') && $('#nw').classList.add('go'); headline(0); typewriter(); };
-  nightWindow(); lines(); cursor(); scrolling(); shift(); marquee(); statement(); counters(); steps(); tiles(); who(); pricing(); clock(); tour(); login(); sectionLinks(); clearPortal();
+  nightWindow(); zoomSite(); screenStack(); lines(); cursor(); scrolling(); shift(); marquee(); statement(); counters(); steps(); tiles(); who(); pricing(); clock(); tour(); login(); sectionLinks(); clearPortal();
   intro(ready);
 })();
 </script>
