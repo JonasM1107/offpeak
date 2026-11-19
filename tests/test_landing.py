@@ -162,3 +162,20 @@ def test_the_page_runs_no_outside_scripts_and_every_login_link_works_alone():
     links = re.findall(r"<a [^>]*data-login[^>]*>", html)
     assert len(links) >= 3
     assert all('href="https://offpeak.streamlit.app/?login"' in a for a in links)
+
+
+def test_the_3d_visuals_load_three_js_from_our_own_server():
+    """The amber planet and the bolt cloud need three.js: it comes from app/static/vendor/
+    (served by the app itself), never from a CDN, so the page works when one is down."""
+    root = Path(__file__).parent.parent
+    html = PAGE.read_text()
+    for path in re.findall(r"at\('(app/static/vendor/[^']+)'\)", html):
+        assert (root / path).exists(), path
+    assert "three.module.min.js" in html
+    assert not re.search(r"esm\.sh|unpkg|jsdelivr|cdn\.", html)
+    vendor = root / "app" / "static" / "vendor" / "three"
+    assert (vendor / "LICENSE").is_file()
+    # every file the bloom effect imports is there (one level of relative imports)
+    for js in vendor.rglob("*.js"):
+        for rel in re.findall(r"from '(\.{1,2}/[^']+)'", js.read_text()):
+            assert (js.parent / rel).resolve().is_file(), f"{js.name} imports {rel}"
