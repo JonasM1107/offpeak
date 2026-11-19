@@ -58,10 +58,22 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tile.hero::after { content: ''; position: absolute; right: -30px; bottom: -40px; width: 120px; height: 120px;
   border-radius: 50%; background: var(--glow); filter: blur(40px); opacity: .55; pointer-events: none; }
 
-/* fade-in on load */
-.reveal { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
-@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .reveal { animation: none; } }
+/* fade-in on load: the cards of a row come in one after another */
+.reveal { animation: rise .6s cubic-bezier(.16,1,.3,1) both; }
+.row > .reveal:nth-child(2) { animation-delay: .06s; } .row > .reveal:nth-child(3) { animation-delay: .12s; }
+.row > .reveal:nth-child(4) { animation-delay: .18s; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* hover: cards and tiles lift a little and their edge warms up; calm and short, no bounce */
+.card, .tile { transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s, border-color .25s; }
+.card:hover { border-color: color-mix(in srgb, var(--line), var(--ink) 8%); box-shadow: 0 10px 30px rgba(28,27,25,.07); }
+.tile:hover { transform: translateY(-2px); border-color: var(--accent-mid); box-shadow: 0 12px 28px rgba(255,95,0,.10); }
+.tile.hero:hover { border-color: transparent; box-shadow: 0 14px 34px rgba(28,27,25,.22); }
+.chip, .seg button, .ghost { transition: all .2s cubic-bezier(.2,.8,.2,1); }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation: none; }
+  .card, .tile { transition: none; } .tile:hover { transform: none; }
+}
 
 @media (max-width: 900px) {
   .row.k4 { grid-template-columns: 1fr 1fr; }

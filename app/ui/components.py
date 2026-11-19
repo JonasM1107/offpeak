@@ -152,10 +152,6 @@ CSS = f"""
     min-height: 4.4em; }}
 .op-role-chip {{ display: inline-block; padding: 4px 12px; border-radius: 999px;
     background: {ORANGE_SOFT}; color: #B84300; font-weight: 600; font-size: 0.85rem; }}
-/* the field being typed in glows */
-.st-key-card_login [data-baseweb=input] {{ transition: box-shadow 0.25s, border-color 0.25s; }}
-.st-key-card_login [data-baseweb=input]:focus-within {{ border-color: {ORANGE} !important;
-    box-shadow: 0 0 0 4px rgba(255, 95, 0, 0.14), 0 0 24px rgba(255, 95, 0, 0.18); }}
 /* behind the card: the power lines (web/login_bg.html), over the whole window */
 .st-key-login_bg {{ position: fixed !important; inset: 0; z-index: 0; pointer-events: none; }}
 .st-key-login_bg iframe {{ position: fixed; inset: 0; width: 100vw !important; border: 0;
@@ -163,14 +159,72 @@ CSS = f"""
 /* The glowing core that the landing page's Login leaves (landing.html: core) is hidden
    everywhere; the landing page shows it, the sign-in page bursts it (account.py). */
 #op-portal {{ display: none !important; }}
-/* the landing page's background: a faint grid and an orange glow at the top */
+/* the sign-in page is dark, like the night scene of the landing page: an orange glow on top,
+   the gravity well and the power lines (web/login_bg.html) behind the glass cards */
 [data-testid=stAppViewContainer]:has(.st-key-card_login),
 [data-testid=stAppViewContainer]:has(.st-key-card_roles) {{
-    background:
-        radial-gradient(900px 520px at 50% 0%, rgba(255, 95, 0, 0.08), transparent 70%),
-        linear-gradient(rgba(28, 27, 25, 0.045) 1px, transparent 1px) 0 0 / 64px 64px,
-        linear-gradient(90deg, rgba(28, 27, 25, 0.045) 1px, transparent 1px) 0 0 / 64px 64px,
-        #F6F5F2; }}
+    background: radial-gradient(900px 520px at 50% 0%, rgba(255, 95, 0, 0.16), transparent 70%),
+        #07080A; color-scheme: dark; }}
+[data-testid=stAppViewContainer]:has(.st-key-card_login) [data-testid=stHeader],
+[data-testid=stAppViewContainer]:has(.st-key-card_roles) [data-testid=stHeader] {{ background: transparent; }}
+/* liquid glass: the cards, light text, dark fields, orange glowing buttons */
+.st-key-card_login, .st-key-card_roles {{
+    background: radial-gradient(480px circle at var(--mx, 50%) var(--my, -30%),
+        rgba(255, 138, 61, 0.14), transparent 45%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02) 55%,
+        rgba(255, 255, 255, 0.05)) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    backdrop-filter: blur(18px) saturate(1.6); -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 40px 100px rgba(0, 0, 0, 0.6) !important; }}
+.st-key-card_login .op-login-logo b, .st-key-card_roles .op-login-logo b,
+.st-key-card_login .op-login-head h2, .st-key-card_roles .op-login-head h2,
+.st-key-card_roles .op-role h3 {{ color: #EEF0F2; }}
+.st-key-card_login .op-login-head p, .st-key-card_roles .op-login-head p,
+.st-key-card_roles .op-role p, .st-key-card_login [data-testid=stCaptionContainer],
+.st-key-card_login label p {{ color: rgba(238, 240, 242, 0.62) !important; }}
+.st-key-card_login .op-login-logo, .st-key-card_roles .op-login-logo {{
+    text-shadow: 0 0 34px rgba(255, 95, 0, 0.55); }}
+.st-key-card_login .op-role-chip {{ background: rgba(255, 95, 0, 0.18); color: #FFB27A;
+    border: 1px solid rgba(255, 95, 0, 0.4); }}
+.st-key-card_login [data-testid=stTextInputRootElement] {{
+    background: rgba(255, 255, 255, 0.05) !important; border-color: rgba(255, 255, 255, 0.14) !important;
+    border-radius: 12px !important; transition: box-shadow 0.25s, border-color 0.25s; }}
+.st-key-card_login [data-testid=stTextInputRootElement]:focus-within {{ border-color: {ORANGE} !important;
+    box-shadow: 0 0 0 4px rgba(255, 95, 0, 0.16), 0 0 28px rgba(255, 95, 0, 0.3); }}
+.st-key-card_login [data-testid=stTextInputRootElement] * {{ background-color: transparent !important; }}
+.st-key-card_login input {{ color: #EEF0F2 !important; caret-color: {ORANGE}; }}
+.st-key-card_login [data-testid=stTextInputRootElement] button {{ color: rgba(238, 240, 242, 0.62) !important; }}
+.st-key-card_login button[kind=primaryFormSubmit], .st-key-card_roles button[kind=primary] {{
+    background: linear-gradient(135deg, #FF8A3D, {ORANGE} 55%, #E04E00) !important;
+    border: 0 !important; color: #fff !important; border-radius: 12px !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 10px 30px rgba(255, 95, 0, 0.4);
+    transition: transform 0.2s, box-shadow 0.25s; }}
+.st-key-card_login button[kind=primaryFormSubmit]:hover, .st-key-card_roles button[kind=primary]:hover {{
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 14px 44px rgba(255, 95, 0, 0.65); }}
+.st-key-card_roles button[kind=secondary] {{ background: rgba(255, 255, 255, 0.05) !important;
+    color: #EEF0F2 !important; border-color: rgba(255, 255, 255, 0.18) !important; border-radius: 12px !important; }}
+.st-key-card_roles button[kind=secondary]:hover {{ border-color: {ORANGE} !important; color: #FFB27A !important; }}
+.st-key-card_login button[kind=tertiary], .st-key-card_roles button[kind=tertiary] {{
+    color: rgba(238, 240, 242, 0.62) !important; }}
+.st-key-card_login button[kind=tertiary]:hover, .st-key-card_roles button[kind=tertiary]:hover {{ color: #FFB27A !important; }}
+/* the role cards: glass that leans towards the cursor (--rx, --ry from web/login_bg.html) with a
+   light where the cursor is (--gx, --gy) */
+.st-key-card_roles [data-testid=stHorizontalBlock] {{ perspective: 900px; }}
+.st-key-role_home, .st-key-role_business {{ background: radial-gradient(260px circle at var(--gx, 50%) var(--gy, 0%),
+        rgba(255, 138, 61, 0.16), transparent 60%), rgba(255, 255, 255, 0.035) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transform-style: preserve-3d; }}
+.st-key-role_home:hover, .st-key-role_business:hover {{ border-color: rgba(255, 95, 0, 0.7) !important;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-3px);
+    box-shadow: 0 24px 60px rgba(255, 95, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14); }}
+.st-key-card_roles .op-role img {{ filter: drop-shadow(0 0 14px rgba(255, 95, 0, 0.6)); }}
+.st-key-card_login [data-testid=stAlert] {{ background: rgba(255, 77, 77, 0.12); }}
+.st-key-card_login [data-testid=InputInstructions] {{ color: rgba(238, 240, 242, 0.4); }}
+.st-key-card_login input::placeholder {{ color: rgba(238, 240, 242, 0.35); }}
+/* the app's logo in the corner has dark letters: on the dark sign-in page only its light shows */
+.stApp:has(.st-key-card_login) [data-testid=stHeaderLogo],
+.stApp:has(.st-key-card_roles) [data-testid=stHeaderLogo] {{ filter: brightness(0) invert(0.92); }}
 .op-login-wait {{ text-align: center; margin-top: 30vh; font-size: 1.6rem; font-weight: 700;
     color: {ORANGE}; opacity: 0.5; animation: op-pulse 1.2s ease-in-out infinite alternate; }}
 @keyframes op-pulse {{ to {{ opacity: 1; }} }}
