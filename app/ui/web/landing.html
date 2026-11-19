@@ -1650,7 +1650,7 @@
     if (!track || !cv) return;
     const ctx = cv.getContext('2d');
     const RAD = Math.PI / 180, EARTH = 6371000, HOME = [50.94 * RAD, 6.96 * RAD];  // Köln
-    const PUMP = [4.5, -16];   // the heat pump on the site, metres east and south of the meter
+    const PUMP = [-3, -22];   // the heat pump on the site, metres east and south of the meter (open ground)
     const sm = t => t * t * (3 - 2 * t), lerp = (a, b, t) => a + (b - a) * t;
     const ramp = (x, a, b) => clamp((x - a) / (b - a), 0, 1);
     const rnd = (s => () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; })(5);
@@ -1729,6 +1729,7 @@
       const px = pc.getContext('2d'); px.fillStyle = 'rgba(238,240,242,.5)'; px.beginPath(); px.arc(s / 2, s / 2, 1.15 * dpr, 0, 7); px.fill();
       pattern = ctx.createPattern(pc, 'repeat');
       pattern.setTransform(new DOMMatrix([1 / dpr, 0, 0, 1 / dpr, 0, 0]));  // device pixels: sharp on any screen
+      sizeGlow();
       if (amber) { amberR0 = keys()[0][1]; amber.style.width = amber.style.height = amberR0 * 2.86 + 'px'; }
     }
 
@@ -1768,61 +1769,145 @@
       ctx.globalAlpha = 1;
     }
 
-    // the site from above, in metres (the same places as the 3D site view in the app)
-    const PARTS = [
-      ['Solar field', -26, -18], ['Wind turbine', -44, 12], ['Wind turbine 2', -34, 32], ['Battery', -14, 18],
-      ['Heat pump', 4.5, -16], ['EV chargers', 16, 28], ['Cold store', 42, 14], ['Production hall', 18, -8],
+    // ── the site in 3D: glowing lines in the style of HorizonX's "Gravity Well" ──
+    // The ground bends like a gravity well into the site meter, where all the site's power
+    // meets; rings flow in towards it. On it stand the hall, the solar rows, the turbines
+    // (white, they make power) and the devices that use or store it (orange). The camera
+    // starts straight above, matching the map it takes over from, then tilts into 3D and
+    // flies to the heat pump. Lines add up on their own layer (two lines crossing glow
+    // brighter); that layer, halved three times, is laid back over it as a soft glow.
+    const glowLayers = [0, 1, 2, 3].map(() => document.createElement('canvas'));
+    const glowCtx = glowLayers.map(l => l.getContext('2d'));
+    function sizeGlow() { glowLayers.forEach((l, i) => { l.width = Math.max(1, Math.round(W * dpr / 2 ** i)); l.height = Math.max(1, Math.round(H * dpr / 2 ** i)); }); }
+    const WHITE = [220, 222, 230], ORANGE = [255, 122, 42], HOT = [255, 228, 200];
+    const NECK = 2.4, THROAT = 3, RIM = 58, WELL = 7;
+    const ac = x => Math.log(x + Math.sqrt(x * x - 1));
+    const wellDepth = r => r <= THROAT ? WELL : r >= RIM ? 0
+      : WELL * Math.pow(1 - (ac(r / NECK) - ac(THROAT / NECK)) / (ac(RIM / NECK) - ac(THROAT / NECK)), 1.6);
+    const DEVICES = [   // name, east, south, half sizes (e, s), height, orange?
+      ['Production hall', 18, -7.6, 11.3, 8.8, 8, false], ['Battery', -14, 18, 7.5, 2.8, 3, true],
+      ['Cold store', 42.8, 14.7, 7, 5.4, 5, true], ['Heat pump', PUMP[0], PUMP[1], 1.2, .55, 1.6, true],
     ];
-    function drawSite(c, alpha, t, focus) {
+    function drawSite(c, alpha, t, focus, p) {
       if (alpha <= .01) return;
-      const k = c.k, L = (e, s) => local(c, e, s);
-      const rect = (e0, e1, s0, s1, stroke, fill) => { const [x0, y0] = L(e0, s0), [x1, y1] = L(e1, s1); if (fill) { ctx.fillStyle = fill; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); } if (stroke) { ctx.strokeStyle = stroke; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); } };
-      ctx.globalAlpha = alpha; ctx.lineWidth = Math.max(1, Math.min(2, k * .25));
-      const [cx, cy] = L(0, 0);
-      ctx.fillStyle = 'rgba(255,255,255,.035)'; ctx.beginPath(); ctx.arc(cx, cy, 58.5 * k, 0, 7); ctx.fill();
-      ctx.setLineDash([Math.max(2, k * 1.2), Math.max(2, k * 1.4)]); ctx.strokeStyle = 'rgba(238,240,242,.35)'; ctx.stroke(); ctx.setLineDash([]);
-      rect(22.5, 29.5, 35, 57, null, 'rgba(255,255,255,.05)');   // the road
-      // cables from the site meter to every part, with current running along them
-      ctx.strokeStyle = 'rgba(238,240,242,.16)'; ctx.lineWidth = clamp(k * .5, 1, 2.5);   // a fine line at any zoom
-      ctx.beginPath(); for (const [, e, s] of PARTS) { ctx.moveTo(cx, cy); const [x, y] = L(e, s); ctx.lineTo(x, y); } ctx.stroke();
-      ctx.fillStyle = '#FF7A2A'; ctx.shadowColor = '#FF5F00'; ctx.shadowBlur = 12;
-      PARTS.forEach(([, e, s], i) => { for (let j = 0; j < 2; j++) { const u = (t * .25 + i * .13 + j * .5) % 1, [x, y] = L(e * u, s * u); ctx.beginPath(); ctx.arc(x, y, clamp(k * .45, 1.6, 4.5), 0, 7); ctx.fill(); } });
-      ctx.shadowBlur = 0; ctx.lineWidth = Math.max(1, Math.min(2, k * .2));
-      // production hall with its sawtooth roof
-      rect(6.7, 29.3, -16.4, 1.2, 'rgba(238,240,242,.7)', 'rgba(255,255,255,.04)');
-      ctx.strokeStyle = 'rgba(238,240,242,.35)'; ctx.beginPath(); for (let i = 1; i < 5; i++) { const [x, y0] = L(6.7 + i * 4.5, -16.4), [, y1] = L(0, 1.2); ctx.moveTo(x, y0); ctx.lineTo(x, y1); } ctx.stroke();
-      // solar field: rows of modules
-      for (let r = 0; r < 6; r++) rect(-38.5, -12.1, -26 + r * 2.9, -24.4 + r * 2.9, 'rgba(120,160,255,.55)', 'rgba(70,110,220,.22)');
-      // wind turbines: tower and turning blades
-      [[-44, 12], [-34, 32]].forEach(([e, s], i) => {
-        const [x, y] = L(e, s); ctx.strokeStyle = 'rgba(238,240,242,.8)'; ctx.beginPath(); ctx.arc(x, y, 1.4 * k, 0, 7); ctx.stroke();
-        ctx.beginPath(); for (let b = 0; b < 3; b++) { const a = t * 1.4 + i + b * 2.094; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 9 * k, y + Math.sin(a) * 9 * k); } ctx.stroke();
-      });
-      rect(-21.5, -6.5, 15.2, 20.8, 'rgba(238,240,242,.7)', 'rgba(255,255,255,.05)');   // battery container
-      for (let b = 0; b < 4; b++) rect(13 + b * 4.2, 15.8 + b * 4.2, 24, 31, 'rgba(238,240,242,.55)', null);   // EV bays
-      rect(35.8, 49.8, 9.3, 20.1, 'rgba(238,240,242,.7)', 'rgba(255,255,255,.05)');   // cold store
-      // the heat pump: the unit, two fans that turn, the buffer tank; orange once in focus
-      const hot = `rgba(255,${lerp(240, 122, focus)},${lerp(242, 42, focus)},.95)`;
-      rect(PUMP[0] - 1.2, PUMP[0] + 1.2, PUMP[1] - .55, PUMP[1] + .55, hot, `rgba(255,95,0,${.08 + .18 * focus})`);
-      [-.55, .55].forEach((dx, f) => {
-        const [x, y] = L(PUMP[0] + dx, PUMP[1]), r = .42 * k; ctx.strokeStyle = hot; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
-        ctx.beginPath(); for (let b = 0; b < 4; b++) { const a = t * 9 + f + b * 1.571; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * r * .85, y + Math.sin(a) * r * .85); } ctx.stroke();
-      });
-      { const [x, y] = L(PUMP[0] + 2.4, PUMP[1]); ctx.beginPath(); ctx.arc(x, y, .55 * k, 0, 7); ctx.stroke(); }
-      if (focus > .05) {   // a glowing ring round the machine in focus
-        const [x, y] = L(PUMP[0] + .6, PUMP[1]); ctx.globalAlpha = alpha * focus; ctx.strokeStyle = '#FF5F00'; ctx.shadowColor = '#FF5F00'; ctx.shadowBlur = 24; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, y, (2.4 + .25 * Math.sin(t * 3)) * k, 0, 7); ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = alpha;
+      const g = glowCtx[0], L0 = glowLayers[0];
+      g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, L0.width, L0.height);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0); g.globalCompositeOperation = 'lighter'; g.lineJoin = 'round';
+      // the camera: straight above at first (the map's view), then tilting and turning
+      const tilt = lerp(89.5, 30, sm(ramp(p, .6, .78))) * RAD, wa = sm(ramp(p, .6, .76));
+      const yaw = lerp(0, .55, sm(ramp(p, .62, .9))) + (calm ? 0 : Math.sin(t * .12) * .04 * wa);
+      const s = c.k, half = W / 2 / s, D = half * 3.2 + 12;
+      const ct = Math.cos(tilt), st = Math.sin(tilt), cy_ = Math.cos(yaw), sy_ = Math.sin(yaw);
+      const P = (x, y, z) => {   // metres (east, up, south) to the screen
+        const dx = x - c.pe, dz = z - c.ps, x1 = dx * cy_ - dz * sy_, z1 = dx * sy_ + dz * cy_;
+        const v = y * ct - z1 * st, depth = Math.max(D - (y * st + z1 * ct), .5), k = D / depth;
+        return [W / 2 + s * x1 * k, H / 2 - s * v * k + H * .06 * wa];
+      };
+      const ground = (x, z) => -wellDepth(Math.hypot(x, z)) * wa;
+      let mul = 1 - .7 * focus;   // the rest of the site steps back while the camera is on the heat pump
+      const col = (rgb, a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(a * alpha * mul, 0, 1).toFixed(3)})`;
+      const poly = (pts, rgb, a, w = 1.1, closed = false) => {
+        g.strokeStyle = col(rgb, a); g.lineWidth = w; g.beginPath();
+        pts.forEach((q, i) => { const [x, y] = P(...q); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+        if (closed) g.closePath(); g.stroke();
+      };
+      const box = (e, sz, he, hs, h, rgb, a, w) => {   // a box standing on the ground
+        const y0 = ground(e, sz), cs = [[-he, -hs], [he, -hs], [he, hs], [-he, hs]].map(([u, v]) => [e + u, sz + v]);
+        poly(cs.map(([x, z]) => [x, y0, z]), rgb, a, w, true);
+        poly(cs.map(([x, z]) => [x, y0 + h, z]), rgb, a, w, true);
+        cs.forEach(([x, z]) => poly([[x, y0, z], [x, y0 + h, z]], rgb, a * .8, w));
+        return y0;
+      };
+      const ring = (cx, cz, y, r, rgb, a, w = 1, n = 48) => poly(Array.from({ length: n + 1 }, (_, i) => [cx + r * Math.cos(i / n * 6.2832), y, cz + r * Math.sin(i / n * 6.2832)]), rgb, a, w);
+
+      // the ground: rings flowing into the meter, spokes from the fence to the throat
+      for (let i = 0; i < 16; i++) {
+        const v = (((i + .5) / 16 - (calm ? 0 : t * .03)) % 1 + 1) % 1, r = THROAT + (RIM - THROAT) * Math.pow(v, 1.7), inner = (1 - v) ** 2;
+        const y = -wellDepth(r) * wa;
+        ring(0, 0, y, r, [lerp(WHITE[0], HOT[0], inner), lerp(WHITE[1], HOT[1], inner), lerp(WHITE[2], HOT[2], inner)], (.16 + .5 * inner) * (1 - ramp(v, .93, 1)), .9 + inner, 96);
       }
-      // the site meter in the middle
-      ctx.fillStyle = '#EEF0F2'; ctx.beginPath(); ctx.arc(cx, cy, clamp(1.2 * k, 2, 16), 0, 7); ctx.fill();
-      ctx.strokeStyle = '#FF5F00'; ctx.beginPath(); ctx.arc(cx, cy, clamp(2.6 * k, 5, 34), 0, 7); ctx.stroke();
-      // names, while they are readable but not huge
-      const la = ramp(k, 1.6, 3) * (1 - ramp(k, 14, 30));
+      ring(0, 0, 0, RIM, WHITE, .5, 1.2, 128);   // the fence
+      for (let j = 0; j < 24; j++) {
+        const a = j / 24 * 6.2832;
+        poly(Array.from({ length: 21 }, (_, i) => { const r = THROAT + (RIM - THROAT) * (i / 20) ** 1.6; return [r * Math.cos(a), -wellDepth(r) * wa, r * Math.sin(a)]; }), WHITE, .13);
+      }
+      for (let d = 0; d < 6; d++) ring(0, 0, -WELL * wa - d * 2.2 * wa, THROAT, HOT, (.7 - d * .11) * wa, 1.4);   // the throat goes on down
+
+      // the hall: walls and a sawtooth roof with skylights
+      const yh = box(18, -7.6, 11.3, 8.8, 8, WHITE, .7, 1.2);
+      for (let i = 0; i < 5; i++) {
+        const x0 = 6.7 + i * 4.52;
+        poly([[x0, yh + 8, -16.4], [x0 + 4.52, yh + 10.5, -16.4], [x0 + 4.52, yh + 8, -16.4]], WHITE, .55);
+        poly([[x0, yh + 8, 1.2], [x0 + 4.52, yh + 10.5, 1.2], [x0 + 4.52, yh + 8, 1.2]], WHITE, .55);
+        poly([[x0 + 4.52, yh + 10.5, -16.4], [x0 + 4.52, yh + 10.5, 1.2]], WHITE, .45);
+      }
+      // the solar field: rows of tilted tables
+      for (let r = 0; r < 6; r++) {
+        const z = -24.5 + r * 2.9, y0 = ground(-25, z);
+        poly([[-38.5, y0 + .6, z + .8], [-12.1, y0 + .6, z + .8], [-12.1, y0 + 1.9, z - .6], [-38.5, y0 + 1.9, z - .6]], [150, 185, 255], .55, 1, true);
+        for (let m = 1; m < 12; m++) { const x = -38.5 + m * 2.2; poly([[x, y0 + .6, z + .8], [x, y0 + 1.9, z - .6]], [150, 185, 255], .22); }
+      }
+      // wind turbines: tower, nacelle, three blades turning
+      [[-44, 12, 0], [-34, 32, 1.7]].forEach(([e, z, ph]) => {
+        const y0 = ground(e, z), hub = y0 + 26;
+        poly([[e - .6, y0, z], [e, hub, z], [e + .6, y0, z]], WHITE, .75, 1.3);
+        for (let b = 0; b < 3; b++) { const a = (calm ? 0 : t * 1.1) + ph + b * 2.094; poly([[e, hub, z + .8], [e + Math.cos(a) * 12, hub + Math.sin(a) * 12, z + .8]], WHITE, .8, 1.4); }
+        ring(e, z + .8, hub, .6, HOT, .9, 1.2, 12);
+      });
+      // the pylon at the grid connection
+      { const y0 = ground(-4, -38); poly([[-6, y0, -40], [-4, y0 + 22, -38], [-2, y0, -36]], WHITE, .5); poly([[-6, y0, -36], [-4, y0 + 22, -38], [-2, y0, -40]], WHITE, .5); poly([[-9, y0 + 18, -38], [1, y0 + 18, -38]], WHITE, .5); }
+      // the devices, orange: battery, cold store, EV chargers, heat pump
+      box(-14, 18, 7.5, 2.8, 3, ORANGE, .85, 1.3);
+      for (let i = 1; i < 5; i++) { const x = -21.5 + i * 3; const y0 = ground(x, 18); poly([[x, y0 + 3, 15.2], [x, y0 + 3, 20.8]], ORANGE, .35); }
+      box(42.8, 14.7, 7, 5.4, 5, ORANGE, .8, 1.3);
+      for (let b = 0; b < 4; b++) {
+        const x = 15 + b * 4.2, y0 = ground(x, 27.5);
+        poly([[x - 1.6, y0, 24], [x - 1.6, y0, 31], [x + 1.6, y0, 31]], WHITE, .3);
+        poly([[x, y0, 24.2], [x, y0 + 1.5, 24.2]], ORANGE, .9, 1.6); box(x, 24.2, .3, .2, .4, ORANGE, .9, 1.2);
+      }
+      mul = 1;   // the heat pump itself at full strength
+      const hp = box(PUMP[0], PUMP[1], 1.2, .55, 1.6, ORANGE, 1, 1.5 + focus);
+      [-.55, .55].forEach((dx, f) => {   // the two fans on top, turning
+        ring(PUMP[0] + dx, PUMP[1], hp + 1.62, .42, ORANGE, 1, 1.4, 32);
+        for (let b = 0; b < 3; b++) { const a = (calm ? 0 : t * 7) + f + b * 2.094; poly([[PUMP[0] + dx, hp + 1.62, PUMP[1]], [PUMP[0] + dx + Math.cos(a) * .38, hp + 1.62, PUMP[1] + Math.sin(a) * .38]], HOT, .9, 1.2); }
+      });
+      for (let k = 0; k < 4; k++) ring(PUMP[0] + 2.4, PUMP[1], hp + k * .7, .55, ORANGE, .85, 1.2, 28);   // the buffer tank
+      if (focus > .02) for (let k = 0; k < 3; k++) {   // waves going out from the machine in focus
+        const u = ((calm ? .3 : t * .5) + k / 3) % 1;
+        ring(PUMP[0] + .6, PUMP[1], hp, 1.6 + u * 5, ORANGE, focus * (1 - u) * .9, 1.4, 64);
+      }
+      mul = 1 - .7 * focus;
+      // cables from the meter to every part, current running along them
+      const ends = [[-25, -20], [-44, 12], [-34, 32], [-14, 18], [18, -7.6], [42.8, 14.7], [21, 24], [PUMP[0], PUMP[1]], [-4, -38]];
+      ends.forEach(([e, z], i) => {
+        const pts = Array.from({ length: 17 }, (_, k) => { const u = k / 16, x = e * u, zz = z * u; return [x, ground(x, zz) + .1, zz]; });
+        poly(pts, WHITE, .18, 1);
+        for (let j = 0; j < 2; j++) {
+          const u = ((calm ? .4 : t * .22) + i * .11 + j * .5) % 1, [x, y] = P(e * (1 - u), ground(e * (1 - u), z * (1 - u)) + .1, z * (1 - u));
+          g.fillStyle = col(ORANGE, 1); g.beginPath(); g.arc(x, y, 2.4, 0, 7); g.fill();
+        }
+      });
+      // the meter: a bright core at the bottom of the well
+      { const [x, y] = P(0, -WELL * wa + .3, 0); g.fillStyle = col(HOT, 1); g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
+
+      // the glow: halve the line layer three times, lay it back over the stage
+      for (let i = 1; i < 4; i++) { const d = glowCtx[i]; d.setTransform(1, 0, 0, 1, 0, 0); d.globalCompositeOperation = 'copy'; d.drawImage(glowLayers[i - 1], 0, 0, glowLayers[i].width, glowLayers[i].height); }
+      glowCtx[2].globalCompositeOperation = 'lighter'; glowCtx[2].drawImage(glowLayers[3], 0, 0, glowLayers[2].width, glowLayers[2].height);
+      glowCtx[1].globalCompositeOperation = 'copy'; glowCtx[1].drawImage(glowLayers[2], 0, 0, glowLayers[1].width, glowLayers[1].height);
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = .9; ctx.drawImage(glowLayers[1], 0, 0, W * dpr, H * dpr);
+      ctx.globalAlpha = 1; ctx.drawImage(L0, 0, 0);
+      ctx.restore();
+
+      // names next to the parts, while readable
+      const la = alpha * ramp(s, 1.4, 2.6) * (1 - ramp(s, 16, 34));
       if (la > .01) {
-        ctx.globalAlpha = alpha * la; ctx.font = '500 11px "JetBrains Mono", monospace'; ctx.fillStyle = 'rgba(238,240,242,.8)';
-        for (const [name, e, s] of PARTS) { const [x, y] = L(e, s); ctx.fillText(name.toUpperCase(), x + 8, y - 8); }
+        ctx.font = '500 11px "JetBrains Mono", monospace';
+        DEVICES.forEach(([name, e, z, , , h, hot]) => {
+          const [x, y] = P(e, ground(e, z) + h + 1.5, z);
+          ctx.fillStyle = hot ? `rgba(255,150,90,${la})` : `rgba(238,240,242,${la * .8})`; ctx.fillText(name.toUpperCase(), x + 6, y);
+        });
       }
-      ctx.globalAlpha = 1;
     }
 
     function draw(p, t) {
@@ -1852,7 +1937,7 @@
       drawGrid(c, L1, ramp(lr, lm + .6, lm + 1.6) * (1 - ramp(lr, lm + 4.2, lm + 5.2)), t, 1.3);
       drawGrid(c, L2, ramp(lr, lm + 3.4, lm + 4.4) * (1 - ramp(lr, lm + 6.6, lm + 7.6)), t, 1.3);
       drawGrid(c, L3, ramp(lr, lm + 6.2, lm + 7.2) * (1 - site), t, 1.5);
-      drawSite(c, site, t, ramp(p, .8, .9));
+      drawSite(c, site, t, ramp(p, .8, .9), p);
       if (site < .9) {   // Köln: an orange point with rings going out
         const [x, y] = project(c, HOME[0], HOME[1]);
         ctx.globalAlpha = 1 - site; ctx.fillStyle = '#FF5F00'; ctx.shadowColor = '#FF5F00'; ctx.shadowBlur = 16;
