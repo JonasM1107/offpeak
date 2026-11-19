@@ -337,3 +337,21 @@ def test_clear_field_at_home_shows_the_home_plot(fake_db, monkeypatch):
     scene = shown[-1]
     assert scene["profile"] == "home" and scene["edit"]["size"] == 60
     assert [k["key"] for k in scene["edit"]["kinds"]][0] == "pv_roof"  # the home's parts list
+
+
+def test_reset_to_demo_brings_the_demo_site_back(fake_db, monkeypatch):
+    """No SQL editor needed: the designer's Reset to demo empties the role's own site, and
+    an empty site shows the demo again."""
+    at, replaced, _ = site_designer(fake_db, monkeypatch, saved=[SOLAR])
+    assert at.dataframe[0].value["Name"].tolist() == ["Solar field"]
+    click_button(at, "Yes, reset")
+    assert replaced[-1] == ("business", [])  # only the business rows of this site
+    names = at.dataframe[0].value["Name"].tolist()
+    assert "Heat pump" in names and len(names) > 1  # the demo site again
+
+
+def test_reset_to_demo_at_home_keeps_the_business_site(fake_db, monkeypatch):
+    battery = {"id": "b", "kind": "battery", "name": "Home battery", "params": {"kwh": 8}}
+    at, replaced, _ = site_designer(fake_db, monkeypatch, role="home", saved=[battery])
+    click_button(at, "Yes, reset")
+    assert replaced[-1] == ("home", [])  # the home's rows only
