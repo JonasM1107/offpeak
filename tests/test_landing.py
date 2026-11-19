@@ -137,14 +137,19 @@ def test_every_menu_link_has_a_section_to_scroll_to():
 
 
 def test_every_screenshot_on_the_page_exists_and_is_served():
-    """The look inside the app shows files from app/static/, which Streamlit only serves
-    when static serving is switched on in .streamlit/config.toml."""
+    """The look inside the app (the tour, the zoom into the site, the stacked screens) shows
+    files from app/static/, which Streamlit only serves when static serving is switched on
+    in .streamlit/config.toml."""
     import tomllib
 
     root = Path(__file__).parent.parent
-    images = re.findall(r'src="app/static/([^"]+)"', PAGE.read_text())
-    assert len(images) == 3
+    html = PAGE.read_text()
+    images = re.findall(r'src="app/static/([^"]+)"', html)
+    assert len(set(images)) >= 6  # dashboard, power, cockpit, site, savings, home
     assert all((root / "app" / "static" / name).is_file() for name in images)
+    # a path from the server's root ("/app/static/...") works locally but not on Streamlit
+    # Cloud, where the app runs under a sub-path: every image must use the relative path
+    assert not re.search(r'src="/app/static/', html)
     config = tomllib.loads((root / ".streamlit" / "config.toml").read_text())
     assert config["server"]["enableStaticServing"] is True
 
