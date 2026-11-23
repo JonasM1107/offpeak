@@ -28,6 +28,20 @@ def test_full_days_and_the_newest_before_today(slots):
     assert measured.full_days(slots.iloc[:0], TZ) == []
 
 
+def test_the_nights_the_clocks_change_do_not_break_the_measured_days():
+    """Real history crosses the clock changes. On 25 Oct 2026 Berlin has 02:00-03:00 twice (25
+    hours), on 29 Mar 2026 not at all (23 hours): both are full days, and nothing raises."""
+    import pandas as pd
+
+    for start, hours in (("2026-10-24 22:00", 25), ("2026-03-28 23:00", 23)):
+        ts = pd.date_range(start, periods=hours * 4, freq="15min", tz="UTC")
+        slots = pd.DataFrame({"ts": ts, "load_kw": 0.5, "pv_kw": 0.0})
+        day = ts[0].tz_convert(TZ).date()
+        assert measured.full_days(slots, TZ) == [day]
+        assert measured.last_full_day(slots, TZ, date(2027, 1, 1)) == day
+        assert len(measured.hourly_day(slots, day, TZ)) == 24
+
+
 def test_a_measured_day_by_the_hour(slots):
     day = measured.hourly_day(slots, date(2026, 6, 2), TZ)
     assert len(day) == 24 and list(day["hour"]) == list(range(24))
