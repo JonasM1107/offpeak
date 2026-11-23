@@ -840,8 +840,17 @@ def hour_ranges(flags) -> str:
     return ", ".join(out)
 
 
-def price_classes(prices_ct: list[float]) -> list[str]:
-    """The cheapest third of the hours is 'cheap', the dearest third 'dear'."""
+def price_classes(prices_ct: list[float], limits: tuple[float, float] | None = None) -> list[str]:
+    """Each hour as 'cheap', 'dear' or '' (neither).
+
+    With `limits` (offpeak.dashboard.limits_now: the price up to which an hour is cheap and
+    the price from which it is dear) the hours are judged exactly as the dashboard judges
+    "right now", so the same hour never reads "average" on one page and "expensive" on
+    another. Without them (a past day, or no prices ahead) the day is judged on its own: the
+    cheapest third of its hours is 'cheap', the dearest third 'dear'."""
+    if limits is not None:
+        low, high = limits
+        return ["cheap" if p <= low else "dear" if p >= high else "" for p in prices_ct]
     ranked = sorted(prices_ct)
     low, high = ranked[len(ranked) // 3 - 1], ranked[-(len(ranked) // 3)]
     return ["cheap" if p <= low else "dear" if p >= high else "" for p in prices_ct]

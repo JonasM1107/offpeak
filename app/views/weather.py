@@ -29,7 +29,7 @@ gen = generation(weather, pv_kwp, wind_kw)
 days = daily_outlook(weather, gen, TZ)
 days = days[days["date"] >= market_today()].head(7).reset_index(drop=True)
 
-payload = view_payload(weather, gen, days, data.solar_check(7), pv_kwp, TZ)
+payload = view_payload(weather, gen, days, data.solar_check(7, data.role()), pv_kwp, TZ)
 payload["meta"] = {
     "pv_kwp": round(pv_kwp, 1),
     "wind_kw": round(wind_kw, 1),

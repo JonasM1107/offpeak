@@ -208,3 +208,24 @@ def test_validate_site_rejects_markup_in_a_name():
     problems = C.validate_site(site)
     assert any("cannot contain < or >" in p for p in problems)
     assert not any("<" in p.split(":")[0] for p in problems)  # the message does not repeat it
+
+
+# ── Cheap and dear hours judged by the dashboard's two prices ────────────────
+
+
+def test_price_classes_with_limits_judge_every_hour_by_the_same_two_prices():
+    prices = [20.0, 25.0, 30.0, 35.0, 40.0]
+    assert C.price_classes(prices, (25.0, 35.0)) == ["cheap", "cheap", "", "dear", "dear"]
+    # a day that is dear all through has no cheap hour (its own thirds would always find some)
+    assert C.price_classes([40.0, 41.0, 42.0], (25.0, 35.0)) == ["dear"] * 3
+
+
+def test_price_classes_with_flat_limits_mark_nothing():
+    """Prices that hardly move: the dashboard's limits are then out of reach on both sides."""
+    flat = (float("-inf"), float("inf"))
+    assert C.price_classes([30.0, 30.2, 30.4], flat) == ["", "", ""]
+
+
+def test_price_classes_without_limits_still_split_the_day_in_thirds():
+    classes = C.price_classes(list(range(24)))
+    assert classes.count("cheap") == 8 and classes.count("dear") == 8

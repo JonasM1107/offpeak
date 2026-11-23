@@ -24,6 +24,13 @@ def thresholds(prices: list[float]) -> tuple[float, float]:
     return lo + (hi - lo) / 3, hi - (hi - lo) / 3
 
 
+def limits_now(hours: dict, now_index: int) -> tuple[float, float]:
+    """The two prices every page judges an hour by: at or below the first it is cheap, at or
+    above the second expensive. They come from the next LOOK_AHEAD hours, so the dashboard's
+    "right now", its price band and the site view's day all say the same about an hour."""
+    return thresholds(hours["buy"][now_index : now_index + LOOK_AHEAD])
+
+
 def _level(price: float, low: float, high: float) -> str:
     return "cheap" if price <= low else "expensive" if price >= high else "normal"
 
@@ -32,7 +39,7 @@ def status_now(hours: dict, now_index: int) -> dict:
     """Is power cheap right now, for how long, and when is the next cheap window?"""
     buy = hours["buy"]
     ahead = buy[now_index : now_index + LOOK_AHEAD]
-    low, high = thresholds(ahead)
+    low, high = limits_now(hours, now_index)
     price = buy[now_index]
     level = _level(price, low, high)
     end = now_index
@@ -85,7 +92,7 @@ def ribbon(hours: dict, now_index: int) -> dict:
     """The next 36 hours for the price band: time, all-in price, cheap/normal/expensive,
     own surplus, and whether the price is published or an estimate."""
     end = min(len(hours["buy"]), now_index + LOOK_AHEAD)
-    low, high = thresholds(hours["buy"][now_index:end])
+    low, high = limits_now(hours, now_index)
     idx = range(now_index, end)
     return {
         "t": [hours["t"][i] for i in idx],

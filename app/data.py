@@ -94,10 +94,13 @@ def today_and_tomorrow() -> tuple[pd.DataFrame, pd.DataFrame, datetime, str]:
 
 
 def weather(days: int = 3) -> tuple[pd.DataFrame | None, datetime, str | None, str]:
-    """Forecast for the demo site from today 00:00 (German time) for `days` days (at most
-    7): (table or None, forecast time, error, 'database' or 'API'). One cached 7-day load
-    serves every page, so the weather is fetched once, not once per length."""
-    table, run_at, error, source = _weather_week()
+    """Forecast for the signed-in role's site from today 00:00 (German time) for `days` days
+    (at most 7): (table or None, forecast time, error, 'database' or 'API'). One cached
+    7-day load per site serves every page, so the weather is fetched once, not once per
+    length. Per site, because the sun on the panels depends on how they are tilted and
+    turned: the demo home's roof faces south-east at 26 degrees, the business site south
+    at 30."""
+    table, run_at, error, source = _weather_week(role())
     if table is not None:
         end = day_slots(market_today(), MARKET_TZ)[0] + timedelta(days=days)
         table = table[table["ts"] < end].reset_index(drop=True)
@@ -105,7 +108,10 @@ def weather(days: int = 3) -> tuple[pd.DataFrame | None, datetime, str | None, s
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _weather_week(days: int = 7) -> tuple[pd.DataFrame | None, datetime, str | None, str]:
+def _weather_week(
+    profile: str, days: int = 7
+) -> tuple[pd.DataFrame | None, datetime, str | None, str]:
+    here = site_for(profile)  # the role's site: its place and the direction of its panels
     eng = engine()
     now = datetime.now(UTC)
     start = day_slots(market_today(), MARKET_TZ)[0]
@@ -113,7 +119,7 @@ def _weather_week(days: int = 7) -> tuple[pd.DataFrame | None, datetime, str | N
     if eng is not None:
         try:
             stored, run_at = db.read_latest_weather(
-                eng, DEMO_SITE.id, start, start + timedelta(days=days)
+                eng, here.id, start, start + timedelta(days=days)
             )
         except Exception as err:
             print(f"offpeak: database read failed, using the API: {err}")
@@ -122,28 +128,35 @@ def _weather_week(days: int = 7) -> tuple[pd.DataFrame | None, datetime, str | N
                 return stored, run_at, None, "database"
     try:
         # 15 s: Open-Meteo is sometimes slow, and this runs only when nothing fresh is stored
-        fetched = open_meteo.fetch_weather(DEMO_SITE, days=days, timeout=15)
+        fetched = open_meteo.fetch_weather(here, days=days, timeout=15)
     except Exception as err:  # shown on the page as a designed state, never as a traceback
         if stored is not None and not stored.empty:  # an older forecast beats none
             print(f"offpeak: weather API failed, using the forecast from {run_at}: {err}")
             return stored, run_at, None, "database"
         return None, now, str(err), "API"
     if eng is not None:
-        _store_quietly(lambda: db.upsert_weather(eng, fetched, DEMO_SITE.id, now))
+        _store_quietly(lambda: db.upsert_weather(eng, fetched, here.id, now))
+    # The API's day starts at midnight UTC, one or two hours after the German day did. An
+    # older stored forecast still has those first hours: keep them, so the site view does not
+    # fall back to its demo curve there (it showed wind power on a calm night).
+    if stored is not None and not stored.empty and not fetched.empty:
+        earlier = stored[stored["ts"] < fetched["ts"].min()]
+        fetched = pd.concat([earlier, fetched], ignore_index=True)
     return fetched, now, None, "API"
 
 
 @st.cache_data(ttl=12 * 3600, show_spinner=False)
-def archive_weather(start: date, end: date) -> pd.DataFrame:
-    """Measured weather for past days (to replay savings)."""
-    return open_meteo.fetch_archive(DEMO_SITE, start, end)
+def archive_weather(start: date, end: date, profile: str = "business") -> pd.DataFrame:
+    """Measured weather for past days at the profile's site (to replay savings)."""
+    return open_meteo.fetch_archive(site_for(profile), start, end)
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
-def solar_check(past_days: int = 7) -> pd.DataFrame | None:
-    """Day-ahead solar forecast against satellite measurements, or None if unavailable."""
+def solar_check(past_days: int = 7, profile: str = "business") -> pd.DataFrame | None:
+    """Day-ahead solar forecast against satellite measurements for the profile's site, or
+    None if unavailable."""
     try:
-        return open_meteo.fetch_solar_check(DEMO_SITE, past_days)
+        return open_meteo.fetch_solar_check(site_for(profile), past_days)
     except Exception as err:
         print(f"offpeak: solar check unavailable: {err}")
         return None
@@ -512,6 +525,23 @@ def site_day(inputs: pd.DataFrame, setup: tuple, role: str) -> dict:
     return components.site_day(inputs, comps, tariff_for(role, comps))
 
 
+def today_plan(inputs: pd.DataFrame, setup: tuple) -> dict:
+    """site_day for today, with every hour judged cheap, dear or neither as the dashboard
+    judges "right now": against the coming 36 hours (offpeak/dashboard.py: limits_now).
+    Before, the site view compared an hour with the rest of today only, so 8 p.m. could read
+    "expensive hour" there while the dashboard said "prices are average right now". Without
+    the hours ahead (prices unavailable) the day keeps its own thirds."""
+    from offpeak import dashboard
+
+    day = site_day(inputs, setup, role())  # a fresh copy each time: safe to change
+    ahead = hours_ahead()
+    if ahead is not None:
+        hours, now = ahead
+        prices = list(components.buy_ct(inputs))
+        day["price_class"] = components.price_classes(prices, dashboard.limits_now(hours, now))
+    return day
+
+
 @st.cache_data(ttl=12 * 3600, show_spinner=False)
 def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
     """Replay the last `n_days` days up to `end` with the real prices and measured weather:
@@ -521,11 +551,14 @@ def savings_replay(end: date, n_days: int, setup: tuple) -> list[dict]:
 
     comps = [components.Component(i, k, n, dict(p), prof) for i, k, n, p, prof in setup]
     start = end - timedelta(days=n_days - 1)
+    # The profile comes from the components, not from the sign-in: this also runs in a
+    # background thread (saved_recently), which has no browser session to ask.
+    profile = comps[0].profile if comps else "business"
     loaded, _, _ = past_prices(start, end)
-    past = archive_weather(start, end)
+    past = archive_weather(start, end, profile)
     assets, _ = components.site_model(comps)
     days = [start + timedelta(days=i) for i in range(n_days)]
-    tariff = tariff_for(comps[0].profile if comps else "business", comps)
+    tariff = tariff_for(profile, comps)
     out = savings.replay(loaded, past, comps, tariff, MARKET_TZ, days)
     _REPLAYED[(end, n_days, setup)] = savings.summary(out)
     return out

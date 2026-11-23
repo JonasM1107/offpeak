@@ -245,6 +245,39 @@ def test_the_designer_speaks_the_roles_words(role, title, view):
     assert any(b.key == "designer_reset" for b in at.button)
 
 
+def test_each_role_gets_the_weather_for_its_own_roof(monkeypatch):
+    """The sun on the panels depends on their tilt and direction: a homeowner's pages ask for
+    the demo home's roof (south-east, 26 degrees), a business's for its own (south, 30)."""
+    import streamlit as st
+
+    from offpeak.sites import DEMO_HOME, DEMO_SITE
+    from offpeak.weather import open_meteo
+
+    st.cache_data.clear()  # the app keeps a forecast for ten minutes: ask afresh here
+    answer = open_meteo.fetch_weather(None)  # the saved forecast of tests/test_app.py
+    asked = []
+
+    def fetch(site, days=7, timeout=None):
+        asked.append(site)
+        return answer
+
+    monkeypatch.setattr(open_meteo, "fetch_weather", fetch)
+    for role in ("home", "business"):
+        at = signed_in(role)
+        at.switch_page("views/weather.py").run()
+        assert not at.exception
+    assert DEMO_HOME in asked and DEMO_SITE in asked
+    home = next(s for s in asked if s.profile == "home")
+    assert (home.tilt_deg, home.azimuth_deg) == (26.0, 145.0)
+
+
+def test_the_weather_job_stores_a_forecast_for_both_sites():
+    from offpeak.jobs import ingest_weather
+    from offpeak.sites import DEMO_HOME, DEMO_SITE
+
+    assert ingest_weather.SITES == [DEMO_SITE, DEMO_HOME]
+
+
 def test_the_home_portal_offers_household_devices_only():
     at = signed_in("home")
     at.switch_page("views/components.py").run()
