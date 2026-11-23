@@ -14,8 +14,12 @@ def full_days(slots: pd.DataFrame, tz: str) -> list[date]:
     """Local days with at least MIN_HOURS measured hours, oldest first."""
     if slots.empty:
         return []
-    local = slots["ts"].dt.tz_convert(tz)
-    hours = local.dt.floor("h").groupby(local.dt.date).nunique()
+    # Round to the hour in UTC, not in local time: on the night the clocks go back, 02:00-03:00
+    # happens twice in local time, and rounding there cannot tell which one it is (pandas
+    # raises). German offsets are whole hours, so a UTC hour is exactly one local hour.
+    hours_utc = slots["ts"].dt.floor("h")
+    local_day = slots["ts"].dt.tz_convert(tz).dt.date
+    hours = hours_utc.groupby(local_day).nunique()
     return sorted(d for d, n in hours.items() if n >= MIN_HOURS)
 
 
