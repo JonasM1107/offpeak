@@ -17,8 +17,6 @@ Claude model answer instead ("fallbacks": "default").
 
 import json
 
-import anthropic
-
 from offpeak.assistant.llm import AssistantUnavailable
 
 MODEL = "claude-opus-5-5"
@@ -94,6 +92,10 @@ def complete(
     """Claude's next message for agent.answer (same contract as llm.complete)."""
     if not api_key and client is None:
         raise AssistantUnavailable("no Anthropic API key")
+    # Imported here, not at the top: the SDK takes about a second to load, and every page
+    # loads this file through Ollie, even when Ollie runs on Requesty and never needs it.
+    import anthropic
+
     client = client or anthropic.Anthropic(api_key=api_key, timeout=60.0, max_retries=1)
     system, chat = to_claude(messages)
     try:

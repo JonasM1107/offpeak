@@ -100,3 +100,15 @@ def test_a_chosen_model_is_used():
     fake = FakeClient(reply(Block(type="text", text="ok")))
     claude.complete([{"role": "user", "content": "q"}], SCHEMAS, "key", "claude-haiku-5-5", fake)
     assert fake.requests[0]["model"] == "claude-haiku-5-5"
+
+
+def test_loading_ollie_does_not_load_the_anthropic_sdk():
+    """Every page imports this module through Ollie; the SDK (about a second to load) is only
+    imported once Claude is actually asked. Checked in a fresh Python, since this test file
+    has imported the SDK already."""
+    import subprocess
+    import sys
+
+    code = "import sys, offpeak.assistant.claude; print('anthropic' in sys.modules)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "False"
