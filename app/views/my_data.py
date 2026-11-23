@@ -1,82 +1,81 @@
-"""My data (homeowners only): bring the house's measurements from Fronius Solar.web into
-offpeak. They train this home's own models and play "Yesterday at home" in the Home view;
-they never reach a business's models (offpeak/db.py reads them only with the profile)."""
+"""My data: the account's own consumption data and how to connect it (ui/connect.py).
 
-from datetime import date, timedelta
+- Homeowner: real measurements from the house of Jonas, one of the team (Fronius inverter, every
+  15 minutes). They train this home's own models and play "Yesterday at home" in the Home view;
+  they never reach a business's models (offpeak/db.py reads them only with the profile).
+- Business: there is no real client yet, so the demo site's consumption is example data,
+  modelled from its machines. The page says so, and shows where a client's real measurements
+  will appear once their smart meter or ERP is connected.
+"""
 
 import data
 import streamlit as st
 from ui.components import card_title, header, kpi
+from ui.connect import KEPT, connect_card
 
 from offpeak.load import fronius
-from offpeak.sites import DEMO_CITY
+from offpeak.sites import DEMO_CITY, DEMO_HOME_SINCE
 
-FIRST_DAY = date(2023, 9, 16)  # the demo home's first day with its Fronius inverter
-
+role = data.role()
 header(f"{data.site().name} · {DEMO_CITY}", "My data", live=True)
-if data.role() != "home":
-    st.info("Measured data is part of the Homeowner portal.")
-    st.stop()
 
-slots, where = data.measurements()
-info = fronius.coverage(slots)
-k1, k2, k3 = st.columns(3)
-with k1:
-    kpi("Days measured", f"{info['days']:,}", note="15-minute values")
-with k2:
+if role == "home":
+    slots, where = data.measurements()
+    info = fronius.coverage(slots)
+    first = info["first"].tz_convert("Europe/Berlin").date() if info["first"] is not None else None
     last = info["last"].tz_convert("Europe/Berlin").date() if info["last"] is not None else None
-    kpi("Newest day", f"{last:%a %-d %b %Y}" if last else "–", note="sync again to add new days")
-with k3:
-    kept = {"database": "in the database", "session": "in this tab only", "none": "nothing yet"}
-    kpi("Kept", kept[where], note="only for this home, never for business models")
+    shown = f" Kept here now: {first:%-d %b %Y} to {last:%-d %b %Y}." if first else ""
+    st.info(
+        f"**Real data from Jonas's home.** This Homeowner demo uses the measurements of a real "
+        f"house in {DEMO_CITY}: the home of Jonas, one of the offpeak team, with solar panels, "
+        f"a battery and a Fronius inverter. Every 15 minutes since "
+        f"{DEMO_HOME_SINCE:%-d %B %Y}, when the inverter started recording.{shown}",
+        icon=":material/home:",
+    )
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        kpi("Days measured", f"{info['days']:,}", note="15-minute values")
+    with k2:
+        kpi(
+            "Measured",
+            f"{first:%b %Y} – {last:%b %Y}" if first else "–",
+            note="drop a newer export to add days",
+        )
+    with k3:
+        kpi("Kept", KEPT[where], note="only for this home, never for business models")
+else:
+    where = "none"
+    st.info(
+        "**Example data.** offpeak has no business client connected yet, so this demo site's "
+        "consumption is modelled from its machines (Site & components), not measured. As soon "
+        "as a client connects their smart meter or ERP, their real 15-minute measurements "
+        "appear here and the plan and savings use them.",
+        icon=":material/science:",
+    )
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        kpi("Days measured", "0", note="no client connected yet")
+    with k2:
+        kpi("Consumption", "Example", note="modelled from the site's machines")
+    with k3:
+        kpi("Kept", KEPT["none"], note="only for this business, never shared")
 
-since = (last + timedelta(days=1)) if last else FIRST_DAY
-with st.container(border=True, key="card_sync_1"):
-    card_title(
-        "1 · Get the new days from Solar.web",
-        f"From {since:%-d %b %Y} to yesterday, in a few seconds per month",
-    )
-    st.markdown(
-        "Open your system's chart page on **solarweb.com** (Analyse → Energiebilanz) while "
-        "signed in, open the browser console (⌥⌘J in Chrome), paste this and press Enter. It "
-        "reads the same data the Solar.web charts show, changes nothing, and downloads "
-        "`fronius_5min.csv`."
-    )
-    st.code(
-        (
-            f"const FIRST = new Date({since.year}, {since.month - 1}, {since.day});\n"
-            + fronius.SYNC_SCRIPT
-        ),
-        language="javascript",
-    )
-
-with st.container(border=True, key="card_sync_2"):
-    card_title("2 · Add the file here", "Checked before anything is kept")
-    upload = st.file_uploader("fronius_5min.csv", type=["csv"], label_visibility="collapsed")
-    if upload is not None:
-        try:
-            new = fronius.read_csv(upload)
-        except (fronius.FroniusFileError, ValueError) as err:
-            st.error(f"This file cannot be used: {err}")
-        else:
-            got = fronius.coverage(new)
-            gaps = got["missing_slots"]
-            st.success(
-                f"{got['days']} days, {got['first']:%-d %b %Y} to {got['last']:%-d %b %Y}"
-                + (f", {gaps} quarter-hours missing." if gaps else ".")
-            )
-            if st.button("Keep these measurements", type="primary"):
-                kept_in = data.save_measurements(new)
-                st.toast(f"Kept {kept[kept_in]}.", icon=":material/check:")
-                st.rerun()
+connect_card(role)  # files in, and the planned direct connections
 
 with st.container(border=True, key="card_privacy"):
     card_title("Your data", "What happens with it")
-    st.markdown(
-        "- Kept for this home only, marked *home*: business models never read it.\n"
-        "- Used for: the Home view's measured day and this home's consumption forecast.\n"
-        "- Never in the code repository."
-    )
+    if role == "home":
+        st.markdown(
+            "- Kept for this home only, marked *home*: business models never read it.\n"
+            "- Used for: the Home view's measured day and this home's consumption forecast.\n"
+            "- Never in the code repository."
+        )
+    else:
+        st.markdown(
+            "- Once connected: kept for this business only; home models never read it.\n"
+            "- Used for: this site's plan and savings, with its real consumption.\n"
+            "- Never in the code repository."
+        )
     if where != "none" and st.button("Delete my measurements"):
         data.delete_measurements()
         st.rerun()

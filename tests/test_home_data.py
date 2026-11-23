@@ -86,26 +86,40 @@ def test_the_scene_gets_a_third_plan(slots):
 
 
 def test_my_data_opens_for_a_home_without_data():
+    """No code for customers on the page (the Solar.web script is in docs/), only the card to
+    drop a file and connect."""
     at = signed_in("home")
     at.switch_page("views/my_data.py").run()
     assert not at.exception
-    assert any("Days measured" in m.value for m in at.markdown) or at.code  # the sync script
-    assert "const FIRST = new Date(2023, 8, 16);" in at.code[0].value
+    assert not at.code
+    assert at.get("file_uploader")
+    assert any("Connect your consumption data" in h.proto.body for h in at.get("html"))
 
 
 def test_my_data_shows_what_this_tab_keeps(slots):
     at = signed_in("home")
     at.session_state["measurements_home"] = slots
     at.switch_page("views/my_data.py").run()
-    assert not at.exception
-    # the script starts the day after the newest kept day
-    assert "const FIRST = new Date(2026, 5, 4);" in at.code[0].value
+    assert not at.exception and not at.code
+    body = " ".join(h.proto.body for h in at.get("html"))
+    assert "in this tab only" in body and "Connected" in body  # the Fronius tile
 
 
-def test_a_business_has_no_measurements_page():
+def test_a_business_sees_that_its_data_is_an_example():
+    """No client is connected yet: the page says the data is an example, never measured, and
+    offers to connect (file or planned connections)."""
     at = signed_in("business")
-    at.switch_page("views/my_data.py").run()  # not in a business's menu: another page opens
-    assert not at.exception and not at.code  # no sync script, no upload
+    at.switch_page("views/my_data.py").run()
+    assert not at.exception and not at.code
+    assert any("Example data" in i.value for i in at.info)
+    assert at.get("file_uploader")
+
+
+def test_a_home_is_told_whose_data_it_is():
+    at = signed_in("home")
+    at.switch_page("views/my_data.py").run()
+    note = " ".join(i.value for i in at.info)
+    assert "Jonas's home" in note and "16 September 2023" in note
 
 
 def test_home_pages_open_with_measurements(slots):
@@ -114,3 +128,17 @@ def test_home_pages_open_with_measurements(slots):
         at.session_state["measurements_home"] = slots
         at.switch_page(page).run()
         assert not at.exception, page
+
+
+@pytest.mark.parametrize("role", ["home", "business"])
+def test_settings_lets_every_account_connect_its_data(role):
+    """The card is on Settings for both roles: the drop field and the connectors, with the
+    direct connections clearly planned (never shown as working)."""
+    at = signed_in(role)
+    at.switch_page("views/settings.py").run()
+    assert not at.exception
+    assert at.get("file_uploader")
+    body = " ".join(h.proto.body for h in at.get("html"))
+    assert "Connect your consumption data" in body and "Smart meter" in body
+    assert ("SAP S/4HANA" in body) == (role == "business")
+    assert "Planned" in body

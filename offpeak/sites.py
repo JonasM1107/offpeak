@@ -5,6 +5,8 @@ id, and with the profile on every row). Prices and weather are the same for both
 price does not depend on who buys, and both sites are in Köln.
 """
 
+from datetime import date
+
 from offpeak.models import Site
 
 DEMO_SITE = Site(id=1, name="Demo site", lat=50.94, lon=6.96, zone="DE-LU")
@@ -21,6 +23,9 @@ DEMO_HOME = Site(
     profile="home",
 )
 DEMO_CITY = "Köln"
+# The Homeowner demo shows real measurements: the house of Jonas, one of the team, with a
+# Fronius inverter (solar and battery). This is the first day that inverter recorded.
+DEMO_HOME_SINCE = date(2023, 9, 16)
 
 SITES = {"business": DEMO_SITE, "home": DEMO_HOME}
 
