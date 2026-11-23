@@ -22,11 +22,15 @@ const OP = (() => {
     // measure the content, not the document: the document is never smaller than the frame
     const root = document.querySelector('.wrap') || document.body;
     const h = Math.ceil(root.getBoundingClientRect().bottom + window.scrollY + 4);
-    if (f.style.height === h + 'px') return;  // unchanged: nothing to do
+    const box = f.closest('[data-testid=stElementContainer]');
+    // Streamlit sizes the box with `flex: 0 0 <first guess>`, which wins over `height` in its
+    // column: without setting it too, a shorter view leaves empty space under itself.
+    const flex = `0 0 ${h}px`;
+    // unchanged: nothing to do (the box is checked too: a rerun can give it the first guess again)
+    if (f.style.height === h + 'px' && (!box || box.style.flex === flex)) return;
     f.style.height = h + 'px';
     f.setAttribute('height', h);
-    const box = f.closest('[data-testid=stElementContainer]');
-    if (box) { box.style.height = h + 'px'; box.style.minHeight = h + 'px'; }
+    if (box) { box.style.height = h + 'px'; box.style.minHeight = h + 'px'; box.style.flex = flex; }
   }
 
   function palette() {

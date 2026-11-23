@@ -224,7 +224,17 @@ const ms = R.t.map(t => t * 1000);
 const ribbon = OP.chart(document.getElementById('ribbon'), c => {
   const B = OP.base(c);
   const color = { cheap: c.accent, normal: c.grey, expensive: c.dark };
-  const runs = A.filter(a => a.end_t * 1000 > ms[0]).map(a => [{ name: a.name, xAxis: Math.max(a.start_t * 1000, ms[0]) }, { xAxis: Math.min(a.end_t * 1000, ms[ms.length - 1] + 3600e3) }]);
+  const shown = A.filter(a => a.end_t * 1000 > ms[0]);
+  // runs at the same time: a name takes the first line no overlapping run before it uses, so
+  // every name can be read
+  const line = [];
+  shown.forEach((a, i) => {
+    const taken = new Set(shown.slice(0, i).map((b, j) => (b.start_t < a.end_t && a.start_t < b.end_t ? line[j] : -1)));
+    let n = 0;
+    while (taken.has(n)) n++;
+    line.push(n);
+  });
+  const runs = shown.map((a, i) => [{ name: a.name, xAxis: Math.max(a.start_t * 1000, ms[0]), label: { offset: [0, 14 * line[i]] } }, { xAxis: Math.min(a.end_t * 1000, ms[ms.length - 1] + 3600e3) }]);
   return {
     ...B,
     grid: { left: 46, right: 16, top: 30, bottom: 30 },

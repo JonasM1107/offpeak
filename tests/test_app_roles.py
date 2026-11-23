@@ -197,6 +197,43 @@ def test_every_page_opens_in_the_home_portal(page):
     assert not at.exception
 
 
+def shown(at: AppTest) -> str:
+    """Everything the page wrote as HTML (card titles, the rows of facts)."""
+    return " ".join(h.proto.body for h in at.get("html"))
+
+
+@pytest.mark.parametrize(
+    "role, own, other", [("home", "Demo home", "Demo site"), ("business", "Demo site", "Demo home")]
+)
+def test_the_account_page_names_the_roles_own_site(role, own, other):
+    at = signed_in(role)
+    at.switch_page("views/account.py").run()
+    assert not at.exception
+    assert f"{own} · Köln" in shown(at) and other not in shown(at)
+
+
+def test_the_home_settings_name_the_roofs_real_direction():
+    """The demo home's roof faces 145 degrees: south-east, not the business site's south."""
+    at = signed_in("home")
+    at.switch_page("views/settings.py").run()
+    assert "facing 145° (south-east)" in shown(at)
+    assert "devices are changed under Home &amp; devices" in shown(at)
+
+
+@pytest.mark.parametrize(
+    "role, title, view",
+    [("home", "Home layout", "home view"), ("business", "Site layout", "site view")],
+)
+def test_the_designer_speaks_the_roles_words(role, title, view):
+    at = signed_in(role)
+    at.switch_page("views/components.py").run()
+    assert not at.exception
+    assert title in shown(at) and f"shows up in the {view}." in shown(at)
+    # both buttons of the designer are still there, side by side
+    assert any(b.label == "Clear field" for b in at.button)
+    assert any(b.key == "designer_reset" for b in at.button)
+
+
 def test_the_home_portal_offers_household_devices_only():
     at = signed_in("home")
     at.switch_page("views/components.py").run()

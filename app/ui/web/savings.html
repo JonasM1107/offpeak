@@ -61,7 +61,7 @@
 
   <div class="card reveal" id="replay-card">
     <div class="head">
-      <div><h3 id="replay-title">Replay</h3><div class="sub">Line: all-in price per hour. Orange bars: when the plan runs each machine. Outlines: when it usually runs.</div></div>
+      <div><h3 id="replay-title">Replay</h3><div class="sub" id="replay-sub"></div></div>
       <div class="nav"><button id="prev" aria-label="Previous day">‹</button><button id="next" aria-label="Next day">›</button></div>
     </div>
     <div class="bills" id="bills"></div>
@@ -74,6 +74,8 @@
 <script>
 // Every number comes from Python (offpeak/savings.py replays each day); this page draws them.
 const D = window.OFFPEAK, DAYS = D.days, S = D.summary;
+const W = D.words;  // the role's words: "machine" or "device", "Site & components" or "Home & devices"
+document.getElementById('replay-sub').textContent = `Line: all-in price per hour. Orange bars: when the plan runs each ${W.machine}. Outlines: when it usually runs.`;
 const { nf, pad } = OP;
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -150,8 +152,8 @@ OP.chart(document.getElementById('devices'), c => {
   };
 });
 document.getElementById('devices-text').innerHTML = devNames.length
-  ? `<b>${devNames[0]}</b> contributes most. Machine shares can add up to a little more or less than the total, because moving one machine changes what the others pay.`
-  : 'No flexible machines on this site yet.';
+  ? `<b>${devNames[0]}</b> contributes most. The shares can add up to a little more or less than the total, because moving one ${W.machine} changes what the others pay.`
+  : `No flexible ${W.machines} on this ${W.site} yet.`;
 
 // ── Replay of one day ──────────────────────────────────────────────────────
 const replay = OP.chart(document.getElementById('replay'), c => {
@@ -208,7 +210,7 @@ function select(i, scroll) {
 document.getElementById('prev').addEventListener('click', () => select(sel - 1));
 document.getElementById('next').addEventListener('click', () => select(sel + 1));
 
-document.getElementById('foot').textContent = `Each past day is replayed with its real day-ahead prices, the German 2026 tariff (all-in prices and the demand charge) and the weather that actually happened (Open-Meteo archive). The plan is shown that weather as if the forecast had been perfect, so real savings come out a little lower. Machines and their allowed hours as set up under Site & components.`;
+document.getElementById('foot').textContent = `Each past day is replayed with its real day-ahead prices, the German 2026 tariff (all-in prices and the demand charge) and the weather that actually happened (Open-Meteo archive). The plan is shown that weather as if the forecast had been perfect, so real savings come out a little lower. ${W.Machines} and their allowed hours as set up under ${W.setup}.`;
 OP.start();
 select(sel);
 </script>

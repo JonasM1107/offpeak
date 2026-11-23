@@ -10,7 +10,7 @@ from ui.components import card_title, header
 from ui.connect import connect_card
 
 from offpeak import components, roles
-from offpeak.sites import DEMO_CITY
+from offpeak.sites import DEMO_CITY, facing
 
 role, here = data.role(), data.site()
 w = roles.words(role)
@@ -18,13 +18,14 @@ header("Setup", "Settings", live=True)
 connect_card(role)  # first, so it is the first thing seen here
 left, right = st.columns(2, gap="medium")
 with left, st.container(border=True, key="card_site"):
-    card_title(w["Site"], "Read-only for now; editing sites and loads comes next")
+    card_title(w["Site"], f"Read-only here; {w['machines']} are changed under {w['setup']}")
     facts = {
         "Account type": roles.LABELS[role],
         "Name": here.name,
         "Location": f"{DEMO_CITY} ({here.lat:.2f}, {here.lon:.2f})",
         "Price zone": here.zone,
-        "Panel": f"{here.tilt_deg:.0f}° tilt, facing {here.azimuth_deg:.0f}° (south)",
+        "Panel": f"{here.tilt_deg:.0f}° tilt, facing {here.azimuth_deg:.0f}° "
+        f"({facing(here.azimuth_deg)})",
     }
     if role == "home":  # household sizes: what runs all the time, per day and per year
         assets, _ = components.site_model(data.site_components()[0])

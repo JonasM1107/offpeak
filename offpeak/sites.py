@@ -29,6 +29,14 @@ DEMO_HOME_SINCE = date(2023, 9, 16)
 
 SITES = {"business": DEMO_SITE, "home": DEMO_HOME}
 
+COMPASS = ("north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west")
+
+
+def facing(azimuth_deg: float) -> str:
+    """The direction a panel faces, in words, from its compass bearing (180 = south): the
+    nearest of the eight directions, so the demo home's 145 degrees reads "south-east"."""
+    return COMPASS[round((azimuth_deg % 360) / 45) % 8]
+
 
 def site_for(role: str) -> Site:
     """The site of a role; ValueError for anything else (the role comes from a sign-in)."""

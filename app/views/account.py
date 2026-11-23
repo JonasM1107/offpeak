@@ -10,9 +10,11 @@ import streamlit as st
 from ui import account, assistant
 from ui.components import card_title, header, local
 
-from offpeak import auth, db
+from offpeak import auth, db, roles
+from offpeak.sites import DEMO_CITY
 
 who = account.editor()
+here = data.site()
 name = account.editor_name(who)
 until = auth.expires_at(
     st.session_state.get("editor_token") or st.session_state.get("stored_token")
@@ -57,7 +59,8 @@ with left, st.container(border=True, key="card_profile"):
         "Language": "English",
         "Units": "ct/kWh, kWh, euros",
         "Time zone": "Europe/Berlin",
-        "Site": "Demo site · Köln · DE-LU",
+        # the signed-in role's own site: a homeowner has the demo home, not the business site
+        roles.words(data.role())["Site"]: f"{here.name} · {DEMO_CITY} · {here.zone}",
     }
     st.html(
         "".join(
