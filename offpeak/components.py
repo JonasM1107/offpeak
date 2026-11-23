@@ -315,9 +315,13 @@ DEFAULT_COMPONENTS = (
 # to 6 kW and gives up to 5.5 kW, and about 3,200 kWh a year for the household. The heat pump
 # and the wallbox are typical additions, to show what a home can move to cheaper hours.
 DEFAULT_HOME_COMPONENTS = (
-    # 15 %: the house yields about 800 kWh per kWp a year where a clear roof would give about
-    # 940 (trees and the neighbours' roof)
-    Component("home-pv", "pv_roof", "Rooftop solar", {"kwp": 8, "losses": 15}, "home"),
+    # 32 %: set from the house's own measurements. It yields about 800 kWh per kWp a year,
+    # where our solar model (offpeak/generation/pv.py) gives an unshaded roof at this place
+    # and direction about 1,180: trees and the neighbours' roof take the rest. With 32 % the
+    # model matches three measured years to within 1 %, and every month from February to
+    # October to within 6 %. From November to January it is still 25 to 45 % too high (the low
+    # sun is shaded more); one number for the whole year cannot follow that.
+    Component("home-pv", "pv_roof", "Rooftop solar", {"kwp": 8, "losses": 32}, "home"),
     Component("home-battery", "battery", "Home battery", {"kwh": 9.6, "kw": 5.5}, "home"),
     Component(
         "home-heat-pump",

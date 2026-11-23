@@ -96,8 +96,9 @@ def test_the_home_catalogue_has_household_devices_only():
 
 def test_demo_home_works_in_the_energy_model():
     assets, loads = C.site_model(C.DEFAULT_HOME_COMPONENTS)
-    # the measured demo house: 8 kWp with 15 % site losses, a 9.6 kWh battery, 0.3 kW base
-    assert assets.pv_kwp == pytest.approx(8 * 0.85)
+    # the measured demo house: 8 kWp with 32 % site losses (set from its measurements, see
+    # offpeak/components.py), a 9.6 kWh battery, 0.3 kW base
+    assert assets.pv_kwp == pytest.approx(8 * 0.68)
     assert assets.battery_kwh == pytest.approx(9.6) and assets.turbines == 0
     assert assets.cold_store_kw == pytest.approx(0.3)  # the household base load
     assert assets.base_shape == C.HOUSEHOLD_SHAPE
