@@ -70,21 +70,27 @@ pages["Setup"].append(account_page)
 # Sign in first: the app is only for the team. The page asked for in the address stays
 # selected, so after signing in it opens where the link pointed.
 current = st.navigation(pages, position="sidebar" if who else "hidden")
+# One slot for everything shown before signing in (landing page or sign-in card). Streamlit
+# keeps an element of the last run on screen until this run draws something in its place, so
+# without the slot the sign-in card would stand over the dashboard for the seconds the
+# dashboard needs to load. Signed in, the slot stays empty and clears the card at once.
+gate = st.empty()
 if not who:
     # The app's plain address shows the landing page until the visitor presses Login. A link
     # to a page inside the app goes straight to the sign-in. While the browser still looks for
     # a stored sign-in, login_screen shows a short wait, so a signed-in visitor never sees the
     # landing page flash by.
-    if current is home and account.browser_answered() and not landing.login_wanted():
-        landing.show()
-    else:
+    with gate.container():
+        if current is home and account.browser_answered() and not landing.login_wanted():
+            landing.show()
+        else:
 
-        def back_home() -> None:
-            landing.back_home()
-            st.session_state.pop(account.ROLE_CHOICE, None)  # Login starts with the cards again
-            st.switch_page(home)
+            def back_home() -> None:
+                landing.back_home()
+                st.session_state.pop(account.ROLE_CHOICE, None)  # Login starts with the cards
+                st.switch_page(home)
 
-        account.login_screen(back=back_home)
+            account.login_screen(back=back_home)
     st.stop()
 note = st.session_state.pop("role_note", None)  # e.g. no database: the role holds here only
 if note:
