@@ -50,7 +50,7 @@ The v2 response is `{"interval_minutes": 15, "data": [{"timestamp": "2026-11-10T
 
 | Tech setup doc | What we did | Why |
 |---|---|---|
-| Next-day prices through a Supabase Edge Function + pg_cron, pushed to the page with Realtime | Python only. A GitHub Actions job polls every 15 minutes from 11:45 to 14:00 UTC, and the Streamlit page fetches the prices itself if they are still missing | `PLAN.md` decision D1 (Streamlit) removes Edge Functions, pg_cron, Realtime and Next.js |
+| Next-day prices through a Supabase Edge Function + pg_cron, pushed to the page with Realtime | Python only. A GitHub Actions job polls every 15 minutes from 11:45 to 14:00 UTC, and the Streamlit page fetches the prices itself if they are still missing | `PLAN.md` decision D1 (Streamlit) removes Edge Functions, pg_cron, Realtime and Next.js. pg_cron came back later, only as the clock that starts the jobs (see [the clock](#the-clock-supabase-starts-the-jobs-on-time)) |
 | Before publication, a request for tomorrow "returns nothing" | It returns **HTTP 404** with body `no content available`. We turn that into an empty table, not an error | Seen live |
 | Attribution "Energy-Charts / Fraunhofer ISE" | The licence field reads "CC BY 4.0 from Bundesnetzagentur \| SMARD.de". The attribution text in `config.py` names both | CC BY requires naming the original source |
 | `wind_kmh` column | `wind_ms`, requested with `wind_speed_unit=ms` | `PLAN.md` section 5.2 and the `weather_fc` table use m/s |
@@ -78,6 +78,7 @@ every job    ──────────────────────�
 | `offpeak/db.py` | The only module that talks to the database: upserts, reads, job log |
 | `offpeak/jobs/` | `ingest_prices`, `ingest_weather`, `backfill_prices`, and `runner.py`, which times and logs every run |
 | `.github/workflows/prices.yml`, `weather.yml` | The schedules. Both also have a "Run workflow" button |
+| `db/supabase/job_clock.sql` | The clock in Supabase that starts the scheduled workflows on time (see below) |
 | `.github/workflows/backfill.yml` | Run by hand once to load price history |
 | `app/data.py` | The dashboard reads from the database. If something is missing there, it fetches it from the API itself and stores it |
 
@@ -86,7 +87,62 @@ Behaviour worth knowing:
 - **Prices:** the job skips (logged as `skipped`) once all of tomorrow's slots are stored. Before publication it stores today and logs `skipped: tomorrow not published yet`; that is normal, not an error.
 - **Weather:** every run is stored with its `run_at`, so later we can check old forecasts against what happened. The dashboard uses the newest run, and fetches a fresh one itself if the newest stored run is older than 6 hours.
 - **No database, no problem:** without `DATABASE_URL` the jobs print a note and exit, and the dashboard calls the APIs directly.
-- **Schedules only run from `main`.** GitHub starts scheduled workflows only on the default branch.
+- **Schedules only run from `main`.** GitHub starts scheduled workflows only on the default branch. The clock below also starts them on `main`.
+
+### The clock: Supabase starts the jobs on time
+
+GitHub starts this repository's scheduled workflows 6 to 8 hours late and drops most of them. Measured 19 to 22 Nov 2026: Prices is planned for 11:45 to 14:00 UTC and ran between 18:11 and 22:01 UTC; Weather ran about three times a day instead of eight. That is GitHub's scheduler, so no change to a `cron:` line fixes it. The database is always on, so it keeps the time instead:
+
+```
+pg_cron in Supabase, at the planned time ──▶ start_workflow('prices.yml') ──▶ GitHub's "Run workflow" request ──▶ the same workflow as before
+```
+
+`db/supabase/job_clock.sql` sets this up: the function `start_workflow`, and one `pg_cron` entry for every `cron:` line of `prices.yml`, `weather.yml`, `drivers.yml` and `forecast.yml`. It is not a migration, because `pg_cron`, `pg_net` and Vault exist only on Supabase, not in the test database.
+
+The workflows keep their own `schedule:` as the fallback, so a job can be started twice. That does no harm:
+
+| Job | What a second start does |
+|---|---|
+| Prices | Skips after one query once tomorrow is stored. Before that it writes the same rows again |
+| Weather | Stores one more forecast run (about 670 rows). The app uses the newest run |
+| Weather for the price model | Fetches again and writes the same rows again |
+| Offpeak Intelligence outlook | Skips if today's outlook for the newest prices is stored. Two runs never overlap: the second waits |
+
+**Setting it up, once.** Steps 1 and 2 involve a secret, so the repository owner does them by hand:
+
+1. **Create a GitHub token.** On GitHub: Settings, then Developer settings, then Personal access tokens, then Fine-grained tokens, then Generate new token. Repository access: *Only select repositories*, then `offpeak`. Permissions: Repository permissions, then *Actions: Read and write*. Nothing else. Write down the expiry date.
+2. **Store it in Supabase Vault.** In the SQL Editor, with the token in place of the placeholder. Delete the query afterwards (the editor keeps what you type), and paste the token nowhere else: not in chat, not in the repo, not in a workflow. The Vault page of the Supabase dashboard does the same without SQL; use the same name.
+
+   ```sql
+   select vault.create_secret('PASTE_THE_TOKEN_HERE', 'github_actions_token', 'Starts the offpeak data workflows');
+   ```
+
+3. **Run `db/supabase/job_clock.sql`** in the SQL Editor. Running it again later is safe.
+
+**Checking it.** GitHub answers 204 when it accepts a start; Supabase keeps the answers for 6 hours.
+
+```sql
+select jobname, schedule from cron.job order by jobname;                                     -- six entries
+select status_code, content, created from net._http_response order by created desc limit 5;  -- 204 = started
+```
+
+`gh run list --workflow prices.yml` then shows runs with the event `workflow_dispatch` at the planned times. A 401 means the token is wrong or has expired; a 403 or 404 means it lacks the permission or the repository.
+
+**When the token expires** the clock stops without a message, and only GitHub's late schedule is left. Create a new token (step 1) and replace the stored one:
+
+```sql
+select vault.update_secret((select id from vault.secrets where name = 'github_actions_token'), 'PASTE_THE_NEW_TOKEN_HERE');
+```
+
+**Switching it off.** The workflows then run on GitHub's own schedule again:
+
+```sql
+select cron.unschedule(jobname) from cron.job where jobname like 'offpeak-%';
+```
+
+To remove it completely, also delete the token on GitHub and the secret in Supabase (`delete from vault.secrets where name = 'github_actions_token';`).
+
+**Changing a time.** Change the `cron:` line in the workflow *and* the line in `job_clock.sql`, then run the SQL file again. `tests/test_job_clock.py` fails if the two differ.
 
 ### Where DATABASE_URL goes
 

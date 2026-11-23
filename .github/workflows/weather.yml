@@ -1,6 +1,8 @@
 name: Weather
 
 # Every 3 hours, at quarter past, so it does not compete with the full-hour rush.
+# Started on time by the clock in Supabase (db/supabase/job_clock.sql). The schedule below is
+# the fallback; keep its times the same as in that file (tests/test_job_clock.py checks).
 on:
   schedule:
     - cron: "15 */3 * * *"

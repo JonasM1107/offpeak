@@ -3,6 +3,8 @@ name: Prices
 # Tomorrow's DE-LU prices appear around 13:00 CET. Poll every 15 minutes from 11:45 to
 # 14:00 UTC (12:45-15:00 CET in winter, 13:45-16:00 CEST in summer); the job skips as soon
 # as tomorrow is stored. GitHub may start scheduled runs late, so the window is generous.
+# Started on time by the clock in Supabase (db/supabase/job_clock.sql). The schedule below is
+# the fallback; keep its times the same as in that file (tests/test_job_clock.py checks).
 on:
   schedule:
     - cron: "45 11 * * *"
