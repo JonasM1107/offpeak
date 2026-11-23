@@ -2,8 +2,10 @@ name: Offpeak Intelligence outlook
 
 # After the morning weather update and after tomorrow's prices are usually published
 # (around 13:00 German time). Runs that find nothing new skip after one database query.
-# GitHub often runs scheduled workflows late or skips them, so the outlook also starts
-# right after every Prices or weather run; a run with nothing new skips after one query.
+# The outlook also starts right after every Prices or price-model weather run, so new data
+# gets a new outlook at once; a run with nothing new skips after one query.
+# Started on time by the clock in Supabase (db/supabase/job_clock.sql). The schedule below is
+# the fallback; keep its times the same as in that file (tests/test_job_clock.py checks).
 on:
   schedule:
     - cron: "10 8,12,13,15 * * *"

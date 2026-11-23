@@ -113,7 +113,7 @@ For offpeak this means:
 
 For offpeak this means:
 
-- Every member can open the repo and find, without searching: the screens (`app/views/`), the rules (`offpeak/`), the storage (`offpeak/db.py`, `db/migrations/`), the jobs (`offpeak/jobs/`, `.github/workflows/`) and the tests (`tests/`).
+- Every member can open the repo and find, without searching: the screens (`app/views/`), the rules (`offpeak/`), the storage (`offpeak/db.py`, `db/migrations/`), the jobs (`offpeak/jobs/`, `.github/workflows/`, and the clock that starts them, `db/supabase/job_clock.sql`) and the tests (`tests/`).
 - Every member can explain the **why** of the main decisions and their **limits**. The answers are in [section 5](#5-walkthrough-answers-we-must-all-be-able-to-give). Examples of decisions:
   - Streamlit, with logic kept separate from pages.
   - Supabase plus scheduled jobs.
@@ -144,13 +144,14 @@ For offpeak this means:
 | Energy-Charts (day-ahead prices) | Every price on every page | The app reads stored prices from Supabase first. If neither works, the pages show "Prices could not be loaded right now. We try again in a few minutes." Before ~13:00 CET, "tomorrow" shows "Waiting for tomorrow's prices". |
 | Open-Meteo forecast | Weather, solar, cockpit, dashboard | The stored forecast from the database is used if under 6 hours old; otherwise the API, and if that fails, the latest stored forecast however old. Only with nothing stored: "The weather forecast is not available right now." In the app, a failing source is retried once (jobs: four times), so a visitor never waits 30 s for retries. |
 | Open-Meteo previous runs (weather for Offpeak Intelligence) | Price outlook | Read from Supabase, which the daily job fills. If missing, the outlook runs without weather (prices only) and the day cards show no weather reason. |
-| Offpeak Intelligence outlook (computed by our forecast job) | Price outlook, cockpit, dashboard plan, Ollie | Read from Supabase. The app never trains. If the job is late, the stored outlook still covers the days after the newest prices. With nothing stored at all, the app makes a quick outlook from simple rules (a few seconds). The job also starts after every Prices and weather run, because GitHub runs schedules late or skips them. |
+| Offpeak Intelligence outlook (computed by our forecast job) | Price outlook, cockpit, dashboard plan, Ollie | Read from Supabase. The app never trains. If the job is late, the stored outlook still covers the days after the newest prices. With nothing stored at all, the app makes a quick outlook from simple rules (a few seconds). The job also starts after every Prices and price-model weather run, so a new outlook follows new data at once. |
+| GitHub's scheduler and API (start the data jobs) | Prices, weather and the outlook being stored on time | GitHub starts this repository's scheduled workflows 6 to 8 hours late and drops most of them (measured 19 to 22 Nov 2026). So a clock in Supabase (`pg_cron`, `db/supabase/job_clock.sql`) asks GitHub's API to start each workflow at the planned time. If the clock, its token or the API fails, each workflow's own `schedule:` still runs it, late, and the app fetches missing prices and weather itself when a page opens. Nothing on screen breaks; the stored data is only older. |
 | Requesty (language model for Ollie) | Ask Ollie chat | Ollie says "can't answer right now" and points to the dashboard plan and the cockpit, which do not need it. If the first model fails, a second one is tried. Each visitor can ask 25 questions per session (free plan: 200 requests a day). |
 | Claude, Anthropic API (Ollie, when `ANTHROPIC_API_KEY` is set) | Ask Ollie chat | Used instead of Requesty because the team has a budget in the Claude Console (the course asks for a reason when leaving its standard). If Claude declines, the API's built-in fallback model answers; if the API fails or the key is wrong, Ollie says it can't answer and the rest of the app works. |
 | Open-Meteo archive and satellite | Savings replay, solar accuracy | A clear message on that card or page. The rest of the app is unaffected. |
 | Supabase | Stored data, components, cockpit machines | The pages fall back to the APIs. Components and machines are kept for the session only, and the page says so. |
 
-Tests: `tests/test_app.py` runs every page offline with saved responses.
+Tests: `tests/test_app.py` runs every page offline with saved responses. `tests/test_job_clock.py` checks that every workflow the clock starts keeps its own schedule (the fallback) with the same times.
 
 ---
 
@@ -159,7 +160,7 @@ Tests: `tests/test_app.py` runs every page offline with saved responses.
 **Where is the data stored?**
 
 - In Supabase (hosted Postgres): day-ahead prices, weather forecast runs, the weather that drives the price outlook, the latest Offpeak Intelligence outlook, site components, cockpit machines and the job log.
-- GitHub Actions jobs fill it on a schedule:
+- GitHub Actions jobs fill it. A clock in Supabase (`pg_cron`, `db/supabase/job_clock.sql`) starts them at the planned times, because GitHub's own scheduler starts them hours late. Each workflow keeps its `schedule:` as the fallback. The times:
   - prices every 15 minutes around 13:00;
   - weather every 3 hours;
   - price-model weather daily;
@@ -199,6 +200,9 @@ Tests: `tests/test_app.py` runs every page offline with saved responses.
 - **The forecast is retrained in the app:**
   - *Why:* simple, with no model files.
   - *Limit:* about half a minute once a day for the first visitor. It could move into a scheduled job.
+- **A clock in Supabase starts the jobs:**
+  - *Why:* GitHub's scheduler ran our jobs 6 to 8 hours late. The database is always on and we already have it, so there is no new account and no runner kept busy waiting.
+  - *Limit:* it needs a GitHub token, stored encrypted in Supabase Vault, which expires and must be replaced (`docs/LIVE_DATA.md`). The times live in two places, the workflow files and the SQL file; a test compares them. The SQL is run by hand in Supabase, not by a migration.
 - **Weather as forecast, not as measured:**
   - *Why:* honest training that matches real use.
   - *Limit:* only about a year of such data.

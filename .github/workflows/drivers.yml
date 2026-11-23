@@ -2,6 +2,8 @@ name: Weather for the price model
 
 # Once a day, after the night's ECMWF run is published. "Run workflow" with a number of days
 # fills the history once (372 = a year and a week).
+# Started on time by the clock in Supabase (db/supabase/job_clock.sql). The schedule below is
+# the fallback; keep its times the same as in that file (tests/test_job_clock.py checks).
 on:
   schedule:
     - cron: "40 7 * * *"

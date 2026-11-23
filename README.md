@@ -55,7 +55,7 @@ trains the price forecast
 ```
 
 - **Data sources**: day-ahead prices from Energy-Charts (Fraunhofer ISE); weather forecasts, the weather archive and satellite-measured solar radiation from Open-Meteo; optionally ENTSO-E for other price zones; tariffs from the published grid operator and legal sources (see `docs/TARIFFS.md`). Every source has a decided behaviour when it is down: the app shows a clear message instead of crashing.
-- **Scheduled jobs** (`offpeak/jobs/`, run by `.github/workflows/`): prices around 13:00 when tomorrow's prices are published, weather every 3 hours, price drivers every morning, and the price forecast four times a day.
+- **Scheduled jobs** (`offpeak/jobs/`, run by `.github/workflows/`, started on time by a clock in Supabase once it is set up, see `docs/LIVE_DATA.md`): prices around 13:00 when tomorrow's prices are published, weather every 3 hours, price drivers every morning, and the price forecast four times a day.
 - **Storage**: Supabase Postgres, reached only through `offpeak/db.py`. Times are stored in UTC, one row per 15-minute slot. The schema is in `db/migrations/`, numbered in order.
 - **Forecasts**: scikit-learn gradient boosting. The price model learns how each hour differs from the week's average, from recent prices, the calendar and the weather forecast; it is backtested on days it never saw and must beat simple rules. Solar power is computed with pvlib. A home's consumption model learns only from that home's own measurements.
 - **Planning**: for every machine, every allowed start time is priced with the hour-by-hour cost (own power first, then the grid) and the cheapest is kept; the battery charges from surplus sun and wind and covers the expensive hours.
@@ -124,7 +124,8 @@ Lint and format: `uv run ruff check` and `uv run ruff format`. CI runs all three
 app/          Streamlit pages: views/ (one file per page), data.py (cached loading), ui/ (3D scene, cards)
 offpeak/      all logic, no Streamlit: markets, tariffs, weather, generation, load, forecast (ML),
               cockpit (planning), savings, assistant (Ollie), auth, db.py, jobs
-db/           database migrations (run once in Supabase, in order)
+db/           database migrations (run once in Supabase, in order) and supabase/job_clock.sql,
+              the clock that starts the scheduled jobs
 tests/        tests, mirroring offpeak/, with saved API responses in tests/fixtures/
 scripts/      Blender script that builds the 3D models, and the script that saves API test fixtures
 docs/         project standards, the plan, live data, tariffs
