@@ -276,6 +276,22 @@ def new_component(
     return Component(f"{kind}-{uuid4().hex[:6]}", kind, name, values, profile)
 
 
+NOT_IN_NAMES = "<>"  # a name is text; these two start HTML tags
+
+
+def clean_name(name, fallback: str) -> str:
+    """A name as it is stored: without "<" and ">", line breaks and tabs as single spaces,
+    without characters that cannot be printed, at most MAX_NAME characters; `fallback` if
+    nothing is left.
+
+    Why: names are typed by people and shown to everyone who uses the site. The pages already
+    show them as plain text (kit.js: esc), so this is the second lock on the same door: even a
+    page that forgot to do so cannot be made to run a script someone typed as a name."""
+    text = " ".join(str(name or "").split())  # any run of spaces, tabs or line breaks: one space
+    text = "".join(ch for ch in text if ch.isprintable() and ch not in NOT_IN_NAMES)
+    return text.strip()[:MAX_NAME].strip() or fallback
+
+
 DEFAULT_COMPONENTS = (
     Component("pv-field", "pv_field", "Solar field", {"kwp": 40}),
     Component("pv-roof", "pv_roof", "Hall roof solar", {"kwp": 20}),
@@ -438,6 +454,8 @@ def validate_site(components) -> list[str]:
             problems.append(f"Component {i} ({c.spec.label}) needs a name")
         elif len(name) > MAX_NAME:
             problems.append(f"{who}: the name can be at most {MAX_NAME} characters")
+        elif set(name) & set(NOT_IN_NAMES):  # refused, not changed silently: see clean_name
+            problems.append(f"{clean_name(name, f'Component {i}')}: a name cannot contain < or >")
         elif name.casefold() in seen:
             problems.append(f"{who}: two components have this name")
         seen.add(name.casefold())

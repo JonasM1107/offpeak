@@ -65,3 +65,31 @@ def test_editor_names_come_from_the_setting_or_the_email():
         "jonas.matner@gmail.com": "Jonas Matner",  # made from the email
         "noa@x.de": "Noa",
     }
+
+
+# ── Wrong logins counted for the whole server (a new browser tab starts at zero) ──
+
+
+def test_wrong_logins_for_one_email_pause_it_in_every_browser():
+    for _ in range(auth.MAX_ATTEMPTS - 1):
+        auth.note_failure("Ann@Example.com", NOW)
+    assert auth.email_may_try("ann@example.com", NOW)  # one try left
+    auth.note_failure(" ann@example.com ", NOW)  # written differently, the same email
+    assert not auth.email_may_try("ann@example.com", NOW)
+    assert not auth.email_may_try("ANN@example.com", NOW + timedelta(minutes=4))
+    assert auth.email_may_try("ann@example.com", NOW + auth.PAUSE)  # after the pause
+
+
+def test_one_emails_wrong_logins_do_not_pause_another():
+    for _ in range(auth.MAX_ATTEMPTS):
+        auth.note_failure("ann@example.com", NOW)
+    assert auth.email_may_try("bob@example.com", NOW)
+    assert auth.email_may_try("", NOW) and auth.email_may_try(None, NOW)  # nothing typed yet
+
+
+def test_old_wrong_logins_are_forgotten_so_the_memory_stays_small():
+    for i in range(500):  # a script trying many made-up emails
+        auth.note_failure(f"guess{i}@example.com", NOW)
+    assert len(auth._FAILED) == 500
+    auth.note_failure("ann@example.com", NOW + auth.PAUSE)  # the next try, after the pause
+    assert set(auth._FAILED) == {"ann@example.com"}

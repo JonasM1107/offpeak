@@ -166,3 +166,18 @@ def test_horizon_works_without_any_own_generation():
     empty = pd.DataFrame({"ts": pd.DatetimeIndex([], tz="UTC"), "pv_kw": [], "wind_kw": []})
     h = horizon(published, forecast, empty, 5.0, germany_2026(), "Europe/Berlin", today, days=2)
     assert len(h["buy"]) == 48 and set(h["surplus"]) == {0.0}
+
+
+def test_clean_machines_stores_names_as_text_only():
+    """A machine name comes from the browser and is shown to everyone on the site: no HTML
+    tags survive, whatever was sent."""
+    from offpeak.cockpit import clean_machines
+
+    sent = [
+        {"name": '<img src=x onerror="steal()">Oven', "kw": 10, "hours": 2},
+        {"name": "<script>x</script>", "kw": 10, "hours": 2},
+        {"name": "<>", "kw": 10, "hours": 2},
+    ]
+    names = [m["name"] for m in clean_machines(sent)]
+    assert not any("<" in n or ">" in n for n in names)
+    assert names[0].endswith("Oven") and names[2] == "Machine"

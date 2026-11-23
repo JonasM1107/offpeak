@@ -239,6 +239,8 @@ def add_component(new: components.Component) -> str:
     (a household device for a business, or the other way round), whatever the page sent."""
     profile, here = role(), site()
     components.check_profile([new], profile)
+    # the name as text only and not endless, whatever the form sent (components.clean_name)
+    new = replace(new, name=components.clean_name(new.name, new.spec.label))
     current, source = site_components()
     # a free square on the site, so the designer and the 3D view show it where it stays
     new = next(c for c in layout.auto_place([*current, new]) if c.id == new.id)

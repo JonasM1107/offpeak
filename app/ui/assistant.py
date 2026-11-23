@@ -80,6 +80,11 @@ def _reply(question: str, history: list[dict]) -> str:
     ctx = _context()
     if ctx is None:
         return "I can't see the prices right now, so I can't plan. Please try again soon."
+    if not agent.take_daily_question(market_today()):  # the whole app's limit for today
+        return (
+            "Ollie has answered a lot of questions today and is back tomorrow. The plan on the "
+            "dashboard and the planner work as usual."
+        )
     st.session_state["ollie_asked"] = asked + 1
     model = os.environ.get("OLLIE_MODEL") or _secret("OLLIE_MODEL")
     claude_key = os.environ.get("ANTHROPIC_API_KEY") or _secret("ANTHROPIC_API_KEY")

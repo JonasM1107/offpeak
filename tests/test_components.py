@@ -175,3 +175,36 @@ def test_validate_site_ignores_settings_that_are_not_sizes_or_hours():
     assert C.validate_site([old]) == []
     broken = C.new_component("battery", "Battery", {"kwh": "lots"})
     assert C.validate_site([broken]) == ["Battery: every size and hour must be a number"]
+
+
+# ── Names are text, never markup (a script typed as a name must not run) ─────
+
+
+@pytest.mark.parametrize(
+    "typed, stored",
+    [
+        ("Oven 2", "Oven 2"),  # an ordinary name stays as it is
+        ("  Öfen & Co. (Halle 1)  ", "Öfen & Co. (Halle 1)"),  # trimmed; & and umlauts are fine
+        ('<img src=x onerror="alert(1)">Oven', 'img src=x onerror="alert(1)"Oven'),  # no tag left
+        ("<script>steal()</script>", "scriptsteal()/script"),
+        ("Oven\n\t2\x00", "Oven 2"),  # line breaks and tabs become a space, a zero byte goes
+        ("Oven\u00a02", "Oven 2"),  # a non-breaking space (pasted from a document) too
+        ("x" * 200, "x" * C.MAX_NAME),  # never longer than a name may be
+    ],
+)
+def test_clean_name_keeps_text_and_drops_markup(typed, stored):
+    assert C.clean_name(typed, "Machine") == stored
+
+
+@pytest.mark.parametrize("empty", ["", "   ", None, "<>", "\n"])
+def test_clean_name_falls_back_when_nothing_is_left(empty):
+    assert C.clean_name(empty, "Heat pump") == "Heat pump"
+
+
+def test_validate_site_rejects_markup_in_a_name():
+    """Where a whole site is saved (the designer): refused with a message, not changed
+    silently, so the field on the page and the stored name never differ."""
+    site = [C.Component("a", "pv_roof", "<img src=x onerror=alert(1)>", {"kwp": 10})]
+    problems = C.validate_site(site)
+    assert any("cannot contain < or >" in p for p in problems)
+    assert not any("<" in p.split(":")[0] for p in problems)  # the message does not repeat it

@@ -22,13 +22,14 @@ import base64
 import hashlib
 import hmac
 import secrets
+import threading
 from datetime import UTC, datetime, timedelta
 
 from offpeak.roles import normal_role
 
 ROUNDS = 200_000
 SESSION_HOURS = 24
-MAX_ATTEMPTS = 5  # wrong logins per browser session before a pause
+MAX_ATTEMPTS = 5  # wrong logins (per browser session, and per email on the server) before a pause
 PAUSE = timedelta(minutes=5)
 
 
@@ -138,6 +139,36 @@ def read_token(token, now: datetime, secret: str | None, allowed: set[str]) -> s
 def may_try(failures: list[datetime], now: datetime) -> bool:
     """False after MAX_ATTEMPTS wrong logins within the last PAUSE."""
     return len([t for t in failures if now - t < PAUSE]) < MAX_ATTEMPTS
+
+
+# Wrong logins per typed email, for the whole server. The count kept with the browser session
+# (may_try above) starts at zero in every new tab, so a script could keep guessing without ever
+# pausing. The price: someone who knows an editor's email can keep that email paused by typing
+# wrong passwords; browsers that are already signed in stay signed in.
+_FAILED: dict[str, list[datetime]] = {}
+_FAILED_LOCK = threading.Lock()  # Streamlit runs every visitor in a thread of its own
+
+
+def email_may_try(email, now: datetime) -> bool:
+    """False while `email` has MAX_ATTEMPTS wrong logins within the last PAUSE, whichever
+    browser they came from."""
+    with _FAILED_LOCK:
+        return may_try(_FAILED.get(normal_email(email), []), now)
+
+
+def note_failure(email, now: datetime) -> None:
+    """Remember a wrong login for `email`. Emails whose tries are all older than PAUSE are
+    dropped on the way, so the memory holds the last few minutes only, however many are typed."""
+    with _FAILED_LOCK:
+        for old in [e for e, times in _FAILED.items() if all(now - t >= PAUSE for t in times)]:
+            del _FAILED[old]
+        _FAILED.setdefault(normal_email(email), []).append(now)
+
+
+def forget_failures() -> None:
+    """Start counting from zero (the tests do this before each test)."""
+    with _FAILED_LOCK:
+        _FAILED.clear()
 
 
 def expires_at(token) -> datetime | None:

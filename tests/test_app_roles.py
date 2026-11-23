@@ -173,6 +173,17 @@ def test_a_token_from_before_roles_opens_the_business_portal():
     assert titles(at) == {"Site view", "Site & components", "Simulation cockpit"}
 
 
+def test_wrong_passwords_pause_the_email_even_from_fresh_browsers():
+    """Five wrong tries, each from a new browser (so the count kept per browser never fills
+    up): the email is paused on the server, and even the right password has to wait."""
+    for _ in range(auth.MAX_ATTEMPTS):
+        at = sign_in(press(login(), "choose_business"), password="a wrong guess")
+        assert "do not match" in at.error[0].value
+    at = sign_in(press(login(), "choose_business"), password="pw")  # the right password
+    assert not at.exception
+    assert "Too many wrong attempts" in at.error[0].value and not inside_the_app(at)
+
+
 # ── each role sees and changes only its own site ────────────────────────────
 
 
@@ -256,6 +267,22 @@ def test_a_home_device_is_saved_for_the_home_only(fake_db):
     assert saved and {r["profile"] for r in saved} == {"home"}
     assert {r["site_id"] for r in saved} == {2}  # the demo home, not the business site
     assert "Dishwasher" in {r["name"] for r in saved}
+
+
+def test_a_device_name_is_saved_as_text_only_and_not_endless(fake_db):
+    """Checked where the device is saved (app/data.py), whatever the form sent: a script
+    typed as a name is stored without its tags, and a name is never longer than allowed."""
+    from offpeak.components import MAX_NAME
+
+    at = signed_in("home")
+    at.switch_page("views/components.py").run()
+    at.selectbox[0].select("Household appliance").run()
+    at.text_input[0].input('<img src=x onerror="steal()">Dishwasher' + "y" * 300)
+    next(b for b in at.button if b.label == "Add to home").click()
+    at.run()
+    assert not at.exception
+    name = next(r["name"] for r in fake_db["components"] if "Dishwasher" in r["name"])
+    assert "<" not in name and ">" not in name and len(name) <= MAX_NAME
 
 
 def test_saving_refuses_a_device_of_the_other_role(monkeypatch):

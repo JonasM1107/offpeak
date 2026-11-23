@@ -76,7 +76,7 @@
 const D = window.OFFPEAK, DAYS = D.days, S = D.summary;
 const W = D.words;  // the role's words: "machine" or "device", "Site & components" or "Home & devices"
 document.getElementById('replay-sub').textContent = `Line: all-in price per hour. Orange bars: when the plan runs each ${W.machine}. Outlines: when it usually runs.`;
-const { nf, pad } = OP;
+const { nf, pad, esc } = OP;
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const asDate = s => new Date(s + 'T12:00:00Z');
@@ -144,7 +144,7 @@ OP.chart(document.getElementById('devices'), c => {
   return {
     ...B,
     grid: { left: 130, right: 60, top: 6, bottom: 20 },
-    tooltip: { ...B.tooltip, formatter: p => `${p.name}<br><b>${eur(p.value)}</b> (${nf(p.value / S.saving_eur * 100, 0)} % of the saving)` },
+    tooltip: { ...B.tooltip, formatter: p => `${esc(p.name)}<br><b>${eur(p.value)}</b> (${nf(p.value / S.saving_eur * 100, 0)} % of the saving)` },
     xAxis: { type: 'value', ...B.axis, axisLabel: { ...B.axis.axisLabel, formatter: '€{value}' } },
     yAxis: { type: 'category', data: devNames, inverse: true, ...B.axis, splitLine: { show: false }, axisLabel: { ...B.axis.axisLabel, fontSize: 12, color: c.ink } },
     series: [{ type: 'bar', data: devVals, barMaxWidth: 22, itemStyle: { color: c.accent, borderRadius: [0, 6, 6, 0] },
@@ -152,7 +152,7 @@ OP.chart(document.getElementById('devices'), c => {
   };
 });
 document.getElementById('devices-text').innerHTML = devNames.length
-  ? `<b>${devNames[0]}</b> contributes most. The shares can add up to a little more or less than the total, because moving one ${W.machine} changes what the others pay.`
+  ? `<b>${esc(devNames[0])}</b> contributes most. The shares can add up to a little more or less than the total, because moving one ${W.machine} changes what the others pay.`
   : `No flexible ${W.machines} on this ${W.site} yet.`;
 
 // ── Replay of one day ──────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ const replay = OP.chart(document.getElementById('replay'), c => {
         lineStyle: { color: c.ink, width: 1.6 }, areaStyle: { color: 'rgba(28,27,25,.05)' },
         tooltip: { formatter: p => `${pad(p.value[0])}:00 · <b>${nf(p.value[1])} ct/kWh</b> all-in` } },
       { type: 'custom', xAxisIndex: 1, yAxisIndex: 1, data: blocks,
-        tooltip: { formatter: p => `${p.value[4]}<br>${p.value[3] === 'plan' ? 'Plan' : 'Usual'}: ${pad(p.value[0])}:00–${pad(p.value[1] % 24)}:00` },
+        tooltip: { formatter: p => `${esc(p.value[4])}<br>${p.value[3] === 'plan' ? 'Plan' : 'Usual'}: ${pad(p.value[0])}:00–${pad(p.value[1] % 24)}:00` },
         renderItem: (params, api) => {
           const a = api.coord([api.value(0), api.value(2)]), b = api.coord([api.value(1), api.value(2)]);
           const h = api.size([0, 1])[1];

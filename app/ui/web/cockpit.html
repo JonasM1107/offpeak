@@ -81,7 +81,7 @@
 // (offpeak/cockpit.py: horizon). The search mirrors offpeak/cockpit.py week_plan, which
 // tests/test_cockpit.py pins down, so the cockpit, the dashboard and Ollie agree.
 const D = window.OFFPEAK, H = D.horizon, N = H.t.length, DAYS = H.days, NOW = D.now_index;
-const { nf, pad } = OP;
+const { nf, pad, esc } = OP;
 const COLORS = ['#FF5F00', '#3A3733', '#F2A33A', '#8C6A5A', '#C24700', '#77726A', '#E8A87C', '#4A4640'];
 const eur = (v, d = 2) => `€${nf(v, d)}`;
 
@@ -149,7 +149,7 @@ function renderList(res) {
   document.getElementById('list').innerHTML = machines.length ? machines.map((m, i) => {
     const r = res[i];
     return `<button class="mach ${i === sel ? 'on' : ''}" data-i="${i}"><span class="dot" style="background:${COLORS[i % COLORS.length]}"></span>
-      <span><b>${m.name}</b><small>${nf(m.kw, 0)} kW · ${m.hours} h</small>
+      <span><b>${esc(m.name)}</b><small>${nf(m.kw, 0)} kW · ${m.hours} h</small>
       <small class="best">${r.best ? `${when(r.best.start, m.hours)}${r.saving > 0.005 ? ` · saves ${eur(r.saving)}` : ''}` : 'does not fit this week'}</small></span></button>`;
   }).join('') : `<p class="empty">No ${W.machines} yet. Add one below.</p>`;
   document.querySelectorAll('.mach').forEach(b => b.addEventListener('click', () => { sel = +b.dataset.i; renderJob(); update(); }));
@@ -165,7 +165,7 @@ function renderJob() {
   document.getElementById('jobcard').style.display = machines.length ? '' : 'none';
   if (!machines.length) return;
   const m = machines[sel];
-  box.innerHTML = `<div class="jobhead"><input class="name" id="name" value="${m.name.replace(/"/g, '&quot;')}" aria-label="Machine name"><button class="del" id="del">Remove</button></div>
+  box.innerHTML = `<div class="jobhead"><input class="name" id="name" value="${esc(m.name)}" aria-label="Machine name"><button class="del" id="del">Remove</button></div>
     <div class="job">
       ${slider('kw', 'Power', 1, 100, ' kW')}
       ${slider('hours', 'Job length', 1, 12, ' h')}

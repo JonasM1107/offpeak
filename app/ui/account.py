@@ -123,12 +123,14 @@ def sign_in(email: str, password: str, chosen: str | None = None) -> str | None:
         return "Signing in is not set up on this server yet."
     now = datetime.now(UTC)
     failures = st.session_state.setdefault("login_failures", [])
-    if not auth.may_try(failures, now):
+    # per browser tab and, for the email typed, across all tabs (a new tab starts at zero)
+    if not auth.may_try(failures, now) or not auth.email_may_try(email, now):
         return "Too many wrong attempts. Please wait five minutes."
     allowed, password_hash, secret = _config()
     who = auth.check_login(email, password, allowed, password_hash)
     if who is None:
         failures.append(now)
+        auth.note_failure(email, now)
         return "That email and password do not match."
     stored, asked = _stored_role(who)
     role_now, problem = roles.sign_in_role(chosen, stored)

@@ -110,6 +110,10 @@ const OP = (() => {
 
   const nf = (v, d = 1) => (v == null || Number.isNaN(v)) ? '–' : v.toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d });
   const pad = h => String(h).padStart(2, '0');
+  // Text a person typed (the name of a machine or device) for use inside HTML: shown as it
+  // was typed, never run as markup. Every view uses this before a name goes into innerHTML
+  // or a chart tooltip.
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
   function start() {
     syncTheme();
@@ -122,6 +126,6 @@ const OP = (() => {
     fit();
   }
 
-  return { start, onTheme: fn => listeners.push(fn), palette, base, chart, nf, pad, fit,
+  return { start, onTheme: fn => listeners.push(fn), palette, base, chart, nf, pad, esc, fit,
     resetIcon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5v3h3"/></svg>' };
 })();
