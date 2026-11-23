@@ -122,7 +122,7 @@ const D = window.OFFPEAK, N = D.now, R = D.ribbon, A = D.actions;
 const W = D.words;
 document.getElementById('steps-sub').textContent = `Each ${W.machine} at its best time in the coming days. Tick a step off when it is done.`;
 document.getElementById('steps-more').textContent = `Change ${W.machines} and times in the ${W.planner.toLowerCase()} →`;
-const { nf } = OP;
+const { nf, esc } = OP;
 const eur = (v, d = 2) => '€' + nf(v, d);
 const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: '2-digit', minute: '2-digit' });
 const hm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
@@ -161,7 +161,7 @@ document.getElementById('tiles').innerHTML = [
     : D.saved_state === 'failed'
       ? tile('Saved in the last 30 days', '–', 'past prices or weather are not available right now', 'wait')
       : tile('Saved in the last 30 days', '<span class="shimmer"></span>', 'being calculated, reload in a minute', 'wait'),
-  next ? tile('Next step', `<span id="c-next">${until(next.start_t)}</span>`, `${next.name} · ${next.when}`)
+  next ? tile('Next step', `<span id="c-next">${until(next.start_t)}</span>`, `${esc(next.name)} · ${next.when}`)
        : tile('Next step', '–', `no ${W.machine} runs planned`),
 ].join('');
 function countUp(id, target) {
@@ -183,7 +183,7 @@ function renderSteps() {
     const running = a.start_t <= nowS;
     return `<label class="step ${a === firstOpen ? 'next' : ''} ${isDone(a) ? 'done' : ''}">
       <input type="checkbox" data-i="${A.indexOf(a)}" ${isDone(a) ? 'checked' : ''}>
-      <div><div class="name">${a.name}${a === firstOpen ? '<span class="badge">Up next</span>' : ''}</div>
+      <div><div class="name">${esc(a.name)}${a === firstOpen ? '<span class="badge">Up next</span>' : ''}</div>
         <div class="meta">${a.when} · ${nf(a.kw, 0)} kW · ${eur(a.cost_eur)} per run${a.usual ? ` · usually ${a.usual.split(' · ')[1]}` : ''}${a.estimate ? ' · estimated price' : ''}</div></div>
       <div class="right">${a.saving_eur > 0.005 ? `<span class="chip">saves ${eur(a.saving_eur)}</span>` : '<span class="chip grey">best as usual</span>'}
         <div class="cd ${running ? 'live' : ''}" data-t="${a.start_t}" data-e="${a.end_t}">${running ? 'running now' : until(a.start_t)}</div></div>
@@ -224,7 +224,17 @@ const ms = R.t.map(t => t * 1000);
 const ribbon = OP.chart(document.getElementById('ribbon'), c => {
   const B = OP.base(c);
   const color = { cheap: c.accent, normal: c.grey, expensive: c.dark };
-  const runs = A.filter(a => a.end_t * 1000 > ms[0]).map(a => [{ name: a.name, xAxis: Math.max(a.start_t * 1000, ms[0]) }, { xAxis: Math.min(a.end_t * 1000, ms[ms.length - 1] + 3600e3) }]);
+  const shown = A.filter(a => a.end_t * 1000 > ms[0]);
+  // runs at the same time: a name takes the first line no overlapping run before it uses, so
+  // every name can be read
+  const line = [];
+  shown.forEach((a, i) => {
+    const taken = new Set(shown.slice(0, i).map((b, j) => (b.start_t < a.end_t && a.start_t < b.end_t ? line[j] : -1)));
+    let n = 0;
+    while (taken.has(n)) n++;
+    line.push(n);
+  });
+  const runs = shown.map((a, i) => [{ name: a.name, xAxis: Math.max(a.start_t * 1000, ms[0]), label: { offset: [0, 14 * line[i]] } }, { xAxis: Math.min(a.end_t * 1000, ms[ms.length - 1] + 3600e3) }]);
   return {
     ...B,
     grid: { left: 46, right: 16, top: 30, bottom: 30 },

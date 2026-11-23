@@ -22,11 +22,15 @@ const OP = (() => {
     // measure the content, not the document: the document is never smaller than the frame
     const root = document.querySelector('.wrap') || document.body;
     const h = Math.ceil(root.getBoundingClientRect().bottom + window.scrollY + 4);
-    if (f.style.height === h + 'px') return;  // unchanged: nothing to do
+    const box = f.closest('[data-testid=stElementContainer]');
+    // Streamlit sizes the box with `flex: 0 0 <first guess>`, which wins over `height` in its
+    // column: without setting it too, a shorter view leaves empty space under itself.
+    const flex = `0 0 ${h}px`;
+    // unchanged: nothing to do (the box is checked too: a rerun can give it the first guess again)
+    if (f.style.height === h + 'px' && (!box || box.style.flex === flex)) return;
     f.style.height = h + 'px';
     f.setAttribute('height', h);
-    const box = f.closest('[data-testid=stElementContainer]');
-    if (box) { box.style.height = h + 'px'; box.style.minHeight = h + 'px'; }
+    if (box) { box.style.height = h + 'px'; box.style.minHeight = h + 'px'; box.style.flex = flex; }
   }
 
   function palette() {
@@ -106,6 +110,10 @@ const OP = (() => {
 
   const nf = (v, d = 1) => (v == null || Number.isNaN(v)) ? '–' : v.toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d });
   const pad = h => String(h).padStart(2, '0');
+  // Text a person typed (the name of a machine or device) for use inside HTML: shown as it
+  // was typed, never run as markup. Every view uses this before a name goes into innerHTML
+  // or a chart tooltip.
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
   function start() {
     syncTheme();
@@ -118,6 +126,6 @@ const OP = (() => {
     fit();
   }
 
-  return { start, onTheme: fn => listeners.push(fn), palette, base, chart, nf, pad, fit,
+  return { start, onTheme: fn => listeners.push(fn), palette, base, chart, nf, pad, esc, fit,
     resetIcon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5v3h3"/></svg>' };
 })();

@@ -14,6 +14,18 @@ def load_fixture():
     return _load
 
 
+@pytest.fixture(autouse=True)
+def fresh_server_counters():
+    """Wrong logins and Ollie's questions are counted for the whole server (offpeak/auth.py,
+    offpeak/assistant/agent.py). Every test starts at zero, so one test's wrong logins never
+    pause the next test's sign-in."""
+    from offpeak import auth
+    from offpeak.assistant import agent
+
+    auth.forget_failures()
+    agent._asked.clear()
+
+
 @pytest.fixture
 def engine():
     """A clean test database. Needs TEST_DATABASE_URL (CI starts a Postgres for this);

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from offpeak.components import clean_name
+
 
 @dataclass
 class Machine:
@@ -45,7 +47,7 @@ def clean_machines(raw) -> list[dict]:
     for m in raw[:MAX_MACHINES]:
         if not isinstance(m, dict):
             continue
-        name = str(m.get("name") or "").strip()[:60] or "Machine"
+        name = clean_name(m.get("name"), "Machine")  # text only, at most 60 characters
         hours = int(_number(m.get("hours"), 1, 12, 2))
         earliest = int(_number(m.get("earliest"), 0, 23, 0))
         latest_end = int(_number(m.get("latest_end"), 1, 24, 24))

@@ -11,8 +11,9 @@ real model.
 """
 
 import json
+import threading
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 
 from offpeak.assistant.tools import SCHEMAS, Context, known_days, run_tool
 
@@ -22,6 +23,26 @@ MAX_QUESTION_CHARS = 500
 HISTORY_TURNS = 6  # earlier messages sent along, so follow-up questions work
 
 SORRY = "Sorry, I couldn't work that out just now. Please try asking in a different way."
+
+# Every answer costs money at the model's provider. A visitor can ask a fixed number of
+# questions per browser session (app/ui/assistant.py), but a new session starts at zero, so
+# the whole app also has a limit per day.
+DAILY_QUESTIONS = 300
+_asked: dict[date, int] = {}  # questions answered per day, all visitors together
+_asked_lock = threading.Lock()
+
+
+def take_daily_question(today: date, limit: int = DAILY_QUESTIONS) -> bool:
+    """Count one question for `today`; False (and nothing counted) once the app has taken
+    `limit` questions that day. Earlier days are forgotten."""
+    with _asked_lock:
+        used = _asked.get(today, 0)
+        if used >= limit:
+            return False
+        _asked.clear()
+        _asked[today] = used + 1
+        return True
+
 
 INSTRUCTIONS = """You are Ollie, the energy assistant in offpeak, an app that tells a small \
 business in Germany when to use electricity. The site is a demo site in Köln.

@@ -274,3 +274,19 @@ def test_without_weather_ollie_says_plans_count_no_own_power():
     assert "unavailable" not in agent.instructions(c, NOW)
     c.hours["weather_missing"] = True
     assert "no own solar or wind power" in agent.instructions(c, NOW)
+
+
+# ── The whole app's daily limit (a new browser session starts its own count at zero) ──
+
+
+def test_the_daily_limit_counts_all_visitors_and_starts_again_the_next_day():
+    monday, tuesday = date(2026, 11, 23), date(2026, 11, 24)
+    assert all(agent.take_daily_question(monday, limit=3) for _ in range(3))
+    assert not agent.take_daily_question(monday, limit=3)  # the fourth is refused
+    assert not agent.take_daily_question(monday, limit=3)  # and stays refused
+    assert agent.take_daily_question(tuesday, limit=3)  # a new day
+    assert agent._asked == {tuesday: 1}  # the day before is forgotten
+
+
+def test_the_daily_limit_can_be_zero():
+    assert not agent.take_daily_question(date(2026, 11, 23), limit=0)

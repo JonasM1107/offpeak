@@ -10,10 +10,12 @@ from sqlalchemy import Engine
 from offpeak import db
 from offpeak.config import FORECAST_DAYS
 from offpeak.jobs.runner import main
-from offpeak.sites import DEMO_SITE
+from offpeak.sites import DEMO_HOME, DEMO_SITE
 from offpeak.weather import open_meteo
 
-SITES = [DEMO_SITE]  # later: read from the sites table
+# Both demo sites: the same place, but each roof is tilted and turned its own way, and the
+# forecast gives the sun on that roof. Later: read from the sites table.
+SITES = [DEMO_SITE, DEMO_HOME]
 
 
 def ingest(engine: Engine) -> int:

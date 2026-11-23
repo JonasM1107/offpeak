@@ -173,6 +173,17 @@ def test_a_token_from_before_roles_opens_the_business_portal():
     assert titles(at) == {"Site view", "Site & components", "Simulation cockpit"}
 
 
+def test_wrong_passwords_pause_the_email_even_from_fresh_browsers():
+    """Five wrong tries, each from a new browser (so the count kept per browser never fills
+    up): the email is paused on the server, and even the right password has to wait."""
+    for _ in range(auth.MAX_ATTEMPTS):
+        at = sign_in(press(login(), "choose_business"), password="a wrong guess")
+        assert "do not match" in at.error[0].value
+    at = sign_in(press(login(), "choose_business"), password="pw")  # the right password
+    assert not at.exception
+    assert "Too many wrong attempts" in at.error[0].value and not inside_the_app(at)
+
+
 # ── each role sees and changes only its own site ────────────────────────────
 
 
@@ -197,6 +208,76 @@ def test_every_page_opens_in_the_home_portal(page):
     assert not at.exception
 
 
+def shown(at: AppTest) -> str:
+    """Everything the page wrote as HTML (card titles, the rows of facts)."""
+    return " ".join(h.proto.body for h in at.get("html"))
+
+
+@pytest.mark.parametrize(
+    "role, own, other", [("home", "Demo home", "Demo site"), ("business", "Demo site", "Demo home")]
+)
+def test_the_account_page_names_the_roles_own_site(role, own, other):
+    at = signed_in(role)
+    at.switch_page("views/account.py").run()
+    assert not at.exception
+    assert f"{own} · Köln" in shown(at) and other not in shown(at)
+
+
+def test_the_home_settings_name_the_roofs_real_direction():
+    """The demo home's roof faces 145 degrees: south-east, not the business site's south."""
+    at = signed_in("home")
+    at.switch_page("views/settings.py").run()
+    assert "facing 145° (south-east)" in shown(at)
+    assert "devices are changed under Home &amp; devices" in shown(at)
+
+
+@pytest.mark.parametrize(
+    "role, title, view",
+    [("home", "Home layout", "home view"), ("business", "Site layout", "site view")],
+)
+def test_the_designer_speaks_the_roles_words(role, title, view):
+    at = signed_in(role)
+    at.switch_page("views/components.py").run()
+    assert not at.exception
+    assert title in shown(at) and f"shows up in the {view}." in shown(at)
+    # both buttons of the designer are still there, side by side
+    assert any(b.label == "Clear field" for b in at.button)
+    assert any(b.key == "designer_reset" for b in at.button)
+
+
+def test_each_role_gets_the_weather_for_its_own_roof(monkeypatch):
+    """The sun on the panels depends on their tilt and direction: a homeowner's pages ask for
+    the demo home's roof (south-east, 26 degrees), a business's for its own (south, 30)."""
+    import streamlit as st
+
+    from offpeak.sites import DEMO_HOME, DEMO_SITE
+    from offpeak.weather import open_meteo
+
+    st.cache_data.clear()  # the app keeps a forecast for ten minutes: ask afresh here
+    answer = open_meteo.fetch_weather(None)  # the saved forecast of tests/test_app.py
+    asked = []
+
+    def fetch(site, days=7, timeout=None):
+        asked.append(site)
+        return answer
+
+    monkeypatch.setattr(open_meteo, "fetch_weather", fetch)
+    for role in ("home", "business"):
+        at = signed_in(role)
+        at.switch_page("views/weather.py").run()
+        assert not at.exception
+    assert DEMO_HOME in asked and DEMO_SITE in asked
+    home = next(s for s in asked if s.profile == "home")
+    assert (home.tilt_deg, home.azimuth_deg) == (26.0, 145.0)
+
+
+def test_the_weather_job_stores_a_forecast_for_both_sites():
+    from offpeak.jobs import ingest_weather
+    from offpeak.sites import DEMO_HOME, DEMO_SITE
+
+    assert ingest_weather.SITES == [DEMO_SITE, DEMO_HOME]
+
+
 def test_the_home_portal_offers_household_devices_only():
     at = signed_in("home")
     at.switch_page("views/components.py").run()
@@ -219,6 +300,22 @@ def test_a_home_device_is_saved_for_the_home_only(fake_db):
     assert saved and {r["profile"] for r in saved} == {"home"}
     assert {r["site_id"] for r in saved} == {2}  # the demo home, not the business site
     assert "Dishwasher" in {r["name"] for r in saved}
+
+
+def test_a_device_name_is_saved_as_text_only_and_not_endless(fake_db):
+    """Checked where the device is saved (app/data.py), whatever the form sent: a script
+    typed as a name is stored without its tags, and a name is never longer than allowed."""
+    from offpeak.components import MAX_NAME
+
+    at = signed_in("home")
+    at.switch_page("views/components.py").run()
+    at.selectbox[0].select("Household appliance").run()
+    at.text_input[0].input('<img src=x onerror="steal()">Dishwasher' + "y" * 300)
+    next(b for b in at.button if b.label == "Add to home").click()
+    at.run()
+    assert not at.exception
+    name = next(r["name"] for r in fake_db["components"] if "Dishwasher" in r["name"])
+    assert "<" not in name and ">" not in name and len(name) <= MAX_NAME
 
 
 def test_saving_refuses_a_device_of_the_other_role(monkeypatch):

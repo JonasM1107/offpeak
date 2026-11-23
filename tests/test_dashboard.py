@@ -55,3 +55,30 @@ def test_payload_adds_up_the_week_and_the_flex_value():
     assert p["month_saving_eur"] == pytest.approx(8 * 30 / 7, abs=0.01)
     assert len(p["ribbon"]["ct"]) == 36 and p["ribbon"]["level"][4] == "cheap"  # 13:00
     assert p["shift_ct_per_kwh"] > 0 and p["saved"] is None
+
+
+# ── One judgement for every page ─────────────────────────────────────────────
+
+SAME = {"cheap": "cheap", "normal": "", "expensive": "dear"}  # dashboard word -> site view class
+
+
+@pytest.mark.parametrize("now_index", [0, 9, 13, 18, 20, 23, 30])
+def test_the_site_view_judges_an_hour_like_the_dashboard(now_index):
+    """The dashboard's "right now" and the site view's day use the same two prices
+    (limits_now), so an hour is never "average" on one page and "expensive" on the other."""
+    from offpeak.components import price_classes
+
+    hours = hours_with_cheap_afternoon()
+    limits = dashboard.limits_now(hours, now_index)
+    classes = price_classes(hours["buy"], limits)  # as app/data.py: today_plan does
+    assert classes[now_index] == SAME[dashboard.status_now(hours, now_index)["level"]]
+    band = dashboard.ribbon(hours, now_index)
+    for offset, level in enumerate(band["level"]):
+        assert classes[now_index + offset] == SAME[level]
+
+
+def test_the_limits_look_only_at_the_coming_hours():
+    hours = hours_with_cheap_afternoon()  # 10 ct at 13-16, 50 ct at 18-21, else 30 ct
+    assert dashboard.limits_now(hours, 0) == pytest.approx((10 + 40 / 3, 50 - 40 / 3))
+    # after the dear evening only 30 ct hours are left: nothing stands out any more
+    assert dashboard.limits_now(hours, 21) == (float("-inf"), float("inf"))

@@ -11,7 +11,7 @@ always show the same site. Where each part stands is kept with the part in the d
 import data
 import streamlit as st
 
-from offpeak import components, demo_site, layout
+from offpeak import components, demo_site, layout, roles
 from offpeak.config import MARKET_TZ
 from offpeak.markets.energy_charts import PriceSourceError
 from offpeak.sites import DEMO_CITY
@@ -116,10 +116,11 @@ def show(comps) -> None:
     empty = bool(st.session_state.get(EMPTY))
     site_comps = [] if empty else on_the_grid(comps)
     with st.container(border=True, key="card_designer"):
+        w = roles.words(data.role())  # "Site" and "site view", or "Home" and "home view"
         card_title(
-            "Site layout",
+            f"{w['Site']} layout",
             "Drag parts from the list onto the squares, move them, tap one to set its size "
-            "and hours. Every change is saved at once and shows up in the site view.",
+            f"and hours. Every change is saved at once and shows up in the {w['view'].lower()}.",
         )
         if empty:
             st.info(
@@ -131,23 +132,25 @@ def show(comps) -> None:
                 del st.session_state[EMPTY]
                 st.rerun()
         else:
-            clear, reset, _ = st.columns([1, 1, 4])
-            if clear.button(
-                "Clear field",
-                icon=":material/crop_free:",
-                help="Start from an empty site and drag everything on again",
-            ):
-                st.session_state[EMPTY] = True
-                st.session_state[PICK] = None
-                st.rerun()
-            # the demo site again, without the database's SQL editor; asked once more first,
-            # because the own layout is gone afterwards
-            with reset.popover("Reset to demo", icon=":material/restart_alt:"):
-                st.write("Your own layout is replaced by the demo site. This cannot be undone.")
-                if st.button("Yes, reset", type="primary", key="designer_reset"):
-                    data.reset_to_demo()
+            # side by side, each as wide as its label: in fixed columns "Reset to demo" was
+            # cut off on a laptop screen
+            with st.container(horizontal=True):
+                if st.button(
+                    "Clear field",
+                    icon=":material/crop_free:",
+                    help="Start from an empty site and drag everything on again",
+                ):
+                    st.session_state[EMPTY] = True
                     st.session_state[PICK] = None
                     st.rerun()
+                # the demo site again, without the database's SQL editor; asked once more
+                # first, because the own layout is gone afterwards
+                with st.popover("Reset to demo", icon=":material/restart_alt:"):
+                    st.write("Your own layout is replaced by the demo site. This cannot be undone.")
+                    if st.button("Yes, reset", type="primary", key="designer_reset"):
+                        data.reset_to_demo()
+                        st.session_state[PICK] = None
+                        st.rerun()
         if MESSAGE in st.session_state:  # what the last drag or drop could not do
             st.warning(st.session_state.pop(MESSAGE), icon=":material/info:")
         # The designer reports one action at a time; offpeak/layout.py decides if it is

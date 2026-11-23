@@ -8,9 +8,15 @@ font = "sans-serif"
 
 [client]
 toolbarMode = "minimal"
+# If a page ever fails, the visitor reads that something went wrong, never the code, its file
+# paths or the values inside it. The full error is in the server log.
+showErrorDetails = "none"
 
 [server]
 headless = true
+# The largest file a visitor can send, in MB (Streamlit's default is 200). Three years of a
+# Fronius history are 17 MB; a far larger file would only fill the server's memory.
+maxUploadSize = 30
 # Serve app/static/ at /app/static/: the screenshots on the landing page.
 enableStaticServing = true
 # Compress what the server sends to the browser. Off by default in Streamlit; our pages send

@@ -46,4 +46,5 @@ except Exception as err:  # prices or weather archive unavailable
 if not days:
     st.info("Past prices or weather could not be loaded right now. We try again in a few minutes.")
     st.stop()
-web.show("savings", {"days": days, "summary": savings.summary(days)}, height=1500)
+payload = {"days": days, "summary": savings.summary(days), "words": roles.words(data.role())}
+web.show("savings", payload, height=1500)
