@@ -1,7 +1,7 @@
 -- The job clock: Supabase starts our GitHub workflows on time.
 --
 -- Why: GitHub starts this repository's scheduled workflows 6 to 8 hours late and drops most of
--- them (measured 19 to 23 Nov 2026). That is GitHub's scheduler, so no "cron:" line fixes it.
+-- them (measured 19 to 22 Nov 2026). That is GitHub's scheduler, so no "cron:" line fixes it.
 -- The database is always on, so it keeps the time instead: pg_cron calls a small function at
 -- the planned times, and the function asks GitHub to start the workflow. That request is the
 -- same as pressing "Run workflow" on GitHub (the workflow_dispatch trigger).

@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-SQL = (ROOT / "db" / "supabase" / "job_clock.sql").read_text()
+SQL = (ROOT / "db" / "supabase" / "job_clock.sql").read_text(encoding="utf-8")
 
 # select cron.schedule('name', 'times', $$select public.start_workflow('file.yml')$$);
 CLOCK_ENTRY = re.compile(
@@ -31,7 +31,10 @@ def clock_times() -> dict[str, set[str]]:
 
 def workflow_times() -> dict[str, set[str]]:
     """Workflow file -> its own "cron:" lines, for every workflow that has a schedule."""
-    times = {p.name: set(CRON_LINE.findall(p.read_text())) for p in WORKFLOWS.glob("*.yml")}
+    times = {
+        p.name: set(CRON_LINE.findall(p.read_text(encoding="utf-8")))
+        for p in WORKFLOWS.glob("*.yml")
+    }
     return {file: crons for file, crons in times.items() if crons}
 
 
@@ -59,7 +62,7 @@ def test_every_entry_is_read_and_has_its_own_name():
 def test_every_started_workflow_has_a_run_button():
     # The clock uses GitHub's "Run workflow" request, which needs the workflow_dispatch trigger.
     for file in clock_times():
-        text = (WORKFLOWS / file).read_text()
+        text = (WORKFLOWS / file).read_text(encoding="utf-8")
         assert re.search(r"^  workflow_dispatch:", text, re.MULTILINE), file
 
 

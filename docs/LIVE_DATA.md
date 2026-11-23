@@ -128,7 +128,7 @@ select status_code, content, created from net._http_response order by created de
 
 `gh run list --workflow prices.yml` then shows runs with the event `workflow_dispatch` at the planned times. A 401 means the token is wrong or has expired; a 403 or 404 means it lacks the permission or the repository.
 
-**When the token expires** the clock stops without a message, and only GitHub's late schedule is left. Create a new token (step 1) and replace the stored one:
+**When the token expires** the clock stops without a message, and only GitHub's late schedule is left. You notice it in `gh run list`: the runs have the event `schedule` again and come hours late. The same happens if GitHub switches the workflows off, which it does after 60 days without activity in the repository (press Enable on the workflow's page). Create a new token (step 1) and replace the stored one:
 
 ```sql
 select vault.update_secret((select id from vault.secrets where name = 'github_actions_token'), 'PASTE_THE_NEW_TOKEN_HERE');
@@ -141,6 +141,8 @@ select cron.unschedule(jobname) from cron.job where jobname like 'offpeak-%';
 ```
 
 To remove it completely, also delete the token on GitHub and the secret in Supabase (`delete from vault.secrets where name = 'github_actions_token';`).
+
+**Storage.** With the clock, Weather really runs 8 times a day (before: about 3), and each run is kept. That is about 1 MB a day in `weather_fc`, so about 350 MB a year, and a free Supabase database holds 500 MB. Old forecast runs have to be deleted at some point; this is not built yet.
 
 **Changing a time.** Change the `cron:` line in the workflow *and* the line in `job_clock.sql`, then run the SQL file again. `tests/test_job_clock.py` fails if the two differ.
 
