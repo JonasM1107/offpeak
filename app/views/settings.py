@@ -1,11 +1,13 @@
-"""Settings: the signed-in role's site (the demo site or the demo home). Data sources are
-credited on the dashboard and the Prices page."""
+"""Settings: connecting the account's own consumption data (ui/connect.py), then the signed-in
+role's site (the demo site or the demo home). Data sources are credited on the dashboard and
+the Prices page."""
 
 from html import escape
 
 import data
 import streamlit as st
 from ui.components import card_title, header
+from ui.connect import connect_card
 
 from offpeak import components, roles
 from offpeak.sites import DEMO_CITY
@@ -13,6 +15,7 @@ from offpeak.sites import DEMO_CITY
 role, here = data.role(), data.site()
 w = roles.words(role)
 header("Setup", "Settings", live=True)
+connect_card(role)  # first, so it is the first thing seen here
 left, right = st.columns(2, gap="medium")
 with left, st.container(border=True, key="card_site"):
     card_title(w["Site"], "Read-only for now; editing sites and loads comes next")

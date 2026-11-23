@@ -103,6 +103,29 @@ CSS = f"""
 .op-tile2.bad .pill {{ background: #FDE7E7; color: #C62828; }}
 .op-tile2 .n {{ color: {MUTED}; font-size: 0.76rem; }}
 
+/* "Connect your consumption data" (app/ui/connect.py): a card that stands out, with one tile
+   per way of connecting; planned ones are dashed, so nobody takes them for working ones */
+/* doubled class: wins over the general card rule further down ([class*=st-key-card]) */
+.st-key-card_connect.st-key-card_connect {{ border: 1.5px solid {ORANGE} !important;
+    background: linear-gradient(160deg, #FFF4EC, #FFFFFF 45%) !important;
+    box-shadow: 0 14px 40px rgba(255, 95, 0, 0.10); }}
+.op-conns {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin: 6px 0 4px; }}
+.op-conn {{ border: 1px solid {LINE}; border-radius: 14px; padding: 12px 14px; background: #FFFFFF;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }}
+.op-conn:hover {{ transform: translateY(-2px); border-color: #FFC4A0; box-shadow: 0 10px 24px rgba(255, 95, 0, 0.10); }}
+.op-conn .top {{ display: flex; justify-content: space-between; align-items: center; gap: 8px; }}
+.op-conn .t {{ font-weight: 600; font-size: 0.92rem; color: {INK}; }}
+.op-conn .k {{ color: {MUTED}; font-size: 0.76rem; margin: 2px 0 6px; }}
+.op-conn .d {{ color: {MUTED}; font-size: 0.78rem; line-height: 1.45; }}
+.op-conn .pill {{ font-size: 0.7rem; font-weight: 600; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }}
+.op-conn.on .pill {{ background: #E3F6E8; color: #1E8E3E; }}
+.op-conn.ok .pill {{ background: {ORANGE_SOFT}; color: #B84300; }}
+.op-conn.plan {{ border-style: dashed; background: #FCFBF9; }}
+.op-conn.plan .pill {{ background: #F1EFEB; color: {MUTED}; }}
+.st-key-card_connect [data-testid=stFileUploaderDropzone] {{ border: 2px dashed #FFC4A0;
+    background: #FFF8F3; border-radius: 14px; padding: 1.4rem; transition: border-color 0.2s, background 0.2s; }}
+.st-key-card_connect [data-testid=stFileUploaderDropzone]:hover {{ border-color: {ORANGE}; background: #FFF1E7; }}
+
 /* login screen */
 .op-login-head {{ text-align: center; margin: 6px 0 10px; }}
 .op-login-logo {{ font-size: 1.9rem; font-weight: 700; letter-spacing: -0.03em; color: {ORANGE}; }}

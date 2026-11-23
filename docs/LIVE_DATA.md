@@ -102,6 +102,22 @@ Use Supabase's **Session pooler** address (Connect button, then "Session pooler"
 
 `uv run pytest` runs the database tests only if `TEST_DATABASE_URL` points to an empty Postgres; otherwise they are skipped. CI starts a throwaway Postgres for them. Never point `TEST_DATABASE_URL` at Supabase: the tests drop and recreate the tables.
 
+## Consumption data of an account
+
+Settings (both roles) and My data (Homeowner) have the card "Connect your consumption data"
+(`app/ui/connect.py`). Today data arrives as a file, dropped on that card:
+
+- **Fronius Solar.web history** (Homeowner): read by `offpeak/load/fronius.py`, kept for this
+  home after a click. To get the newest days, run `docs/fronius_sync.js` in the browser console
+  on the system's Solar.web chart page (instructions at the top of the file). The script used to
+  be shown in the app; customers should not need code, so it lives here for the team.
+- **Any consumption export** (smart meter app, ERP): a CSV with a time and a kWh or kW column,
+  read by `offpeak/load/meter.py`. Checked and summarised for the tab; not stored yet.
+
+The direct connections on the card (smart meter, SAP, energy management system) are planned and
+marked so (`offpeak/load/connectors.py`). When one is built, it writes the same 15-minute slots
+the file import fills, and a daily job keeps them up to date.
+
 ## Attribution (must be shown in the app)
 
 - Weather data by Open-Meteo.com (link to open-meteo.com). Free for non-commercial use, under 10,000 calls a day.
